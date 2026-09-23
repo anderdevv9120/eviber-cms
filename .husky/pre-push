@@ -1,0 +1,3 @@
+# Lưới cuối trước khi mã rời máy — bắt cả commit tạo bằng --no-verify/rebase.
+# git cấp danh sách ref qua stdin; scanner quét đúng phạm vi sắp push.
+bash scripts/scan-malware.sh --push || exit 1

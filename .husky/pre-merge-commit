@@ -1,0 +1,3 @@
+# Chặn EVIL-MERGE: pre-commit KHÔNG chạy khi merge, nên phải quét ở đây.
+# Đây chính là lỗ hổng worm đã dùng để lọt vào repo gốc (Chapter-Js/Ecommerce-FE-CMS 4ef24e8).
+bash scripts/scan-malware.sh --merge || exit 1

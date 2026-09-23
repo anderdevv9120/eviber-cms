@@ -1,0 +1,5 @@
+# Malware guard — chặn commit file config/source bị cấy mã độc (hard block).
+bash scripts/scan-malware.sh --staged || exit 1
+
+# lint-staged chỉ chạy khi đã cài deps — commit đầu (chưa npm install) không bị chặn oan
+[ -d node_modules ] && npx lint-staged
