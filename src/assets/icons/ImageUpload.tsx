@@ -1,4 +1,4 @@
-import React, { SVGProps } from "react";
+import { SVGProps } from "react";
 
 const ImageUpload = (props: SVGProps<SVGSVGElement>) => (
   <svg width={40} height={40} fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>

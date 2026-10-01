@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import type { LexicalEditor } from "lexical";
 
 import { editorStateFromSerializedDocument, exportFile, importFile } from "@lexical/file";

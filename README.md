@@ -1,181 +1,74 @@
-# Ecommerce CMS Frontend
+# cms-frontend — Ecommerce CMS
 
-A content management system for e-commerce platforms built with React, TypeScript, and Vite.
+Giao diện quản trị (CMS) cho hệ ecommerce, gọi **admin API** (`backend/` entrypoint admin, `:8001/admin/v1`).
 
-## Tech Stack
+## Tech stack
 
-- **Frontend Framework:** React 18.3.1
-- **Language:** TypeScript 5.6.3
-- **Build Tool:** Vite 5.4.10
-- **CSS Framework:** Tailwind CSS 3.4.14
-- **UI Library:** Ant Design 5.21.6
-- **State Management:** Zustand 5.0.2
-- **Routing:** React Router DOM 6.28.0
-- **HTTP Client:** Axios 1.7.7
-- **Rich Text Editor:** Lexical 0.22.0
-- **Code Quality:** ESLint, Prettier, Husky
+- React 19 · TypeScript 5.9 · Vite 8 (`@vitejs/plugin-react` 6)
+- Ant Design 6 (+ `@ant-design/icons` 6, `@ant-design/cssinjs` StyleProvider layer)
+- Tailwind CSS 4 (`@tailwindcss/vite`, CSS-first — không có `tailwind.config`)
+- react-router 7 (declarative mode) · Zustand 5 (+ immer) · Axios
+- Lexical 0.22 (pin) — RichEditor trong `src/components/RichEditor/`
+- ESLint 10 (flat, typescript-eslint, react-hooks 7, react-refresh) · Prettier · Husky + lint-staged · Vitest + Testing Library
 
-## Prerequisites
+## Yêu cầu
 
-- Node.js >= 16.0.0
-- npm or yarn
+- Node ≥ 22.12 (máy dev: 24)
+- Backend admin chạy tại `http://localhost:8001` với `ADMIN_WEB_URL` chứa origin CMS (`http://localhost:3031`)
 
-## Getting Started
-
-### 1. Clone the repository
+## Bắt đầu
 
 ```bash
-git clone <repository-url>
-cd Ecommerce-FE-CMS
+npm install            # ignore-scripts global vẫn OK: không có native module cần build
+# dev không cần file env: VITE_ADMIN_API_URL mặc định http://localhost:8001/admin/v1 (xem .env.example để đổi)
+npm run dev            # http://localhost:3031
 ```
 
-### 2. Install dependencies
+Tài khoản demo (seed của backend): `admin@demo.local` / `Demo@123`.
 
-```bash
-npm install
-# or
-yarn install
-```
+## Scripts
 
-### 3. Environment configuration
+| Lệnh                                | Việc                                     |
+| ----------------------------------- | ---------------------------------------- |
+| `npm run dev`                       | dev server :3031                         |
+| `npm run build`                     | `tsc -b` + `vite build` → `dist/`        |
+| `npm run preview`                   | xem thử bản build                        |
+| `npm run typecheck`                 | `tsc -b`                                 |
+| `npm run lint` / `lint:fix`         | ESLint `src` (`--max-warnings 0`)        |
+| `npm run prettier` / `prettier:fix` | Prettier `src`                           |
+| `npm test` / `test:watch`           | Vitest (`src/**/*.test.{ts,tsx}`, jsdom) |
 
-Create a `.env` file in the root directory and add the following environment variables:
+Pre-commit (husky): `scripts/scan-malware.sh --staged` (chặn file config bị cấy mã) → lint-staged (prettier + eslint file staged). Pre-push / pre-merge-commit cũng quét malware.
 
-```env
-VITE_API_URL=http://localhost:8000/api
-```
-
-### 4. Run the development server
-
-```bash
-npm run dev
-# or
-yarn dev
-```
-
-The application will automatically open at `http://localhost:3000`
-
-## Available Scripts
-
-- `npm run dev` - Start the development server
-- `npm run build` - Build the app for production
-- `npm run preview` - Preview the production build
-- `npm run lint` - Run ESLint to check for errors
-- `npm run lint:fix` - Auto-fix ESLint errors
-- `npm run prettier` - Check code formatting
-- `npm run prettier:fix` - Auto-format code
-
-## Project Structure
+## Cấu trúc
 
 ```
 src/
-├── @types/          # TypeScript type definitions
-├── assets/          # Static assets (fonts, icons)
-├── components/      # Reusable components
-│   ├── RichEditor/  # Rich text editor component
-│   ├── atoms/       # Atomic components
-│   └── icons/       # Icon components
-├── constants/       # Constants and configs
-├── guards/          # Route guards
-├── hooks/           # Custom React hooks
-├── layouts/         # Layout components
-│   ├── AuthLayout   # Layout for authentication pages
-│   └── MainLayout/  # Main app layout with sidebar and header
-├── pages/           # Page components
-│   ├── Dashboard/   # Dashboard page
-│   └── auth/        # Authentication pages (Login, Forgot Password)
-├── router.tsx       # Route configuration
-├── services/        # API services
-├── store/           # Zustand store
-└── utils/           # Utility functions
+├── @types/          # type dùng chung
+├── assets/          # fonts, icon component
+├── components/
+│   ├── RichEditor/  # Lexical playground copy (pin 0.22) — chỉ sửa để build, không refactor
+│   ├── atoms/       # Portal, SvgIcon
+│   └── icons/
+├── constants/       # paths (PATH.*), validate (message + regex), token keys
+├── guards/          # AuthenticatedGuard / PublicGuard (theo hasSession(): còn cookie access hoặc refresh)
+├── hooks/
+├── layouts/         # AuthLayout, MainLayout (Sidebar + Header), NotFound
+├── pages/           # auth/Login, auth/ForgetPassword, Dashboard
+├── services/        # gọi API theo domain (auth.ts)
+├── store/           # Zustand: useAppStore (profile + roles, không persist)
+├── utils/           # request.ts (axios: Bearer + refresh single-flight), session (token + phiên), cookies, notification, getErrorMessage
+├── router.tsx       # useRoutes declarative
+├── main.tsx         # StyleProvider layer (antd × Tailwind 4)
+└── index.css        # @layer order + @import "tailwindcss"
 ```
 
-## Key Features
+## Luồng auth
 
-- **Authentication**: JWT-based login and session management
-- **Dashboard**: System overview page
-- **Rich Text Editor**: Content editing with Lexical editor
-- **Theme Support**: Light/dark theme switching
-- **Responsive Design**: Mobile-first responsive interface
-- **Route Guards**: Protected routes with authentication
+Login `POST /auth/login` (chỉ tài khoản role ADMIN) → cookie `cmsAccessToken` + `cmsRefreshToken` (js-cookie, hạn theo `*ExpiresIn` mili-giây BE trả, key riêng để không đụng cookie storefront trên cùng localhost) → mọi request gắn Bearer → 401 thì `utils/request.ts` refresh 1 lần (single-flight, request khác chờ) → refresh bị 401/403 thì dọn phiên, `MainLayout` thấy hết phiên tự về login; refresh lỗi tạm thời (mạng, 5xx) thì báo lỗi và giữ phiên. Logout gọi `POST /auth/logout` với refresh token trong body (BE thu hồi đúng phiên đó, không cần access token) rồi xóa cookie. Profile `GET /auth/profile` trả kèm `roles`, không lưu lại giữa các lần tải trang.
 
-## Development Guidelines
+## Biến môi trường
 
-### Code Style
-
-- Use TypeScript for type safety
-- Follow configured ESLint and Prettier rules
-- Use functional components with React Hooks
-- Component names should use PascalCase
-- File names should match component names
-
-### Git Workflow
-
-- Create new branches from `develop` for each feature/fix
-- Branch naming: `feat/feature-name` or `fix/bug-name`  
-- Write clear, descriptive commit messages
-- Create Pull Requests to the `develop` branch
-
-### API Integration
-
-- Use the configured axios instance in `src/utils/request.ts`
-- Automatic refresh token handling when access token expires
-- Centralized error handling
-
-### Path Aliases
-
-The project uses path aliases for cleaner imports:
-
-- `@/` - src directory
-- `components` - src/components
-- `constants` - src/constants
-- `hooks` - src/hooks
-- `layouts` - src/layouts
-- `assets` - src/assets
-- `utils` - src/utils
-- `store` - src/store
-
-## Building for Production
-
-```bash
-npm run build
-```
-
-The build output will be generated in the `dist/` directory. You can deploy this directory to any static hosting service (Vercel, Netlify, AWS S3, etc.)
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_API_URL` | Backend API base URL | Required |
-
-## Troubleshooting
-
-### Dependencies installation issues
-- Delete `node_modules` and `package-lock.json`
-- Run `npm install` again
-
-### CORS errors when calling API
-- Check `VITE_API_URL` in `.env` file
-- Ensure backend has configured CORS for frontend domain
-
-### TypeScript errors
-- Run `npm run lint` to see detailed errors
-- Check TypeScript version compatibility
-
-### Build failures
-- Clear build cache: `rm -rf dist`
-- Check for TypeScript errors: `npm run build`
-- Verify all environment variables are set
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-
-[MIT License](LICENSE)
+| Biến                 | Mô tả                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `VITE_ADMIN_API_URL` | Base URL admin API. Dev mặc định `http://localhost:8001/admin/v1`; build production bắt buộc khai báo |

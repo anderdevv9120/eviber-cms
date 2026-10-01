@@ -8,37 +8,37 @@ interface NotificationOptions {
 
 const defaultOptions: NotificationOptions = {
   placement: "topRight",
-  duration: 2.5,
+  duration: 2.5
 };
 
 export const successNotification = (message: string, options?: NotificationOptions): void => {
   notification.success({
-    message,
+    title: message,
     ...defaultOptions,
-    ...options,
+    ...options
   });
 };
 
 export const errorNotification = (message: string, options?: NotificationOptions): void => {
   notification.error({
-    message,
+    title: message,
     ...defaultOptions,
-    ...options,
+    ...options
   });
 };
 
 export const infoNotification = (message: string, options?: NotificationOptions): void => {
   notification.info({
-    message,
+    title: message,
     ...defaultOptions,
-    ...options,
+    ...options
   });
 };
 
 export const warningNotification = (message: string, options?: NotificationOptions): void => {
   notification.warning({
-    message,
+    title: message,
     ...defaultOptions,
-    ...options,
+    ...options
   });
 };

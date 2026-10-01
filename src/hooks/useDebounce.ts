@@ -1,8 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-function useDebounce(callback: () => any, delay?: number) {
+function useDebounce(callback: () => void, delay = 500) {
+  const callbackRef = useRef(callback);
   useEffect(() => {
-    const timer = setTimeout(() => callback(), delay || 500);
+    callbackRef.current = callback;
+  });
+
+  useEffect(() => {
+    const timer = setTimeout(() => callbackRef.current(), delay);
 
     return () => {
       clearTimeout(timer);

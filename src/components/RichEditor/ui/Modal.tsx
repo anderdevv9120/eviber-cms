@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import { isDOMNode } from "@/components/RichEditor/shared/isDOMNode";
 import "./Modal.css";
 

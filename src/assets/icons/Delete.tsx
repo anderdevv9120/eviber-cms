@@ -6,7 +6,13 @@ type DeleteIconType = {
   handleDelete(): void;
 };
 
-const DeleteIcon = ({ color, width, height, className, handleDelete }: DeleteIconType) => (
+const DeleteIcon = ({
+  color = "#A3A3A3",
+  width = 18,
+  height = 20,
+  className = "",
+  handleDelete
+}: DeleteIconType) => (
   <svg
     width={width}
     height={height}
@@ -24,10 +30,4 @@ const DeleteIcon = ({ color, width, height, className, handleDelete }: DeleteIco
   </svg>
 );
 
-DeleteIcon.defaultProps = {
-  color: "#A3A3A3",
-  className: "",
-  width: 18,
-  height: 20
-};
 export default DeleteIcon;

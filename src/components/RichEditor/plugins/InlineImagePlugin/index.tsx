@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import type { JSX } from "react";
 import type { Position } from "../../nodes/InlineImageNode/InlineImageNode";
 
 import "../../nodes/InlineImageNode/InlineImageNode.css";

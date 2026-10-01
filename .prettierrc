@@ -7,6 +7,5 @@
   "printWidth": 100,
   "useTabs": false,
   "singleQuote": false,
-  "jsxSingleQuote": true,
-  "comma-dangle": ["error", "never"]
+  "jsxSingleQuote": true
 }

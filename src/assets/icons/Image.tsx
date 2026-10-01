@@ -2,7 +2,7 @@ type ImageType = {
   handleClick?: () => void;
 };
 
-const Image = ({ handleClick }: ImageType) => (
+const Image = ({ handleClick = () => {} }: ImageType) => (
   <svg
     width='25'
     height='24'
@@ -19,9 +19,5 @@ const Image = ({ handleClick }: ImageType) => (
     />
   </svg>
 );
-
-Image.defaultProps = {
-  handleClick: () => {}
-};
 
 export default Image;

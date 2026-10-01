@@ -1,17 +1,14 @@
 import axiosRequest from "@/utils/request";
+import type { Profile } from "@/store/useAppStore";
+import type { TokenPair } from "@/utils/session";
 
 export interface LoginRequest {
   email: string;
   password: string;
 }
 
-export interface LoginResponse {
-  data: {
-    accessToken: string;
-    refreshToken: string;
-    accessExpiresIn: number;
-    refreshExpiresIn: number;
-  };
+export interface ApiResponse<T> {
+  data: T;
   message: string;
 }
 
@@ -19,41 +16,14 @@ export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-export interface RefreshTokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  refreshExpiresIn: number;
-}
-
-export interface ForgotPasswordRequest {
-  email: string;
-}
-
-export interface ResetPasswordRequest {
-  token: string;
-  newPassword: string;
-}
-
-export const loginAPI = async (data: LoginRequest): Promise<LoginResponse> => {
-  return axiosRequest.post("/auth/login", data);
+export const loginAPI = (data: LoginRequest): Promise<ApiResponse<TokenPair>> => {
+  return axiosRequest.post("/auth/login", data, { toastError: false });
 };
 
-export const refreshTokenAPI = async (data: RefreshTokenRequest): Promise<RefreshTokenResponse> => {
-  return axiosRequest.post("/auth/refresh-token", data);
+export const logoutAPI = (data: RefreshTokenRequest): Promise<ApiResponse<{ message: string }>> => {
+  return axiosRequest.post("/auth/logout", data, { toastError: false });
 };
 
-export const forgotPasswordAPI = async (
-  data: ForgotPasswordRequest
-): Promise<{ message: string }> => {
-  return axiosRequest.post("/auth/forgot-password", data);
-};
-
-export const resetPasswordAPI = async (
-  data: ResetPasswordRequest
-): Promise<{ message: string }> => {
-  return axiosRequest.post("/auth/reset-password", data);
-};
-
-export const getProfileAPI = async () => {
+export const getProfileAPI = (): Promise<ApiResponse<Profile>> => {
   return axiosRequest.get("/auth/profile");
 };

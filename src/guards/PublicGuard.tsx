@@ -1,12 +1,11 @@
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { PATH } from "../constants/paths";
-import { getCookies } from "../utils/cookies";
-import { ACCESS_TOKEN_KEY } from "../constants";
+import { hasSession } from "../utils/session";
 
 const PublicGuard = () => {
   const location = useLocation();
 
-  return !getCookies(ACCESS_TOKEN_KEY) ? (
+  return !hasSession() ? (
     <Outlet />
   ) : (
     <Navigate to={PATH.HOME} replace state={{ from: location }} />

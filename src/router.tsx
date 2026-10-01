@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, useRoutes } from "react-router-dom";
+import { Navigate, useRoutes } from "react-router";
 import { PATH, PATH_AUTH } from "./constants/paths";
 import PublicGuard from "./guards/PublicGuard";
 import AuthenticatedGuard from "./guards/AuthenticatedGuard";

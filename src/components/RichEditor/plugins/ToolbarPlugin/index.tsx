@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import { IS_APPLE } from "@/components/RichEditor/shared/environment";
 import { $isCodeNode, CODE_LANGUAGE_MAP } from "@lexical/code";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
@@ -68,10 +69,7 @@ import {
   formatQuote
 } from "./utils";
 
-const rootTypeToRootName = {
-  root: "Root",
-  table: "Table"
-};
+type RootType = "root" | "table";
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Arial", "Arial"],
@@ -149,7 +147,7 @@ function BlockFormatDropDown({
   disabled = false
 }: {
   blockType: keyof typeof blockTypeToBlockName;
-  rootType: keyof typeof rootTypeToRootName;
+  rootType: RootType;
   editor: LexicalEditor;
   disabled?: boolean;
 }): JSX.Element {

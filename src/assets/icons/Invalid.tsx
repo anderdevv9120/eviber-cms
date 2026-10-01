@@ -1,11 +1,9 @@
-import React from "react";
-
 type InvalidIconType = {
   width?: number;
   height?: number;
 };
 
-const InvalidIcon = ({ width, height }: InvalidIconType) => (
+const InvalidIcon = ({ width = 20, height = 20 }: InvalidIconType) => (
   <svg width={width} height={height} fill='none' xmlns='http://www.w3.org/2000/svg'>
     <path
       fillRule='evenodd'
@@ -16,8 +14,4 @@ const InvalidIcon = ({ width, height }: InvalidIconType) => (
   </svg>
 );
 
-InvalidIcon.defaultProps = {
-  width: 20,
-  height: 20
-};
 export default InvalidIcon;
