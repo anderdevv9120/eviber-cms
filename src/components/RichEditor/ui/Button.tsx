@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import "./Button.css";
 
 import { ReactNode } from "react";

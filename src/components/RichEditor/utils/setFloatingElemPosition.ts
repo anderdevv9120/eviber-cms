@@ -14,13 +14,13 @@ export function setFloatingElemPosition(
   anchorElem: HTMLElement,
   isLink: boolean = false,
   verticalGap: number = VERTICAL_GAP,
-  horizontalOffset: number = HORIZONTAL_OFFSET,
+  horizontalOffset: number = HORIZONTAL_OFFSET
 ): void {
   const scrollerElem = anchorElem.parentElement;
 
   if (targetRect === null || !scrollerElem) {
-    floatingElem.style.opacity = '0';
-    floatingElem.style.transform = 'translate(-10000px, -10000px)';
+    floatingElem.style.opacity = "0";
+    floatingElem.style.transform = "translate(-10000px, -10000px)";
     return;
   }
 
@@ -33,10 +33,7 @@ export function setFloatingElemPosition(
 
   if (top < editorScrollerRect.top) {
     // adjusted height for link element if the element is at top
-    top +=
-      floatingElemRect.height +
-      targetRect.height +
-      verticalGap * (isLink ? 9 : 2);
+    top += floatingElemRect.height + targetRect.height + verticalGap * (isLink ? 9 : 2);
   }
 
   if (left + floatingElemRect.width > editorScrollerRect.right) {
@@ -46,6 +43,6 @@ export function setFloatingElemPosition(
   top -= anchorElementRect.top;
   left -= anchorElementRect.left;
 
-  floatingElem.style.opacity = '1';
+  floatingElem.style.opacity = "1";
   floatingElem.style.transform = `translate(${left}px, ${top}px)`;
 }

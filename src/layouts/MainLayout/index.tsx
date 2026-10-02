@@ -1,8 +1,10 @@
-import { Suspense, useEffect } from "react";
-import { Layout, Breadcrumb, Spin, Flex } from "antd";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Suspense, useEffect, useState } from "react";
+import { Layout, Breadcrumb, Spin, Flex, Result, Button } from "antd";
+import { Navigate, Outlet, useNavigate } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { getProfileAPI } from "@/services/auth";
+import { clearSession, hasSession } from "@/utils/session";
+import { PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
 
@@ -11,14 +13,60 @@ const { Content } = Layout;
 const MainLayout = () => {
   const { profile, setProfile } = useAppStore();
   const navigate = useNavigate();
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    getProfileAPI().then(res => {
-      if (res && res.data) {
+    let cancelled = false;
+    getProfileAPI()
+      .then(res => {
+        // Đăng xuất trong lúc request còn bay: không ghi lại profile vừa dọn
+        if (cancelled || !hasSession()) return;
+        if (!res?.data?._id) throw new Error("Invalid profile response");
         setProfile(res.data);
-      }
-    });
-  }, [navigate]);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt, setProfile]);
+
+  const handleRetry = () => {
+    setLoadFailed(false);
+    setAttempt(value => value + 1);
+  };
+
+  const handleRelogin = () => {
+    clearSession();
+    navigate(PATH_AUTH.LOGIN, { replace: true });
+  };
+
+  // Phiên bị dọn ở bất kỳ request nào (refresh bị từ chối) → không còn cookie, về login
+  if (!profile && !hasSession()) {
+    return <Navigate to={PATH_AUTH.LOGIN} replace />;
+  }
+
+  if (!profile && loadFailed) {
+    return (
+      <Flex justify='center' align='center' className='min-h-screen'>
+        <Result
+          status='error'
+          title='Không tải được thông tin tài khoản'
+          subTitle='Kiểm tra kết nối tới máy chủ quản trị rồi thử lại.'
+          extra={[
+            <Button key='retry' type='primary' onClick={handleRetry}>
+              Thử lại
+            </Button>,
+            <Button key='relogin' onClick={handleRelogin}>
+              Đăng nhập lại
+            </Button>
+          ]}
+        />
+      </Flex>
+    );
+  }
 
   if (!profile) {
     return (

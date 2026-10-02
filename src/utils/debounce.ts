@@ -1,10 +1,10 @@
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: never[]) => unknown>(
   callback: T,
   delay = 500
 ): (...args: Parameters<T>) => void {
-  let timeoutId: NodeJS.Timeout | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  return function (this: any, ...args: Parameters<T>) {
+  return function (this: ThisParameterType<T>, ...args: Parameters<T>) {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }

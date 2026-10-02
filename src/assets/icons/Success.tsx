@@ -1,12 +1,10 @@
-import React from "react";
-
 type SuccessType = {
   fill?: string;
   width?: number;
   height?: number;
 };
 
-const Success: React.FC<SuccessType> = ({ fill, width, height }) => (
+const Success = ({ fill = "#3BD22E", width = 24, height = 24 }: SuccessType) => (
   <svg width={width} height={height} fill='none' xmlns='http://www.w3.org/2000/svg'>
     <path
       fillRule='evenodd'
@@ -16,11 +14,5 @@ const Success: React.FC<SuccessType> = ({ fill, width, height }) => (
     />
   </svg>
 );
-
-Success.defaultProps = {
-  fill: "#3BD22E",
-  width: 24,
-  height: 24
-};
 
 export default Success;

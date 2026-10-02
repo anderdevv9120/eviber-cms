@@ -3,14 +3,14 @@ import "./index.css";
 import { debounce } from "@/utils/debounce";
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from "@lexical/html";
 import { InitialConfigType, LexicalComposer } from "@lexical/react/LexicalComposer";
-import { $getRoot, LexicalEditor, LexicalNode } from "lexical";
+import { $getRoot, LexicalEditor } from "lexical";
 import { SharedHistoryContext } from "./context/SharedHistoryContext";
 import { ToolbarContext } from "./context/ToolbarContext";
 import InnerEditor from "./InnerEditor";
 import RichEditorNodes from "./nodes/RichEditorNodes";
 import { TableContext } from "./plugins/TablePlugin";
 import RichEditorTheme from "./themes/RichEditorTheme";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 const initialConfig: InitialConfigType = {
   namespace: "RichEditor",
@@ -38,12 +38,17 @@ export const RichEditor = ({ onChange, initialHtml, ...props }: Props) => {
     300
   );
 
+  // initialHtml chỉ nạp 1 lần lúc mount — nạp lại theo prop sẽ clear editor giữa lúc đang gõ
+  // (dùng controlled với onChange). Cần nạp nội dung khác thì caller đổi `key`.
+  const initialHtmlRef = useRef(initialHtml);
+
   const initEditorState = useCallback((editor: LexicalEditor) => {
     editor.update(() => {
-      if (!initialHtml) return;
+      const html = initialHtmlRef.current;
+      if (!html) return;
 
       const parser = new DOMParser();
-      const dom = parser.parseFromString(initialHtml, "text/html");
+      const dom = parser.parseFromString(html, "text/html");
       const nodes = $generateNodesFromDOM(editor, dom);
 
       const root = $getRoot();

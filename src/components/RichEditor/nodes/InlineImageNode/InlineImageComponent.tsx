@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import type { JSX } from "react";
 import type { Position } from "./InlineImageNode";
 import type { BaseSelection, LexicalEditor, NodeKey } from "lexical";
 

@@ -1,12 +1,15 @@
 import Cookies from "js-cookie";
 
+const MS_PER_DAY = 86_400_000;
+
 export function getCookies(key: string) {
   return Cookies.get(key);
 }
 
-export function setCookies(key: string, value: string, maxAge?: number) {
-  if (maxAge) {
-    return Cookies.set(key, value, { expires: maxAge / 86400 });
+/** maxAgeMs: mili-giây — cùng đơn vị với `*ExpiresIn` BE trả về; bỏ trống = session cookie */
+export function setCookies(key: string, value: string, maxAgeMs?: number) {
+  if (maxAgeMs) {
+    return Cookies.set(key, value, { expires: maxAgeMs / MS_PER_DAY });
   }
   return Cookies.set(key, value);
 }

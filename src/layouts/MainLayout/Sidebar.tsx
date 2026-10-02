@@ -9,7 +9,7 @@ import {
   MailOutlined,
   AppstoreOutlined
 } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 const { Sider } = Layout;
 
@@ -64,7 +64,7 @@ const Sidebar = () => {
         type='text'
         icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
         onClick={() => setCollapsed(!collapsed)}
-        className='!w-16 h-16 absolute right-[-84px] top-0'
+        className='w-16! h-16 absolute right-[-84px] top-0'
       />
       <Menu theme='dark' mode='inline' defaultSelectedKeys={["1"]} items={items} />
     </Sider>

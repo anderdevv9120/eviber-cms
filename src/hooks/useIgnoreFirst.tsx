@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 
-function useIgnoreFirst(callback: () => void, dependencies: any[]) {
+function useIgnoreFirst(callback: () => void, dependencies: unknown[]) {
   const isFirstRun = useRef(true);
   useEffect(() => {
     if (isFirstRun.current) {

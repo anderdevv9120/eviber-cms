@@ -2,7 +2,7 @@ import AuthLayout from "@/layouts/AuthLayout";
 import { Form, Input, Button, Switch } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { PASSWORD_REGEX } from "@/constants";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import {
   EMAIL_INVALID_MESSAGE,
   EMAIL_REQUIRED_MESSAGE,
@@ -11,11 +11,12 @@ import {
 } from "@/constants/validate";
 import { PATH_AUTH } from "@/constants/paths";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { loginAPI } from "@/services/auth";
-import { setCookies } from "@/utils/cookies";
-import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/constants";
+import { saveTokens } from "@/utils/session";
+import { useAppStore } from "@/store/useAppStore";
 import { successNotification, errorNotification } from "@/utils/notification";
+import { getErrorMessage } from "@/utils/getErrorMessage";
 import { PATH } from "@/constants/paths";
 
 interface IFormInput {
@@ -36,14 +37,13 @@ const Login = () => {
       setIsSubmitting(true);
       const response = await loginAPI({ email, password });
 
-      setCookies(ACCESS_TOKEN_KEY, response.data.accessToken);
-      setCookies(REFRESH_TOKEN_KEY, response.data.refreshToken, response.data.refreshExpiresIn);
+      useAppStore.getState().clearProfile();
+      saveTokens(response.data);
 
       successNotification("Đăng nhập thành công!");
       navigate(PATH.DASHBOARD, { replace: true });
-    } catch (error: any) {
-      const errorMessage = error?.message || "Đăng nhập thất bại. Vui lòng thử lại.";
-      errorNotification(errorMessage);
+    } catch (error) {
+      errorNotification(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }

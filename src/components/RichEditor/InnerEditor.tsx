@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import { CAN_USE_DOM } from "@/components/RichEditor/shared/canUseDOM";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";

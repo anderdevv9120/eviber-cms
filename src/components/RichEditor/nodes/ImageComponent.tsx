@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import type { BaseSelection, LexicalCommand, LexicalEditor, NodeKey } from "lexical";
 
 import "./ImageNode.css";

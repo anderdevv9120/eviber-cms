@@ -6,6 +6,7 @@
  *
  */
 
+import type { JSX } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { INSERT_TABLE_COMMAND, TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { EditorThemeClasses, Klass, LexicalEditor, LexicalNode } from "lexical";

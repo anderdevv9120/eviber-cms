@@ -1,0 +1,9 @@
+/* antd inject CSS-in-JS không nằm trong @layer → khai báo thứ tự để utilities Tailwind thắng style antd
+   (đi cặp với <StyleProvider layer> ở main.tsx — docs antd "CSS Compatible") */
+@layer theme, base, antd, components, utilities;
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  padding: 0;
+}

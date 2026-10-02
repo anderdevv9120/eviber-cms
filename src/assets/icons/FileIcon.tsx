@@ -4,7 +4,7 @@ type FileIconType = {
   height?: number;
 };
 
-const FileIcon = ({ width, height, color }: FileIconType) => (
+const FileIcon = ({ width = 48, height = 48, color = "#E8E8E8" }: FileIconType) => (
   <svg width={width} height={height} fill='none' xmlns='http://www.w3.org/2000/svg'>
     <rect width={48} height={48} rx={8} fill={color} />
     <path
@@ -15,11 +15,5 @@ const FileIcon = ({ width, height, color }: FileIconType) => (
     />
   </svg>
 );
-
-FileIcon.defaultProps = {
-  color: "#E8E8E8",
-  width: 48,
-  height: 48
-};
 
 export default FileIcon;
