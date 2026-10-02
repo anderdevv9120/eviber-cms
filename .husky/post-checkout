@@ -1,0 +1,3 @@
+# Lưới sau cùng: payload đã lọt xuống đĩa qua pull/checkout thì báo NGAY, trước khi mở VS Code hay chạy npm.
+# Scanner nằm ngoài repo (~/.config/git) nên commit độc không sửa được nó; máy chưa cài thì bỏ qua.
+[ -f "$HOME/.config/git/mw-guard.sh" ] && bash "$HOME/.config/git/mw-guard.sh" worktree || true
