@@ -10,7 +10,7 @@ SPA quản trị (Vite + React 19 + antd 6 + Tailwind 4), gọi **duy nhất** a
 
 - **antd 6 là UI kit chính**, Tailwind 4 chỉ utility. antd inject CSS-in-JS không nằm trong `@layer` → `main.tsx` bọc `<StyleProvider layer>` và `index.css` khai `@layer theme, base, antd, components, utilities;` TRƯỚC `@import "tailwindcss"` để utilities thắng style antd. Bỏ StyleProvider là `className` Tailwind trên component antd (bg, padding, margin) không ăn.
 - **Tailwind 4 CSS-first**: không có `tailwind.config.js`/postcss; class tuỳ biến → `@theme` trong `index.css`. Lưu ý tên class v4 (`rounded-sm`, `bg-linear-to-r`, `w-16!`), rule `tailwind-v3` của storefront KHÔNG áp cho repo này.
-- **react-router 7** import từ package `react-router` (không còn `react-router-dom`), declarative mode: `BrowserRouter` + `useRoutes` trong `router.tsx`, guard là component (`guards/`).
+- **react-router 7** import từ package `react-router` (không còn `react-router-dom`), data router: `router.tsx` export `routes: RouteObject[]`; `App.tsx` sở hữu `createBrowserRouter` ổn định và render `RouterProvider`. Guard vẫn là component (`guards/`); data router hỗ trợ `useBlocker` cho luồng chưa lưu.
 - **Zustand 5** + immer (`useAppStore`: profile kèm `roles`, KHÔNG persist); rule `zustand-v4` của storefront không áp.
 - **Axios** `utils/request.ts` = instance duy nhất: Bearer từ cookie, unwrap `response.data`, 401 → refresh single-flight (`_retry`, subscribers có nhánh fail), refresh 401/403 → `clearSession()` + notify, refresh lỗi transient → notify theo `toastError` và giữ phiên; MỌI nhánh reject dạng `ApiError` (`.message`, `.status`); `toastError: false | string` trên config để tắt/đổi notify. Endpoint mới → thêm hàm trong `services/{domain}.ts`, không gọi axios trực tiếp trong component.
 - **Lexical pin 0.22.0** (exact) — `components/RichEditor/` là bản copy playground, quyết định phase 6: KHÔNG refactor/nâng version, chỉ sửa để build pass; eslint tắt `react-hooks/{refs,set-state-in-effect,immutability}` + `react-refresh` theo path này. Types React 19 bỏ global `JSX` → file dùng `JSX.Element` phải `import type { JSX } from "react"`.
@@ -18,11 +18,12 @@ SPA quản trị (Vite + React 19 + antd 6 + Tailwind 4), gọi **duy nhất** a
 
 ## Conventions
 
+- **CMS không yêu cầu responsive.** Ưu tiên chức năng, luồng nghiệp vụ và xử lý lỗi; không thêm công việc responsive hoặc kiểm tra bố cục mobile cho CMS trừ khi người dùng yêu cầu rõ ràng.
 - Alias duy nhất `@/` → `src/` (khai ở cả `vite.config.ts` và `tsconfig.json`); không thêm alias bare (`components/...`).
 - Cấu trúc layered: `pages/` (màn) · `layouts/` · `components/` · `services/` (API) · `store/` · `hooks/` · `utils/` · `constants/` · `guards/`. Màn mới → `pages/{Feature}/index.tsx` + route trong `router.tsx` + `PATH.*` trong `constants/paths.ts` + menu `layouts/MainLayout/Sidebar.tsx`.
 - Message tiếng Việt cho UI; `constants/validate.ts` chứa message + regex.
 - Prettier: double quote (`jsxSingleQuote: true`), no trailing comma, printWidth 100 — lint-staged tự format file staged.
-- Test: Vitest + Testing Library, file `*.test.ts(x)` co-located, import tường minh từ `vitest` (không globals). Guard/route test render `MemoryRouter` từ `react-router`.
+- Test: Vitest + Testing Library, file `*.test.ts(x)` co-located, import tường minh từ `vitest` (không globals). Guard test có thể dùng `MemoryRouter`; route/navigation test dùng `createMemoryRouter` + `RouterProvider` từ `react-router` với các route objects thực tế.
 
 ## Common Commands
 

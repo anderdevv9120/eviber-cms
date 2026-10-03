@@ -1,10 +1,10 @@
 import { Suspense, useEffect, useState } from "react";
 import { Layout, Breadcrumb, Spin, Flex, Result, Button } from "antd";
-import { Navigate, Outlet, useNavigate } from "react-router";
+import { Link, matchPath, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { getProfileAPI } from "@/services/auth";
 import { clearSession, hasSession } from "@/utils/session";
-import { PATH_AUTH } from "@/constants/paths";
+import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
 
@@ -13,6 +13,16 @@ const { Content } = Layout;
 const MainLayout = () => {
   const { profile, setProfile } = useAppStore();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
+  const breadcrumbs =
+    pathname === PATH.ATTRIBUTES || attributeDetail
+      ? [
+          { title: "Danh mục" },
+          { title: attributeDetail ? <Link to={PATH.ATTRIBUTES}>Thuộc tính</Link> : "Thuộc tính" },
+          ...(attributeDetail ? [{ title: "Chi tiết thuộc tính" }] : [])
+        ]
+      : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -79,10 +89,10 @@ const MainLayout = () => {
   return (
     <div className='min-h-screen flex'>
       <Sidebar />
-      <Layout>
+      <Layout className='min-w-0'>
         <HeaderMain />
-        <Breadcrumb items={[{ title: "Trang chủ" }, { title: "Sản phẩm" }]} className='p-6 py-4' />
-        <Content className='m-5 p-5 mt-0 bg-white rounded-lg shadow-md'>
+        <Breadcrumb items={breadcrumbs} className='p-6 py-4' />
+        <Content className='min-w-0 m-5 p-5 mt-0 bg-white rounded-lg shadow-md'>
           <Suspense
             fallback={
               <Flex justify='center' align='center' className='min-h-full'>

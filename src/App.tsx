@@ -1,12 +1,10 @@
-import { BrowserRouter } from "react-router";
-import RouterConfig from "./router";
+import { createBrowserRouter, RouterProvider } from "react-router";
+import { routes } from "./router";
+
+const router = createBrowserRouter(routes);
 
 const App = () => {
-  return (
-    <BrowserRouter>
-      <RouterConfig />
-    </BrowserRouter>
-  );
+  return <RouterProvider router={router} />;
 };
 
 export default App;
