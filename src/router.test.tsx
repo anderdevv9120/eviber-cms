@@ -92,7 +92,7 @@ describe("CMS data router", () => {
           data: { message: "Attribute not found" }
         });
       return response(config, {
-        attribute,
+        attribute: { ...attribute, _id: empty ? "empty-id" : attribute._id },
         revision: 4,
         values: empty
           ? []
