@@ -29,13 +29,14 @@ beforeEach(() => {
     return response(config, await handle(config));
   };
 });
-const renderList = () => {
+const renderList = (initialEntries = ["/catalog/attributes"]) => {
   const router = createMemoryRouter(
     [
       { path: "/catalog/attributes", element: <Attributes /> },
-      { path: "/catalog/attributes/:attributeId", element: <AttributeDetail /> }
+      { path: "/catalog/attributes/:attributeId", element: <AttributeDetail /> },
+      { path: "/away", element: <h1>Chosen destination</h1> }
     ],
-    { initialEntries: ["/catalog/attributes"] }
+    { initialEntries }
   );
   render(
     <ConfigProvider theme={{ token: { motion: false } }}>
@@ -57,6 +58,45 @@ const fail = (config: InternalAxiosRequestConfig, status = 503) => {
 };
 
 describe("attribute list workflows", () => {
+  it.each(["write", "refresh"])(
+    "keeps the Back destination when a delayed create %s resolves after leaving",
+    async phase => {
+      const pending = deferred<typeof attribute | ReturnType<typeof list>>();
+      let wrote = false;
+      handle = config => {
+        if (config.method === "post") {
+          wrote = true;
+          return phase === "write" ? pending.promise : attribute;
+        }
+        if (wrote && phase === "refresh") return pending.promise;
+        return list();
+      };
+      const router = renderList(["/away", "/catalog/attributes"]);
+      await screen.findByText("Kích thước");
+      fireEvent.click(screen.getByRole("button", { name: "Thêm thuộc tính" }));
+      change("Tên thuộc tính", "Capacity");
+      change("Mã thuộc tính", "capacity");
+      fireEvent.click(screen.getByRole("button", { name: "Tạo thuộc tính" }));
+      await waitFor(() => expect(calls.filter(c => c.method === "post")).toHaveLength(1));
+      if (phase === "refresh")
+        await waitFor(() =>
+          expect(calls.filter(c => c.method === "get" && c.url === "/attributes")).toHaveLength(2)
+        );
+      act(() => {
+        void router.navigate(-1);
+      });
+      await screen.findByRole("heading", { name: "Chosen destination" });
+      await act(async () => {
+        pending.resolve(phase === "write" ? attribute : list());
+      });
+      expect(router.state.location.pathname).toBe("/away");
+      expect(screen.getByRole("heading", { name: "Chosen destination" })).toBeTruthy();
+      expect(calls.filter(c => c.method === "get" && c.url === "/attributes")).toHaveLength(
+        phase === "write" ? 1 : 2
+      );
+    }
+  );
+
   it("shows authoritative columns/counts and page-size choices; search resets page 1", async () => {
     handle = config => list([attribute], config.params.page, 25, config.params.pageSize);
     renderList();

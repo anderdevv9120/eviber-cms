@@ -52,6 +52,13 @@ export default function Attributes() {
     error: null
   });
   const request = useRef<{ sequence: number; controller?: AbortController }>({ sequence: 0 });
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<AttributeSummary | undefined>();
   const [deleting, setDeleting] = useState<AttributeSummary | null>(null);
@@ -66,6 +73,7 @@ export default function Attributes() {
   const writesDisabled = loading || saving || refreshRequired || !editRevisionReady || !result;
 
   const fetchList = useCallback(() => {
+    if (!active.current) return Promise.resolve(null);
     request.current.controller?.abort();
     const controller = new AbortController();
     const sequence = ++request.current.sequence;
@@ -73,7 +81,8 @@ export default function Attributes() {
     const key = JSON.stringify(query);
     return listAttributesAPI(query, controller.signal)
       .then(({ data }) => {
-        if (controller.signal.aborted || sequence !== request.current.sequence) return null;
+        if (!active.current || controller.signal.aborted || sequence !== request.current.sequence)
+          return null;
         if (!data || !Array.isArray(data.data))
           throw new Error("Không nhận được danh sách thuộc tính hợp lệ. Vui lòng thử lại.");
         setState({ key, result: data, loading: false, error: null });
@@ -84,13 +93,14 @@ export default function Attributes() {
         return data;
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted && sequence === request.current.sequence) {
+        if (active.current && !controller.signal.aborted && sequence === request.current.sequence) {
           setState({ key, result: null, loading: false, error: getErrorMessage(cause) });
         }
         return null;
       });
   }, [query]);
   const reload = async (refreshEdit = true) => {
+    if (!active.current) return null;
     setState({ key: queryKey, result: null, loading: true, error: null });
     const fresh = await fetchList();
     if (fresh && editing && formOpen && refreshEdit) {
@@ -98,9 +108,11 @@ export default function Attributes() {
         const current =
           fresh.data.find(row => row._id === editing._id) ??
           (await getAttributeAPI(editing._id)).data;
+        if (!active.current) return null;
         setEditing(current);
         setEditRevisionReady(true);
       } catch (cause) {
+        if (!active.current) return null;
         setState({ key: queryKey, result: null, loading: false, error: getErrorMessage(cause) });
         return null;
       }
@@ -124,12 +136,14 @@ export default function Attributes() {
       let saved: AttributeSummary;
       if ("code" in input) {
         saved = (await createAttributeAPI(input)).data;
+        if (!active.current) return;
         setCreatedId(saved._id);
       } else {
         if (!editing) throw new Error("Missing attribute for rename");
         try {
           saved = (await updateAttributeAPI(editing._id, input)).data;
         } catch (cause) {
+          if (!active.current) return;
           if (cause instanceof ApiError && cause.status === 409) {
             setEditRevisionReady(false);
             await reload();
@@ -140,6 +154,7 @@ export default function Attributes() {
           throw cause;
         }
       }
+      if (!active.current) return;
       setFormOpen(false);
       setEditing(undefined);
       setActionError(null);
@@ -147,10 +162,10 @@ export default function Attributes() {
       setRefreshRequired(true);
       successNotification("Đã lưu thuộc tính");
       const refreshed = await reload(false);
-      if (refreshed && "code" in input) navigate(detailPath(saved._id));
+      if (active.current && refreshed && "code" in input) navigate(detailPath(saved._id));
     } finally {
       savingRef.current = false;
-      setSaving(false);
+      if (active.current) setSaving(false);
     }
   };
   const confirmDelete = async () => {
@@ -167,12 +182,14 @@ export default function Attributes() {
     setActionError(null);
     try {
       await deleteAttributeAPI(deleting._id, deleting.revision);
+      if (!active.current) return;
       setDeleting(null);
       setCreatedId(null);
       setRefreshRequired(true);
       successNotification("Đã xóa thuộc tính");
       await reload();
     } catch (cause) {
+      if (!active.current) return;
       if (cause instanceof ApiError && (cause.status === 409 || cause.status === 404)) {
         await reload();
         setActionError(
@@ -183,7 +200,7 @@ export default function Attributes() {
       } else setActionError(getErrorMessage(cause));
     } finally {
       savingRef.current = false;
-      setSaving(false);
+      if (active.current) setSaving(false);
     }
   };
   const columns: TableProps<AttributeSummary>["columns"] = [
