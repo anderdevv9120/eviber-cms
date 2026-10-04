@@ -75,13 +75,67 @@ const setup = () => {
   return router;
 };
 const rows = () => within(screen.getByRole("table")).getAllByRole("row").slice(1);
+const dragValue = (label: string, target: HTMLElement) => {
+  const handle = screen.getByRole("button", { name: `Sắp xếp ${label}` });
+  const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn() };
+  fireEvent.dragStart(handle, { dataTransfer });
+  fireEvent.dragOver(target, { dataTransfer });
+  fireEvent.drop(target, { dataTransfer });
+  fireEvent.dragEnd(handle, { dataTransfer });
+};
 const moveS = async () => {
   await screen.findByText("Kích thước");
-  fireEvent.click(within(rows()[1]).getByRole("button", { name: "Di chuyển lên" }));
+  dragValue("S", rows()[0]);
 };
-const order = () => rows().map(row => within(row).getAllByRole("cell")[1].textContent);
+const order = () => rows().map(row => within(row).getAllByRole("cell")[2].textContent);
 
 describe("attribute value detail", () => {
+  it("moves across multiple rows from the first-column handle and saves the full order", async () => {
+    setup();
+    await screen.findByText("Kích thước");
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0].textContent).toBe(
+      "Thứ tự"
+    );
+    dragValue("XL", rows()[0]);
+    expect(order()).toEqual(["XL", "M", "S", "L"]);
+    expect(writes()).toEqual([]);
+    dragValue("XL", rows()[3]);
+    expect(order()).toEqual(["M", "S", "L", "XL"]);
+    dragValue("M", rows()[2]);
+    expect(order()).toEqual(["S", "L", "M", "XL"]);
+    fireEvent.click(screen.getByRole("button", { name: "Lưu thứ tự" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(JSON.parse(writes()[0].data)).toEqual({
+      valueIds: ["s-id", "l-id", "m-id", "xl-id"],
+      expectedRevision: 4
+    });
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Thêm giá trị" }) as HTMLButtonElement).disabled
+      ).toBe(false)
+    );
+    expect(order()).toEqual(["S", "L", "M", "XL"]);
+  });
+  it("leaves the order untouched for cancelled, same-row and disabled drags", async () => {
+    setup();
+    await screen.findByText("Kích thước");
+    const handle = screen.getByRole("button", { name: "Sắp xếp S" });
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn() };
+    fireEvent.dragStart(handle, { dataTransfer });
+    fireEvent.dragOver(rows()[3], { dataTransfer });
+    fireEvent.dragEnd(handle, { dataTransfer });
+    fireEvent.drop(rows()[3], { dataTransfer });
+    dragValue("S", rows()[1]);
+    fireEvent.drop(rows()[0], { dataTransfer });
+    expect(order()).toEqual(["M", "S", "L", "XL"]);
+    fireEvent.click(screen.getByRole("button", { name: "Thêm giá trị" }));
+    expect((handle as HTMLButtonElement).disabled).toBe(true);
+    expect(handle.getAttribute("draggable")).toBe("false");
+    dragValue("S", rows()[0]);
+    fireEvent.keyDown(handle, { key: "ArrowUp" });
+    expect(order()).toEqual(["M", "S", "L", "XL"]);
+    expect(writes()).toEqual([]);
+  });
   it("retains edit identity and input when a value disappears during stale-edit recovery", async () => {
     const normal = handle;
     handle = c => {
@@ -108,16 +162,16 @@ describe("attribute value detail", () => {
     ).toBe(true);
     expect(writes()).toHaveLength(1);
   });
-  it("preserves focus on a usable movement control when a value reaches a boundary", async () => {
+  it("preserves handle focus when keyboard movement reaches a boundary", async () => {
     setup();
     await screen.findByText("Kích thước");
-    const up = within(rows()[1]).getByRole("button", { name: "Di chuyển lên" });
+    const up = screen.getByRole("button", { name: "Sắp xếp S" });
     up.focus();
-    fireEvent.click(up);
+    fireEvent.keyDown(up, { key: "ArrowUp" });
     expect(order()).toEqual(["S", "M", "L", "XL"]);
     await waitFor(() =>
       expect(document.activeElement).toBe(
-        within(rows()[0]).getByRole("button", { name: "Di chuyển xuống" })
+        within(rows()[0]).getByRole("button", { name: "Sắp xếp S" })
       )
     );
   });
@@ -263,7 +317,7 @@ describe("attribute value detail", () => {
     await waitFor(() => expect(order()).toEqual(["M", "S", "L", "XL"]));
     expect(writes()).toHaveLength(1);
   });
-  it("renders every one of 101 values, parent/code/back link and boundary controls", async () => {
+  it("renders every one of 101 values and keeps keyboard moves within boundaries", async () => {
     current.values = Array.from({ length: 101 }, (_, i) => ({
       ...value,
       _id: `v${i}`,
@@ -277,14 +331,15 @@ describe("attribute value detail", () => {
     expect(screen.getByRole("link", { name: "Về danh sách thuộc tính" }).getAttribute("href")).toBe(
       "/catalog/attributes"
     );
-    expect(
-      (within(rows()[0]).getByRole("button", { name: "Di chuyển lên" }) as HTMLButtonElement)
-        .disabled
-    ).toBe(true);
-    expect(
-      (within(rows()[100]).getByRole("button", { name: "Di chuyển xuống" }) as HTMLButtonElement)
-        .disabled
-    ).toBe(true);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Sắp xếp Value 0" }), { key: "ArrowUp" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Sắp xếp Value 100" }), {
+      key: "ArrowDown"
+    });
+    expect(order()[0]).toBe("Value 0");
+    expect(order()[100]).toBe("Value 100");
+    expect((screen.getByRole("button", { name: "Lưu thứ tự" }) as HTMLButtonElement).disabled).toBe(
+      true
+    );
   });
   it("keeps a local draft, disables mutations and discards without a request", async () => {
     setup();
@@ -299,7 +354,7 @@ describe("attribute value detail", () => {
         expect(
           (
             within(row).getByRole("button", {
-              name: `${name} ${within(row).getAllByRole("cell")[1].textContent}`
+              name: `${name} ${within(row).getAllByRole("cell")[2].textContent}`
             }) as HTMLButtonElement
           ).disabled
         ).toBe(true);

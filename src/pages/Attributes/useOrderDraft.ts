@@ -34,6 +34,17 @@ export default function useOrderDraft(serverIds: readonly string[], serverRevisi
         return { ...previous, valueIds };
       });
     },
+    moveTo(valueId: string, targetId: string) {
+      setDraft(previous => {
+        const index = previous.valueIds.indexOf(valueId);
+        const destination = previous.valueIds.indexOf(targetId);
+        if (index < 0 || destination < 0 || index === destination) return previous;
+        const valueIds = [...previous.valueIds];
+        valueIds.splice(index, 1);
+        valueIds.splice(destination, 0, valueId);
+        return { ...previous, valueIds };
+      });
+    },
     discard() {
       setDraft(previous => ({ ...previous, valueIds: [...previous.savedIds] }));
     }

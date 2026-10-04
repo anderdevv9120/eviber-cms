@@ -217,11 +217,6 @@ export default function Attributes() {
       title: "Thao tác",
       render: (_, row) => (
         <Flex gap={8} wrap>
-          <Tooltip title={`Quản lý giá trị ${row.name}`}>
-            <Link to={detailPath(row._id)} aria-label={`Quản lý giá trị ${row.name}`}>
-              Quản lý giá trị
-            </Link>
-          </Tooltip>
           <Tooltip title={`Sửa ${row.name}`}>
             <Button
               disabled={writesDisabled}

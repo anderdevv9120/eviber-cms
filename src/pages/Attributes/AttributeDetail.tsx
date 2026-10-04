@@ -269,6 +269,7 @@ function DetailContent({ attributeId }: { attributeId: string }) {
             disabled={busy || orderConflict || formOpen || !!deletingId}
             mutationsDisabled={writesDisabled}
             onMove={draft.move}
+            onMoveTo={draft.moveTo}
             onEdit={value => {
               setEditingValue(value);
               setFormOpen(true);
