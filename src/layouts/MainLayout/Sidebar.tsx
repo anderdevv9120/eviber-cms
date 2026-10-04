@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout, Menu, Button, Flex } from "antd";
+import { Layout, Menu, Button, Flex, Tooltip } from "antd";
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -9,13 +9,25 @@ import {
   MailOutlined,
   AppstoreOutlined
 } from "@ant-design/icons";
-import { useNavigate } from "react-router";
+import { matchPath, useLocation, useNavigate } from "react-router";
+import { PATH } from "@/constants/paths";
 
 const { Sider } = Layout;
 
 const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const catalogSelected =
+    pathname === PATH.ATTRIBUTES || !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const selectedKey = catalogSelected
+    ? "attributes"
+    : pathname === PATH.PRODUCT
+      ? "2"
+      : pathname === PATH.ORDER
+        ? "3"
+        : "1";
 
   const items = [
     { key: "1", icon: <PieChartOutlined />, label: "Trang chủ", onClick: () => navigate("/") },
@@ -30,6 +42,14 @@ const Sidebar = () => {
       icon: <ContainerOutlined />,
       label: "Quản lý Đơn hàng",
       onClick: () => navigate("/orders")
+    },
+    {
+      key: "catalog",
+      label: "Danh mục",
+      icon: <AppstoreOutlined />,
+      children: [
+        { key: "attributes", label: "Thuộc tính", onClick: () => navigate(PATH.ATTRIBUTES) }
+      ]
     },
     {
       key: "sub1",
@@ -60,13 +80,25 @@ const Sidebar = () => {
       >
         CMS
       </Flex>
-      <Button
-        type='text'
-        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-        onClick={() => setCollapsed(!collapsed)}
-        className='w-16! h-16 absolute right-[-84px] top-0'
+      <Tooltip title={collapsed ? "Mở menu" : "Thu gọn menu"} placement='right'>
+        <Button
+          type='text'
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? "Mở menu" : "Thu gọn menu"}
+          className='w-16! h-16 absolute right-[-84px] top-0'
+        />
+      </Tooltip>
+      <Menu
+        theme='dark'
+        mode='inline'
+        selectedKeys={[selectedKey]}
+        openKeys={
+          catalogSelected && !collapsed ? Array.from(new Set([...openKeys, "catalog"])) : openKeys
+        }
+        onOpenChange={setOpenKeys}
+        items={items}
       />
-      <Menu theme='dark' mode='inline' defaultSelectedKeys={["1"]} items={items} />
     </Sider>
   );
 };

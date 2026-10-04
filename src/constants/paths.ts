@@ -2,7 +2,9 @@ export const PATH = {
   HOME: "/",
   DASHBOARD: "/dashboard",
   PRODUCT: "/product",
-  ORDER: "/orders"
+  ORDER: "/orders",
+  ATTRIBUTES: "/catalog/attributes",
+  ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId"
 };
 
 export const PATH_AUTH = {
