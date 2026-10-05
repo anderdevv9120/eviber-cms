@@ -7,7 +7,7 @@ import axiosRequest from "@/utils/request";
 import { attribute, value, list, response, deferred } from "@/test/attribute-fixtures";
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
-import { order } from "@/test/order-fixtures";
+import { order, orderList } from "@/test/order-fixtures";
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
@@ -31,9 +31,11 @@ beforeEach(() => {
         ? profile
         : config.url?.startsWith("/orders/")
           ? order
-          : config.url === "/attributes"
-            ? list()
-            : { attribute, values: [value], revision: 4 }
+          : config.url === "/orders"
+            ? orderList([order], config.params.page, 65, config.params.pageSize)
+            : config.url === "/attributes"
+              ? list()
+              : { attribute, values: [value], revision: 4 }
     );
 });
 const renderRoute = (path: string) => {
@@ -43,6 +45,48 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it.each([
+    ["/orders", "Quản lý Đơn hàng"],
+    ["/payments", "Quản lý Thanh toán"]
+  ])(
+    "preserves %s query through detail/back, browser Back and a direct reload",
+    async (path, label) => {
+      const query = "?page=3&pageSize=20&search=An&status=pending&paymentStatus=unpaid";
+      const router = renderRoute(`${path}${query}`);
+      const link = await screen.findByRole("link", { name: "Chi tiết" });
+      expect(screen.getByRole("heading", { name: label })).toBeTruthy();
+      expect(screen.getByRole("menuitem", { name: new RegExp(label) }).className).toContain(
+        "ant-menu-item-selected"
+      );
+      expect(within(screen.getByRole("navigation")).getByText(label)).toBeTruthy();
+      fireEvent.click(link);
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      const detailLocation = `${router.state.location.pathname}${router.state.location.search}`;
+      expect(new URLSearchParams(router.state.location.search).get("returnTo")).toBe(
+        `${path}${query}`
+      );
+      fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
+      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(
+        `${path}${query}`
+      );
+      await act(() => router.navigate(-1));
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      await act(() => router.navigate(-1));
+      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(router.state.location.search).toBe(query);
+      const fresh = createMemoryRouter(routes, { initialEntries: [detailLocation] });
+      await act(() => router.navigate(detailLocation, { replace: true }));
+      // A new router at the saved URL models a document reload, without navigation state.
+      render(<RouterProvider router={fresh} />);
+      await waitFor(() =>
+        expect(screen.getAllByRole("link", { name: "Về danh sách" })).toHaveLength(2)
+      );
+      for (const back of screen.getAllByRole("link", { name: "Về danh sách" }))
+        expect(back.getAttribute("href")).toBe(`${path}${query}`);
+    }
+  );
+
   it("redirects unauthenticated direct order detail through the existing guard", async () => {
     clearSession();
     const router = renderRoute("/orders/order-id");
