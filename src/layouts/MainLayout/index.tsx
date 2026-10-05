@@ -7,14 +7,22 @@ import { clearSession, hasSession } from "@/utils/session";
 import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
+import { safeOrderReturnTo } from "@/pages/Orders/order-list-query";
 
 const { Content } = Layout;
 
 const MainLayout = () => {
   const { profile, setProfile } = useAppStore();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
+  const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
+  const params = new URLSearchParams(search);
+  const returnTo = safeOrderReturnTo(
+    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
+  );
+  const paymentsOrigin =
+    pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
   const breadcrumbs =
     pathname === PATH.ATTRIBUTES || attributeDetail
       ? [
@@ -22,7 +30,22 @@ const MainLayout = () => {
           { title: attributeDetail ? <Link to={PATH.ATTRIBUTES}>Thuộc tính</Link> : "Thuộc tính" },
           ...(attributeDetail ? [{ title: "Chi tiết thuộc tính" }] : [])
         ]
-      : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
+      : orderDetail || pathname === PATH.ORDER || pathname === PATH.PAYMENTS
+        ? [
+            {
+              title: orderDetail ? (
+                <Link to={returnTo}>
+                  {paymentsOrigin ? "Quản lý Thanh toán" : "Quản lý Đơn hàng"}
+                </Link>
+              ) : paymentsOrigin ? (
+                "Quản lý Thanh toán"
+              ) : (
+                "Quản lý Đơn hàng"
+              )
+            },
+            ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
+          ]
+        : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 

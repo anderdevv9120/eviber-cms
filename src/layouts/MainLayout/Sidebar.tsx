@@ -11,13 +11,21 @@ import {
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
+import { safeOrderReturnTo } from "@/pages/Orders/order-list-query";
 
 const { Sider } = Layout;
 
 const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const params = new URLSearchParams(search);
+  const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
+  const returnTo = safeOrderReturnTo(
+    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
+  );
+  const paymentsSelected =
+    pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
   const catalogSelected =
     pathname === PATH.ATTRIBUTES || !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
@@ -25,9 +33,11 @@ const Sidebar = () => {
     ? "attributes"
     : pathname === PATH.PRODUCT
       ? "2"
-      : pathname === PATH.ORDER
-        ? "3"
-        : "1";
+      : paymentsSelected
+        ? "payments"
+        : pathname === PATH.ORDER || orderDetail
+          ? "3"
+          : "1";
 
   const items = [
     { key: "1", icon: <PieChartOutlined />, label: "Trang chủ", onClick: () => navigate("/") },
@@ -42,6 +52,12 @@ const Sidebar = () => {
       icon: <ContainerOutlined />,
       label: "Quản lý Đơn hàng",
       onClick: () => navigate("/orders")
+    },
+    {
+      key: "payments",
+      icon: <ContainerOutlined />,
+      label: "Quản lý Thanh toán",
+      onClick: () => navigate(PATH.PAYMENTS)
     },
     {
       key: "catalog",

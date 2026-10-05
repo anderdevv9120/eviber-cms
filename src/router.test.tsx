@@ -7,6 +7,7 @@ import axiosRequest from "@/utils/request";
 import { attribute, value, list, response, deferred } from "@/test/attribute-fixtures";
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
+import { order } from "@/test/order-fixtures";
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
@@ -22,14 +23,17 @@ const profile = {
   roles: ["ADMIN"]
 };
 beforeEach(() => {
+  useAppStore.getState().clearProfile();
   axiosRequest.defaults.adapter = async config =>
     response(
       config,
       config.url === "/auth/profile"
         ? profile
-        : config.url === "/attributes"
-          ? list()
-          : { attribute, values: [value], revision: 4 }
+        : config.url?.startsWith("/orders/")
+          ? order
+          : config.url === "/attributes"
+            ? list()
+            : { attribute, values: [value], revision: 4 }
     );
 });
 const renderRoute = (path: string) => {
@@ -39,6 +43,48 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("redirects unauthenticated direct order detail through the existing guard", async () => {
+    clearSession();
+    const router = renderRoute("/orders/order-id");
+    await screen.findByText("Đăng nhập vào CMS");
+    expect(router.state.location.pathname).toBe("/auth/login");
+  });
+
+  it.each([
+    ["", "/orders", "Quản lý Đơn hàng"],
+    ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Quản lý Đơn hàng"],
+    [
+      "?returnTo=%2Fpayments%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
+      "/payments?page=3&search=An&paymentStatus=paid",
+      "Quản lý Thanh toán"
+    ]
+  ])(
+    "loads direct order detail with origin selection and breadcrumbs (%s)",
+    async (query, destination, menuLabel) => {
+      const router = renderRoute(`/orders/order-id${query}`);
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      expect(screen.getByRole("menuitem", { name: new RegExp(menuLabel) }).className).toContain(
+        "ant-menu-item-selected"
+      );
+      const crumbs = within(screen.getByRole("navigation"));
+      expect(crumbs.getByText("Chi tiết đơn hàng")).toBeTruthy();
+      expect(crumbs.getByRole("link").getAttribute("href")).toBe(destination);
+      expect(crumbs.queryByText("Sản phẩm")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      expect(router.state.location.search).toBe(query);
+      expect(screen.getByRole("link", { name: "Về danh sách" }).getAttribute("href")).toBe(
+        destination
+      );
+      if (destination === "/orders") {
+        fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
+        await waitFor(() => expect(router.state.location.pathname).toBe("/orders"));
+        await act(() => router.navigate(-1));
+        await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      }
+    }
+  );
+
   it("redirects unauthenticated direct detail to login and authenticated login to dashboard", async () => {
     clearSession();
     const router = renderRoute("/catalog/attributes/size-id");

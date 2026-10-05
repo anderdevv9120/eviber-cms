@@ -143,8 +143,10 @@ beforeEach(() => {
       dispatchEvent: vi.fn()
     }))
   );
-  const getStyle = window.getComputedStyle;
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => getStyle(element));
+  if (!vi.isMockFunction(window.getComputedStyle)) {
+    const getStyle = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation(element => getStyle(element));
+  }
   setCookies(ACCESS_TOKEN_KEY, "test-admin");
   useAppStore.getState().setProfile({
     _id: "admin-id",

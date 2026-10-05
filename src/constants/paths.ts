@@ -3,6 +3,8 @@ export const PATH = {
   DASHBOARD: "/dashboard",
   PRODUCT: "/product",
   ORDER: "/orders",
+  ORDER_DETAIL: "/orders/:orderId",
+  PAYMENTS: "/payments",
   ATTRIBUTES: "/catalog/attributes",
   ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId"
 };
