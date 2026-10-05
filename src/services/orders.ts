@@ -41,7 +41,8 @@ export interface OrderProduct {
 }
 export interface AdminOrderSummary {
   _id: string;
-  revision: number;
+  // List rows only: null when the stored version is malformed. Detail/mutations always carry a number.
+  revision: number | null;
   userId?: string;
   sessionId?: string;
   orderNumber?: string;
@@ -99,7 +100,8 @@ export interface OrderActionEligibility {
   }[];
   returnDeadline: string | null;
 }
-export interface AdminOrderDetail extends AdminOrderSummary {
+export interface AdminOrderDetail extends Omit<AdminOrderSummary, "revision"> {
+  revision: number;
   actions: OrderActionEligibility;
 }
 export interface OrderListQuery {
