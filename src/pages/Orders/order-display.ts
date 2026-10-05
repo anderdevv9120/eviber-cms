@@ -56,3 +56,11 @@ export const formatOrderDate = (value?: string): string => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? missingOrderData : date.toLocaleString("vi-VN");
 };
+export const orderActionLabels: Record<OrderStatus, string> = {
+  pending: "Đặt lại chờ xử lý",
+  confirmed: "Xác nhận đơn hàng",
+  shipped: "Giao cho vận chuyển",
+  delivered: "Xác nhận đã giao",
+  cancelled: "Hủy đơn hàng",
+  returned: "Xác nhận trả hàng"
+};

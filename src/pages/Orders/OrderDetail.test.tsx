@@ -56,7 +56,11 @@ describe("shared order detail", () => {
     );
     expect(screen.getByRole("region", { name: "Lịch sử đơn hàng" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Lịch sử thanh toán" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Ghi nhận thanh toán" })).toBeNull();
+    // Task 8: only actions the backend marks enabled get working controls.
+    for (const name of ["Hủy đơn hàng", "Ghi nhận thanh toán", "Điều chỉnh trạng thái thanh toán"])
+      expect(screen.getByRole("button", { name })).toBeTruthy();
+    for (const name of ["Xác nhận đơn hàng", "Ghi nhận hoàn tiền"])
+      expect(screen.queryByRole("button", { name })).toBeNull();
     expect(requests).toEqual(["/orders/order-id"]);
   });
 
@@ -213,6 +217,65 @@ describe("shared order detail", () => {
     await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
     expect(screen.getByRole("link", { name: "Về danh sách" }).getAttribute("href")).toBe(
       destination
+    );
+  });
+});
+
+describe("order detail actions", () => {
+  const reply = (config: Parameters<typeof response>[0], data: unknown) =>
+    Promise.resolve(response(config, data));
+
+  it("reviews fresh data, patches once and shows the returned detail without another read", async () => {
+    const calls: { method?: string; url?: string; body?: string }[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push({ method: config.method, url: config.url, body: config.data });
+      if (config.method === "patch")
+        return reply(config, { ...order, revision: 8, status: "cancelled" });
+      return reply(config, { ...order, revision: calls.length === 1 ? 4 : 7 });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy đơn hàng" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.click(await dialog.findByRole("button", { name: "Xác nhận" }));
+    await dialog.findByText("Đã ghi nhận thao tác.");
+    expect(calls.map(call => call.method)).toEqual(["get", "get", "patch"]);
+    expect(JSON.parse(calls[2].body!)).toEqual({ status: "cancelled", expectedRevision: 7 });
+    expect(
+      within(screen.getByRole("region", { name: "Thông tin đơn hàng" })).getByText("Đã hủy")
+    ).toBeTruthy();
+  });
+
+  it("updates the page behind the dialog after a conflict and requires renewed confirmation", async () => {
+    let reads = 0;
+    const calls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(String(config.method));
+      if (config.method === "patch")
+        return Promise.reject(
+          new AxiosError("c", "ERR_BAD_REQUEST", config, null, {
+            config,
+            data: { message: "Đơn hàng đã thay đổi" },
+            status: 409,
+            statusText: "",
+            headers: {}
+          })
+        );
+      reads += 1;
+      return reply(config, reads < 3 ? order : { ...order, revision: 6, status: "confirmed" });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy đơn hàng" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.click(await dialog.findByRole("button", { name: "Xác nhận" }));
+    await dialog.findByText(/đã được thay đổi bởi thao tác khác/);
+    expect(
+      within(screen.getByRole("region", { name: "Thông tin đơn hàng" })).getByText("Đã xác nhận")
+    ).toBeTruthy();
+    expect(calls).toEqual(["get", "get", "patch", "get"]);
+    expect((dialog.getByRole("button", { name: "Xác nhận" }) as HTMLButtonElement).disabled).toBe(
+      true
     );
   });
 });

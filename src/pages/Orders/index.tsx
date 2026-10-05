@@ -4,7 +4,12 @@ import type { TableColumnsType } from "antd";
 import viVN from "antd/locale/vi_VN";
 import { Link, useLocation } from "react-router";
 import { PATH } from "@/constants/paths";
-import type { AdminOrderSummary, OrderStatus, PaymentStatus } from "@/services/orders";
+import type {
+  AdminOrderSummary,
+  OrderStatus,
+  PaymentAction,
+  PaymentStatus
+} from "@/services/orders";
 import { useOrdersList } from "./useOrdersList";
 import { safeOrderReturnTo } from "./order-list-query";
 import {
@@ -13,9 +18,11 @@ import {
   formatOrderDate,
   missingOrderData,
   orderStatusLabels,
+  paymentActionLabels,
   paymentMethodLabels,
   paymentStatusLabels
 } from "./order-display";
+import OrderActionDialog from "./OrderActionDialog";
 
 export default function Orders() {
   return <OrderListView />;
@@ -24,6 +31,7 @@ export default function Orders() {
 export function OrderListView({ payments = false }: { payments?: boolean }) {
   const { query, result, loading, error, changeQuery, reload } = useOrdersList();
   const location = useLocation();
+  const [action, setAction] = useState<{ orderId: string; action: PaymentAction } | null>(null);
   const returnTo = safeOrderReturnTo(`${location.pathname}${location.search}`);
   const refresh = () => {
     reload().catch(() => {
@@ -85,11 +93,24 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
       title: "Thao tác",
       key: "actions",
       render: (_, row) => (
-        <Link
-          to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
-        >
-          Chi tiết
-        </Link>
+        <Flex gap={8} wrap>
+          <Link
+            to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
+          >
+            Chi tiết
+          </Link>
+          {/* Summaries carry no eligibility; the dialog's fresh read decides what is allowed. */}
+          {payments &&
+            (Object.keys(paymentActionLabels) as PaymentAction[]).map(item => (
+              <Button
+                key={item}
+                size='small'
+                onClick={() => setAction({ orderId: row._id, action: item })}
+              >
+                {paymentActionLabels[item]}
+              </Button>
+            ))}
+        </Flex>
       )
     }
   ];
@@ -174,6 +195,18 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
             />
           </Flex>
         </>
+      )}
+      {action && (
+        <OrderActionDialog
+          key={`${action.orderId}:${action.action}`}
+          orderId={action.orderId}
+          intent={{ type: "payment", action: action.action }}
+          onClose={() => setAction(null)}
+          // Lives outside the table: a list reload unmounts rows but must not erase the outcome.
+          onOrderChanged={async () => {
+            await reload();
+          }}
+        />
       )}
     </section>
   );

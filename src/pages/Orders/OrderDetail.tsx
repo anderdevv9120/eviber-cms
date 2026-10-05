@@ -10,12 +10,14 @@ import {
   formatOrderAmount,
   formatOrderDate,
   missingOrderData,
+  orderActionLabels,
   orderStatusLabels,
   paymentActionLabels,
   paymentMethodLabels,
   paymentStatusLabels
 } from "./order-display";
 import OrderHistory from "./OrderHistory";
+import OrderActionDialog, { type OrderActionIntent } from "./OrderActionDialog";
 
 export default function OrderDetail() {
   const { orderId = "" } = useParams();
@@ -28,6 +30,7 @@ export default function OrderDetail() {
 
 function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: string }) {
   const [attempt, setAttempt] = useState(0);
+  const [intent, setIntent] = useState<OrderActionIntent | null>(null);
   const [view, setView] = useState<{
     loading: boolean;
     order?: AdminOrderDetail;
@@ -101,13 +104,37 @@ function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: str
           <Typography.Title level={2}>
             Đơn hàng {displayOrderText(order.orderNumber)}
           </Typography.Title>
-          <p>Ngày tạo: {formatOrderDate(order.created_at)}</p>
-          <Flex gap={8} className='my-4'>
-            <Tag>{orderStatusLabels[order.status]}</Tag>
-            <Tag>
-              {order.paymentStatus ? paymentStatusLabels[order.paymentStatus] : missingOrderData}
-            </Tag>
-          </Flex>
+          <section aria-label='Thông tin đơn hàng'>
+            <p>Ngày tạo: {formatOrderDate(order.created_at)}</p>
+            <Flex gap={8} className='my-4'>
+              <Tag>{orderStatusLabels[order.status]}</Tag>
+              <Tag>
+                {order.paymentStatus ? paymentStatusLabels[order.paymentStatus] : missingOrderData}
+              </Tag>
+            </Flex>
+            <Flex gap={8} wrap>
+              {order.actions.orderStatuses
+                .filter(action => action.enabled)
+                .map(action => (
+                  <Button
+                    key={action.status}
+                    onClick={() => setIntent({ type: "fulfillment", status: action.status })}
+                  >
+                    {orderActionLabels[action.status]}
+                  </Button>
+                ))}
+              {order.actions.paymentActions
+                .filter(action => action.enabled)
+                .map(action => (
+                  <Button
+                    key={action.action}
+                    onClick={() => setIntent({ type: "payment", action: action.action })}
+                  >
+                    {paymentActionLabels[action.action]}
+                  </Button>
+                ))}
+            </Flex>
+          </section>
           <section aria-label='Người nhận'>
             <Typography.Title level={3}>Người nhận</Typography.Title>
             <Descriptions
@@ -340,6 +367,16 @@ function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: str
           </section>
           <OrderHistory order={order} />
         </>
+      )}
+      {intent && (
+        <OrderActionDialog
+          key={`${orderId}:${intent.type}:${intent.type === "payment" ? intent.action : intent.status}`}
+          orderId={orderId}
+          intent={intent}
+          onClose={() => setIntent(null)}
+          // The mutation result (or a conflict reload) is the newest committed read of this order.
+          onOrderChanged={async updated => setView({ loading: false, order: updated })}
+        />
       )}
     </section>
   );
