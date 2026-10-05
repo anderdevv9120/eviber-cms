@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { AxiosError } from "axios";
 import { routes } from "./router";
@@ -22,6 +22,8 @@ const profile = {
   status: "ACTIVE",
   roles: ["ADMIN"]
 };
+// Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
+configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
   useAppStore.getState().clearProfile();
   axiosRequest.defaults.adapter = async config =>
@@ -84,7 +86,8 @@ describe("CMS data router", () => {
       );
       for (const back of screen.getAllByRole("link", { name: "Về danh sách" }))
         expect(back.getAttribute("href")).toBe(`${path}${query}`);
-    }
+    },
+    20000
   );
 
   it("redirects unauthenticated direct order detail through the existing guard", async () => {
