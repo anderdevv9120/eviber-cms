@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { AxiosError } from "axios";
 import { routes } from "./router";
@@ -7,6 +7,7 @@ import axiosRequest from "@/utils/request";
 import { attribute, value, list, response, deferred } from "@/test/attribute-fixtures";
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
+import { order, orderList } from "@/test/order-fixtures";
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
@@ -21,15 +22,22 @@ const profile = {
   status: "ACTIVE",
   roles: ["ADMIN"]
 };
+// Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
+configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
+  useAppStore.getState().clearProfile();
   axiosRequest.defaults.adapter = async config =>
     response(
       config,
       config.url === "/auth/profile"
         ? profile
-        : config.url === "/attributes"
-          ? list()
-          : { attribute, values: [value], revision: 4 }
+        : config.url?.startsWith("/orders/")
+          ? order
+          : config.url === "/orders"
+            ? orderList([order], config.params.page, 65, config.params.pageSize)
+            : config.url === "/attributes"
+              ? list()
+              : { attribute, values: [value], revision: 4 }
     );
 });
 const renderRoute = (path: string) => {
@@ -39,6 +47,91 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it.each([
+    ["/orders", "Quản lý Đơn hàng"],
+    ["/payments", "Quản lý Thanh toán"]
+  ])(
+    "preserves %s query through detail/back, browser Back and a direct reload",
+    async (path, label) => {
+      const query = "?page=3&pageSize=20&search=An&status=pending&paymentStatus=unpaid";
+      const router = renderRoute(`${path}${query}`);
+      const link = await screen.findByRole("link", { name: "Chi tiết" });
+      expect(screen.getByRole("heading", { name: label })).toBeTruthy();
+      expect(screen.getByRole("menuitem", { name: new RegExp(label) }).className).toContain(
+        "ant-menu-item-selected"
+      );
+      expect(within(screen.getByRole("navigation")).getByText(label)).toBeTruthy();
+      fireEvent.click(link);
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      const detailLocation = `${router.state.location.pathname}${router.state.location.search}`;
+      expect(new URLSearchParams(router.state.location.search).get("returnTo")).toBe(
+        `${path}${query}`
+      );
+      fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
+      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(
+        `${path}${query}`
+      );
+      await act(() => router.navigate(-1));
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      await act(() => router.navigate(-1));
+      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(router.state.location.search).toBe(query);
+      const fresh = createMemoryRouter(routes, { initialEntries: [detailLocation] });
+      await act(() => router.navigate(detailLocation, { replace: true }));
+      // A new router at the saved URL models a document reload, without navigation state.
+      render(<RouterProvider router={fresh} />);
+      await waitFor(() =>
+        expect(screen.getAllByRole("link", { name: "Về danh sách" })).toHaveLength(2)
+      );
+      for (const back of screen.getAllByRole("link", { name: "Về danh sách" }))
+        expect(back.getAttribute("href")).toBe(`${path}${query}`);
+    },
+    20000
+  );
+
+  it("redirects unauthenticated direct order detail through the existing guard", async () => {
+    clearSession();
+    const router = renderRoute("/orders/order-id");
+    await screen.findByText("Đăng nhập vào CMS");
+    expect(router.state.location.pathname).toBe("/auth/login");
+  });
+
+  it.each([
+    ["", "/orders", "Quản lý Đơn hàng"],
+    ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Quản lý Đơn hàng"],
+    [
+      "?returnTo=%2Fpayments%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
+      "/payments?page=3&search=An&paymentStatus=paid",
+      "Quản lý Thanh toán"
+    ]
+  ])(
+    "loads direct order detail with origin selection and breadcrumbs (%s)",
+    async (query, destination, menuLabel) => {
+      const router = renderRoute(`/orders/order-id${query}`);
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      expect(screen.getByRole("menuitem", { name: new RegExp(menuLabel) }).className).toContain(
+        "ant-menu-item-selected"
+      );
+      const crumbs = within(screen.getByRole("navigation"));
+      expect(crumbs.getByText("Chi tiết đơn hàng")).toBeTruthy();
+      expect(crumbs.getByRole("link").getAttribute("href")).toBe(destination);
+      expect(crumbs.queryByText("Sản phẩm")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+      await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      expect(router.state.location.search).toBe(query);
+      expect(screen.getByRole("link", { name: "Về danh sách" }).getAttribute("href")).toBe(
+        destination
+      );
+      if (destination === "/orders") {
+        fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
+        await waitFor(() => expect(router.state.location.pathname).toBe("/orders"));
+        await act(() => router.navigate(-1));
+        await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+      }
+    }
+  );
+
   it("redirects unauthenticated direct detail to login and authenticated login to dashboard", async () => {
     clearSession();
     const router = renderRoute("/catalog/attributes/size-id");

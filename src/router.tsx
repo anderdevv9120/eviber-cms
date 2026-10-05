@@ -12,6 +12,9 @@ const Login = lazy(() => import("./pages/auth/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Attributes = lazy(() => import("./pages/Attributes"));
 const AttributeDetail = lazy(() => import("./pages/Attributes/AttributeDetail"));
+const OrderDetail = lazy(() => import("./pages/Orders/OrderDetail"));
+const Orders = lazy(() => import("./pages/Orders"));
+const Payments = lazy(() => import("./pages/Payments"));
 
 export const routes: RouteObject[] = [
   {
@@ -40,7 +43,9 @@ export const routes: RouteObject[] = [
       { path: PATH.HOME, element: <Navigate to={PATH.DASHBOARD} /> },
       { path: PATH.DASHBOARD, element: <Dashboard /> },
       { path: PATH.PRODUCT, element: <Dashboard /> },
-      { path: PATH.ORDER, element: <Dashboard /> },
+      { path: PATH.ORDER, element: <Orders /> },
+      { path: PATH.PAYMENTS, element: <Payments /> },
+      { path: PATH.ORDER_DETAIL, element: <OrderDetail /> },
       { path: PATH.ATTRIBUTES, element: <Attributes /> },
       { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> }
     ]
