@@ -33,13 +33,14 @@ export function useOrdersList() {
     };
     try {
       let data = await fetchPage(currentQuery);
-      if ((currentQuery.page ?? 1) > Math.max(1, data.totalPage)) {
-        const firstPage = { ...currentQuery, page: 1 };
-        const firstParams = serializeOrderListQuery(firstPage);
+      const lastPage = Math.max(1, data.totalPage);
+      if ((currentQuery.page ?? 1) > lastPage) {
+        const recovered = { ...currentQuery, page: lastPage };
+        const recoveredParams = serializeOrderListQuery(recovered);
         // Keep recovery in this promise; the URL Effect must not issue a duplicate read.
-        current.key = firstParams.toString();
-        setParams(firstParams, { replace: true });
-        data = await fetchPage(firstPage);
+        current.key = recoveredParams.toString();
+        setParams(recoveredParams, { replace: true });
+        data = await fetchPage(recovered);
       }
       setView({ key: current.key, result: data });
       return data;

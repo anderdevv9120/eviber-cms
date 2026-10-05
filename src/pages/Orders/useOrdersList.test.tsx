@@ -89,6 +89,22 @@ describe("URL-driven order reads", () => {
     expect(pages).toEqual([3, 1]);
   });
 
+  it("recovers an out-of-range page to the last valid page once", async () => {
+    const pages: number[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      pages.push(config.params.page);
+      return response(
+        config,
+        orderList(config.params.page === 3 ? [order] : [], config.params.page, 25, 10)
+      );
+    };
+    const { result } = setup("/orders?page=9&status=cancelled");
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.location.search).toBe("?page=3&status=cancelled");
+    expect(result.current.result?.data).toHaveLength(1);
+    expect(pages).toEqual([9, 3]);
+  });
+
   it("reload returns fresh data and rejects failures without showing an empty result", async () => {
     let fail = false;
     let reads = 0;
