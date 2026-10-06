@@ -19,8 +19,8 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import { successNotification } from "@/utils/notification";
 import AttributeValueForm from "./AttributeValueForm";
 import AttributeValuesTable from "./AttributeValuesTable";
-import useOrderDraft from "./useOrderDraft";
-import useUnsavedOrderWarning from "./useUnsavedOrderWarning";
+import useOrderDraft from "@/hooks/useOrderDraft";
+import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
 
 export default function AttributeDetail() {
   const { attributeId } = useParams();
