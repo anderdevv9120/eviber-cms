@@ -8,6 +8,48 @@ import { errorNotification } from "@/utils/notification";
 vi.mock("@/utils/notification", () => ({ errorNotification: vi.fn() }));
 
 describe("customer transport", () => {
+  it("uses scoped address paths, full PUT input and identity-only history queries", async () => {
+    const calls: InternalAxiosRequestConfig[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(config);
+      return response(config, config.method === "delete" ? { success: true } : []);
+    };
+    const signal = new AbortController().signal;
+    const input: api.CustomerAddressInput = {
+      name: "Recipient",
+      city: "City",
+      ward: "Ward",
+      specificAddress: "Street",
+      phoneNumber: "0901234567",
+      primary: true
+    };
+    await api.getCustomerAddressesAPI("id/1", signal);
+    await api.addCustomerAddressAPI("id/1", input);
+    await api.updateCustomerAddressAPI("id/1", "address/1", input);
+    expect(await api.deleteCustomerAddressAPI("id/1", "address/1")).toEqual({
+      data: { success: true },
+      message: "success"
+    });
+    await api.getCustomerOrdersAPI("id/1", { page: 2, pageSize: 20 }, signal);
+    await api.getGuestBuyerOrdersAPI("a+b@example.test", { page: 2, pageSize: 20 }, signal);
+    expect(calls.map(c => [c.method, c.url, c.params, c.toastError])).toEqual([
+      ["get", "/customers/registered/id%2F1/addresses", undefined, false],
+      ["post", "/customers/registered/id%2F1/addresses", undefined, false],
+      ["put", "/customers/registered/id%2F1/addresses/address%2F1", undefined, false],
+      ["delete", "/customers/registered/id%2F1/addresses/address%2F1", undefined, false],
+      ["get", "/customers/registered/id%2F1/orders", { page: 2, pageSize: 20 }, false],
+      [
+        "get",
+        "/customers/guests/orders",
+        { email: "a+b@example.test", page: 2, pageSize: 20 },
+        false
+      ]
+    ]);
+    expect(JSON.parse(calls[2].data)).toEqual(input);
+    expect(calls[0].signal).toBe(signal);
+    expect(calls[4].signal).toBe(signal);
+    expect(calls[5].signal).toBe(signal);
+  });
   it("preserves one envelope, whitelists list filters and encodes IDs/emails", async () => {
     const calls: InternalAxiosRequestConfig[] = [];
     const payload = { data: [], page: 1, pageSize: 10, total: 0, totalPage: 0 };

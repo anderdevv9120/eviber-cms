@@ -47,6 +47,58 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it.each([
+    ["/customers/registered/customer-id", "Khách hàng đã đăng ký", "/customers?page=2&search=An"],
+    [
+      "/customers/guests/detail?email=guest%2Btag%40example.test",
+      "Khách vãng lai",
+      "/customers?tab=guests&page=2&search=An"
+    ]
+  ])(
+    "keeps Customers selected and restores its canonical list from %s",
+    async (path, label, returnTo) => {
+      const customer = {
+        _id: "customer-id",
+        email: "an@example.test",
+        status: "UNVERIFIED",
+        addresses: []
+      };
+      const guest = { email: "guest+tag@example.test", name: "Latest contact", orderCount: 1 };
+      axiosRequest.defaults.adapter = async config => {
+        if (config.url === "/auth/profile") return response(config, profile);
+        if (config.url?.endsWith("/addresses")) return response(config, []);
+        if (config.url?.endsWith("/orders")) return response(config, orderList([order]));
+        if (config.url === "/customers/registered/customer-id") return response(config, customer);
+        if (config.url === "/customers/guests/detail") return response(config, guest);
+        return response(config, {
+          data: config.url === "/customers/guests" ? [guest] : [customer],
+          total: 25,
+          page: config.params.page,
+          pageSize: config.params.pageSize,
+          totalPage: 3
+        });
+      };
+      const url = new URL(path, "https://cms.example.test");
+      url.searchParams.set("returnTo", returnTo);
+      const router = renderRoute(`${url.pathname}${url.search}`);
+      await screen.findByRole("heading", { name: label });
+      expect(screen.getByRole("menuitem", { name: "Khách hàng" }).className).toContain(
+        "ant-menu-item-selected"
+      );
+      const crumbs = within(screen.getByRole("navigation"));
+      expect(crumbs.getByText(label)).toBeTruthy();
+      expect(crumbs.getByRole("link", { name: "Khách hàng" }).getAttribute("href")).toBe(returnTo);
+      expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
+        "/orders/order-id"
+      );
+      fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
+      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(returnTo);
+      await act(() => router.navigate(-1));
+      await screen.findByRole("heading", { name: label });
+    }
+  );
+
   it("loads the registered Customers URL with selected navigation and accurate breadcrumbs", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(

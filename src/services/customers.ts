@@ -119,3 +119,52 @@ export const getGuestBuyerAPI = (
   signal?: AbortSignal
 ): Promise<ApiResponse<GuestBuyerDetail>> =>
   axiosRequest.get("/customers/guests/detail", { ...inlineErrors, params: { email }, signal });
+
+export const getCustomerAddressesAPI = (
+  id: string,
+  signal?: AbortSignal
+): Promise<ApiResponse<CustomerAddress[]>> =>
+  axiosRequest.get(`${customerPath(id)}/addresses`, { ...inlineErrors, signal });
+export const addCustomerAddressAPI = (
+  id: string,
+  input: CustomerAddressInput
+): Promise<ApiResponse<CustomerAddress[]>> =>
+  axiosRequest.post(`${customerPath(id)}/addresses`, input, inlineErrors);
+export const updateCustomerAddressAPI = (
+  id: string,
+  addressId: string,
+  input: CustomerAddressInput
+): Promise<ApiResponse<CustomerAddress>> =>
+  axiosRequest.put(
+    `${customerPath(id)}/addresses/${encodeURIComponent(addressId)}`,
+    input,
+    inlineErrors
+  );
+export const deleteCustomerAddressAPI = (
+  id: string,
+  addressId: string
+): Promise<ApiResponse<{ success: true }>> =>
+  axiosRequest.delete(
+    `${customerPath(id)}/addresses/${encodeURIComponent(addressId)}`,
+    inlineErrors
+  );
+export const getCustomerOrdersAPI = (
+  id: string,
+  { page, pageSize }: Pick<CustomerListQuery, "page" | "pageSize">,
+  signal?: AbortSignal
+): Promise<ApiResponse<CustomerListResult<CustomerOrderRow>>> =>
+  axiosRequest.get(`${customerPath(id)}/orders`, {
+    ...inlineErrors,
+    params: { page, pageSize },
+    signal
+  });
+export const getGuestBuyerOrdersAPI = (
+  email: string,
+  { page, pageSize }: Pick<CustomerListQuery, "page" | "pageSize">,
+  signal?: AbortSignal
+): Promise<ApiResponse<CustomerListResult<CustomerOrderRow>>> =>
+  axiosRequest.get("/customers/guests/orders", {
+    ...inlineErrors,
+    params: { email, page, pageSize },
+    signal
+  });

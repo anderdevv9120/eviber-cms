@@ -8,6 +8,7 @@ import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
 import { safeOrderReturnTo } from "@/pages/Orders/order-list-query";
+import { safeCustomerReturnTo } from "@/pages/Customers/customer-list-query";
 
 const { Content } = Layout;
 
@@ -17,6 +18,8 @@ const MainLayout = () => {
   const { pathname, search } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
+  const customerDetail = !!matchPath(PATH.CUSTOMER_DETAIL, pathname);
+  const guestDetail = pathname === PATH.GUEST_BUYER_DETAIL;
   const params = new URLSearchParams(search);
   const returnTo = safeOrderReturnTo(
     params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
@@ -24,8 +27,25 @@ const MainLayout = () => {
   const paymentsOrigin =
     pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
   const breadcrumbs =
-    pathname === PATH.CUSTOMERS
-      ? [{ title: "Khách hàng" }]
+    pathname === PATH.CUSTOMERS || customerDetail || guestDetail
+      ? [
+          {
+            title:
+              customerDetail || guestDetail ? (
+                <Link
+                  to={safeCustomerReturnTo(
+                    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
+                  )}
+                >
+                  Khách hàng
+                </Link>
+              ) : (
+                "Khách hàng"
+              )
+          },
+          ...(customerDetail ? [{ title: "Khách hàng đã đăng ký" }] : []),
+          ...(guestDetail ? [{ title: "Khách vãng lai" }] : [])
+        ]
       : pathname === PATH.ATTRIBUTES || attributeDetail
         ? [
             { title: "Danh mục" },

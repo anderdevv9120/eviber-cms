@@ -14,7 +14,8 @@ import {
 } from "antd";
 import type { TableColumnsType } from "antd";
 import viVN from "antd/locale/vi_VN";
-import { useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { PATH } from "@/constants/paths";
 import {
   createCustomerAPI,
   listCustomersAPI,
@@ -144,7 +145,14 @@ function useCustomersList() {
 }
 
 export default function Customers() {
+  const navigate = useNavigate();
   const { query, key, result, error, loading, changeQuery, reload, isCurrent } = useCustomersList();
+  const listSearch = serializeCustomerListQuery(query).toString();
+  const returnTo = listSearch ? `${PATH.CUSTOMERS}?${listSearch}` : PATH.CUSTOMERS;
+  const registeredLink = (id: string) => ({
+    pathname: PATH.CUSTOMER_DETAIL.replace(":customerId", encodeURIComponent(id)),
+    search: new URLSearchParams({ returnTo }).toString()
+  });
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -187,6 +195,7 @@ export default function Customers() {
   };
   const create = async (input: CreateCustomerInput) => {
     if (recovery || savingRef.current) return;
+    let createdId: string;
     savingRef.current = true;
     setSaving(true);
     try {
@@ -199,6 +208,7 @@ export default function Customers() {
         data.accountType !== "DEFAULT"
       )
         throw new Error("Chưa xác nhận được kết quả tạo khách hàng.");
+      createdId = data._id;
     } catch (cause) {
       if (
         mounted.current &&
@@ -212,7 +222,7 @@ export default function Customers() {
     }
     if (!mounted.current) return;
     setCreating(false);
-    if (isCurrent()) refresh();
+    if (isCurrent()) navigate(registeredLink(createdId));
   };
 
   const registeredColumns: TableColumnsType<RegisteredCustomerSummary> = [
@@ -235,7 +245,11 @@ export default function Customers() {
             : "—"
     },
     { title: "Ngày tạo", key: "created", render: (_, row) => date(row.created_at) },
-    { title: "Thao tác", key: "actions", render: () => <Button disabled>Chi tiết</Button> }
+    {
+      title: "Thao tác",
+      key: "actions",
+      render: (_, row) => <Link to={registeredLink(row._id)}>Chi tiết</Link>
+    }
   ];
   const guestColumns: TableColumnsType<GuestBuyerSummary> = [
     { title: "Email", dataIndex: "email" },
@@ -243,7 +257,23 @@ export default function Customers() {
     { title: "Số điện thoại gần nhất", key: "phone", render: (_, row) => text(row.phoneNumber) },
     { title: "Đơn hàng gần nhất", key: "latest", render: (_, row) => date(row.latestOrderAt) },
     { title: "Số đơn hàng", dataIndex: "orderCount" },
-    { title: "Thao tác", key: "actions", render: () => <Button disabled>Chi tiết</Button> }
+    {
+      title: "Thao tác",
+      key: "actions",
+      render: (_, row) => (
+        <Link
+          to={{
+            pathname: PATH.GUEST_BUYER_DETAIL,
+            search: new URLSearchParams({
+              email: row.email.trim().toLowerCase(),
+              returnTo
+            }).toString()
+          }}
+        >
+          Chi tiết
+        </Link>
+      )
+    }
   ];
 
   return (

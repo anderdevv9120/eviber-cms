@@ -6,11 +6,20 @@ import { ApiError } from "@/utils/request";
 import * as api from "@/services/customers";
 import Customers from "./index";
 import CustomerForm from "./CustomerForm";
+import RegisteredCustomerDetail from "./RegisteredCustomerDetail";
+import GuestBuyerDetail from "./GuestBuyerDetail";
+import { order } from "@/test/order-fixtures";
 
 vi.mock("@/services/customers", () => ({
   listCustomersAPI: vi.fn(),
   listGuestBuyersAPI: vi.fn(),
-  createCustomerAPI: vi.fn()
+  createCustomerAPI: vi.fn(),
+  getCustomerAPI: vi.fn(),
+  updateCustomerAPI: vi.fn(),
+  getGuestBuyerAPI: vi.fn(),
+  getCustomerAddressesAPI: vi.fn(),
+  getCustomerOrdersAPI: vi.fn(),
+  getGuestBuyerOrdersAPI: vi.fn()
 }));
 const customer: api.RegisteredCustomerDetail = {
   _id: "customer-id",
@@ -34,9 +43,16 @@ const list = <T,>(data: T[], page = 1, total = data.length, pageSize = 10) => ({
   message: "success"
 });
 const renderList = (path = "/customers") => {
-  const router = createMemoryRouter([{ path: "/customers", element: <Customers /> }], {
-    initialEntries: [path]
-  });
+  const router = createMemoryRouter(
+    [
+      { path: "/customers", element: <Customers /> },
+      { path: "/customers/registered/:customerId", element: <RegisteredCustomerDetail /> },
+      { path: "/customers/guests/detail", element: <GuestBuyerDetail /> }
+    ],
+    {
+      initialEntries: [path]
+    }
+  );
   const rendered = render(<RouterProvider router={router} />);
   return { router, ...rendered };
 };
@@ -47,6 +63,24 @@ const fillCreate = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Tạo khách hàng" }));
 };
 beforeEach(() => {
+  vi.mocked(api.getCustomerAPI)
+    .mockReset()
+    .mockImplementation(async id => ({ data: { ...customer, _id: id }, message: "success" }));
+  vi.mocked(api.updateCustomerAPI)
+    .mockReset()
+    .mockResolvedValue({ data: customer, message: "success" });
+  vi.mocked(api.getGuestBuyerAPI)
+    .mockReset()
+    .mockResolvedValue({ data: guest, message: "success" });
+  vi.mocked(api.getCustomerAddressesAPI)
+    .mockReset()
+    .mockResolvedValue({ data: [], message: "success" });
+  vi.mocked(api.getCustomerOrdersAPI)
+    .mockReset()
+    .mockResolvedValue(list([order]));
+  vi.mocked(api.getGuestBuyerOrdersAPI)
+    .mockReset()
+    .mockResolvedValue(list([{ ...order, status: "returned" }]));
   vi.mocked(api.listCustomersAPI)
     .mockReset()
     .mockResolvedValue(list([customer]));
@@ -129,18 +163,20 @@ describe("Customers list and creation", () => {
     expect(screen.queryByText("an@example.test")).toBeNull();
     expect(vi.mocked(api.listCustomersAPI).mock.calls[0][1]?.aborted).toBe(true);
   });
-  it("locks duplicate submissions, clears the password and refreshes after success", async () => {
+  it("locks duplicate submissions and opens the created customer detail", async () => {
     const pending = deferred<Awaited<ReturnType<typeof api.createCustomerAPI>>>();
     vi.mocked(api.createCustomerAPI).mockReturnValueOnce(pending.promise);
-    renderList();
+    const { router } = renderList();
     await fillCreate();
     await waitFor(() => expect(api.createCustomerAPI).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "Tạo khách hàng" }));
     expect(api.createCustomerAPI).toHaveBeenCalledTimes(1);
     await act(async () => pending.resolve({ data: customer, message: "success" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await waitFor(() => expect(api.listCustomersAPI).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole("button", { name: "Thêm khách hàng" }));
+    await screen.findByRole("heading", { name: "Khách hàng đã đăng ký" });
+    expect(router.state.location.pathname).toBe("/customers/registered/customer-id");
+    fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm khách hàng" }));
     expect((screen.getByLabelText("Mật khẩu") as HTMLInputElement).value).toBe("");
   });
   it.each([undefined, 503])(
@@ -195,5 +231,138 @@ describe("Customers list and creation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lưu hồ sơ" }));
     await waitFor(() => expect(submit).toHaveBeenCalled());
     expect(submit.mock.calls[0][0]).toEqual({ firstName: "An", phone: "+84901234567" });
+  });
+});
+
+describe("Customer detail integration", () => {
+  it.each([
+    ["GOOGLE", "Google"],
+    [undefined, "—"]
+  ] as const)("shows actual optional account type %s", async (accountType, label) => {
+    vi.mocked(api.getCustomerAPI).mockResolvedValueOnce({
+      data: { ...customer, accountType },
+      message: "success"
+    });
+    renderList("/customers/registered/customer-id");
+    await screen.findByRole("heading", { name: "Khách hàng đã đăng ký" });
+    expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Email / mật khẩu")).toBeNull();
+  });
+  it("recovers an out-of-range history page once using only the customer endpoint", async () => {
+    vi.mocked(api.getCustomerOrdersAPI).mockImplementation(async (_id, pagination) =>
+      list([order], pagination.page, pagination.page === 1 ? 25 : 1, pagination.pageSize)
+    );
+    renderList("/customers/registered/customer-id");
+    await screen.findByRole("link", { name: "ORD-SNAPSHOT" });
+    fireEvent.click(screen.getByTitle("3"));
+    await waitFor(() =>
+      expect(vi.mocked(api.getCustomerOrdersAPI).mock.calls.map(([, query]) => query.page)).toEqual(
+        [1, 3, 1]
+      )
+    );
+    expect(api.getGuestBuyerOrdersAPI).not.toHaveBeenCalled();
+  });
+  it("keeps account fields readonly, edits only profile and links identity-filtered history", async () => {
+    renderList("/customers/registered/customer-id?returnTo=%2Fcustomers%3Fpage%3D2");
+    await screen.findByRole("heading", { name: "Khách hàng đã đăng ký" });
+    expect(screen.getByText("Email / mật khẩu")).toBeTruthy();
+    expect(screen.getByText("Chưa xác minh")).toBeTruthy();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "Về danh sách khách hàng" }).getAttribute("href")).toBe(
+      "/customers?page=2"
+    );
+    expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
+      "/orders/order-id"
+    );
+    expect(vi.mocked(api.getCustomerOrdersAPI).mock.calls[0][0]).toBe("customer-id");
+    expect(api.getGuestBuyerOrdersAPI).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Sửa hồ sơ" }));
+    expect(screen.queryByLabelText("Email")).toBeNull();
+    expect(screen.queryByLabelText("Mật khẩu")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Tên"), { target: { value: "Changed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu hồ sơ" }));
+    await waitFor(() => expect(api.updateCustomerAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.updateCustomerAPI).mock.calls[0]).toEqual([
+      "customer-id",
+      { firstName: "Changed", phone: "+84901234567" }
+    ]);
+  });
+  it("blocks profile editing after an uncertain write until a fresh read succeeds", async () => {
+    vi.mocked(api.updateCustomerAPI).mockRejectedValueOnce(new ApiError("Write uncertain", 503));
+    vi.mocked(api.getCustomerAPI)
+      .mockResolvedValueOnce({ data: customer, message: "success" })
+      .mockRejectedValueOnce(new Error("Recovery failed"));
+    renderList("/customers/registered/customer-id");
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa hồ sơ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu hồ sơ" }));
+    await screen.findByText("Recovery failed");
+    expect(screen.queryByRole("button", { name: "Sửa hồ sơ" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await screen.findByRole("button", { name: "Sửa hồ sơ" });
+    expect(api.updateCustomerAPI).toHaveBeenCalledTimes(1);
+  });
+  it("shows latest guest contact as readonly and keeps matching account history separate", async () => {
+    vi.mocked(api.getGuestBuyerAPI).mockResolvedValueOnce({
+      data: { ...guest, email: customer.email },
+      message: "success"
+    });
+    renderList("/customers/guests/detail?email=AN%40example.test");
+    await screen.findByText("Thông tin liên hệ từ đơn hàng gần nhất");
+    expect(screen.getByText("Latest Contact")).toBeTruthy();
+    expect(await screen.findByText("Đã trả hàng")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sửa hồ sơ" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Thêm địa chỉ" })).toBeNull();
+    expect(api.getCustomerAPI).not.toHaveBeenCalled();
+    expect(api.getCustomerOrdersAPI).not.toHaveBeenCalled();
+    expect(vi.mocked(api.getGuestBuyerOrdersAPI).mock.calls[0][0]).toBe(customer.email);
+  });
+  it.each(["", "?email=", "?email=a&email=b", `?email=${"a".repeat(256)}`])(
+    "never reads a broad guest detail for invalid query %s",
+    async query => {
+      renderList(`/customers/guests/detail${query}`);
+      await screen.findByText("Khách vãng lai không còn khả dụng");
+      expect(api.getGuestBuyerAPI).not.toHaveBeenCalled();
+      expect(api.getGuestBuyerOrdersAPI).not.toHaveBeenCalled();
+    }
+  );
+  it("ignores old detail and history reads after switching registered identity", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof api.getCustomerAPI>>>();
+    const history = deferred<Awaited<ReturnType<typeof api.getCustomerOrdersAPI>>>();
+    vi.mocked(api.getCustomerAPI).mockReturnValueOnce(pending.promise);
+    const { router } = renderList("/customers/registered/a");
+    await waitFor(() => expect(api.getCustomerAPI).toHaveBeenCalled());
+    await act(() => router.navigate("/customers/registered/b"));
+    await screen.findByText(customer.email);
+    await act(async () =>
+      pending.resolve({
+        data: { ...customer, _id: "a", email: "old@example.test" },
+        message: "success"
+      })
+    );
+    expect(screen.queryByText("old@example.test")).toBeNull();
+    vi.mocked(api.getCustomerOrdersAPI).mockReturnValueOnce(history.promise);
+    await act(() => router.navigate("/customers/registered/c"));
+    await waitFor(() =>
+      expect(vi.mocked(api.getCustomerOrdersAPI).mock.calls.some(([id]) => id === "c")).toBe(true)
+    );
+    await act(() => router.navigate("/customers/registered/d"));
+    await screen.findByRole("link", { name: "ORD-SNAPSHOT" });
+    await act(async () => history.resolve(list([{ ...order, orderNumber: "OLD-HISTORY" }])));
+    expect(screen.queryByText("OLD-HISTORY")).toBeNull();
+  });
+  it("ignores old guest detail after switching normalized email", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof api.getGuestBuyerAPI>>>();
+    vi.mocked(api.getGuestBuyerAPI).mockReturnValueOnce(pending.promise);
+    const { router } = renderList("/customers/guests/detail?email=old@example.test");
+    await waitFor(() => expect(api.getGuestBuyerAPI).toHaveBeenCalled());
+    await act(() => router.navigate("/customers/guests/detail?email=guest@example.test"));
+    await screen.findByText("Latest Contact");
+    await act(async () =>
+      pending.resolve({
+        data: { ...guest, name: "Old contact", email: "old@example.test" },
+        message: "success"
+      })
+    );
+    expect(screen.queryByText("Old contact")).toBeNull();
   });
 });
