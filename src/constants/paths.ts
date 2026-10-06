@@ -9,7 +9,9 @@ export const PATH = {
   CUSTOMER_DETAIL: "/customers/registered/:customerId",
   GUEST_BUYER_DETAIL: "/customers/guests/detail",
   ATTRIBUTES: "/catalog/attributes",
-  ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId"
+  ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId",
+  BANNERS: "/banners",
+  REVIEWS: "/reviews"
 };
 
 export const PATH_AUTH = {

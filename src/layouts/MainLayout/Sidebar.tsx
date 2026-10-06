@@ -7,7 +7,8 @@ import {
   DesktopOutlined,
   ContainerOutlined,
   MailOutlined,
-  AppstoreOutlined
+  AppstoreOutlined,
+  PictureOutlined
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -41,17 +42,20 @@ const Sidebar = () => {
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const customersSelected =
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
-  const selectedKey = customersSelected
-    ? "customers"
-    : catalogSelected
-      ? "attributes"
-      : pathname === PATH.PRODUCT
-        ? "2"
-        : paymentsSelected
-          ? "payments"
-          : pathname === PATH.ORDER || orderDetail
-            ? "3"
-            : "1";
+  const selectedKey =
+    pathname === PATH.BANNERS
+      ? "banners"
+      : customersSelected
+        ? "customers"
+        : catalogSelected
+          ? "attributes"
+          : pathname === PATH.PRODUCT
+            ? "2"
+            : paymentsSelected
+              ? "payments"
+              : pathname === PATH.ORDER || orderDetail
+                ? "3"
+                : "1";
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -96,6 +100,12 @@ const Sidebar = () => {
       label: "Khách hàng",
       icon: <MailOutlined />,
       onClick: () => navigate(PATH.CUSTOMERS)
+    },
+    {
+      key: "banners",
+      label: "Banner",
+      icon: <PictureOutlined />,
+      onClick: () => navigate(PATH.BANNERS)
     },
     {
       key: "sub2",

@@ -69,7 +69,9 @@ const MainLayout = () => {
               },
               ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
             ]
-          : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
+          : pathname === PATH.BANNERS
+            ? [{ title: "Banner" }]
+            : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
