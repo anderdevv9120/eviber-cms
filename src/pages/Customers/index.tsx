@@ -332,7 +332,7 @@ export default function Customers() {
           { key: "guests", label: "Khách vãng lai" }
         ]}
       />
-      <Flex gap={12} wrap className='mb-4'>
+      <Flex gap={12} className='mb-4'>
         {query.tab === "registered" && (
           <Select<CustomerStatus | "">
             aria-label='Lọc trạng thái khách hàng'
