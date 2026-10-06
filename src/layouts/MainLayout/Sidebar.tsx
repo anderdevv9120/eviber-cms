@@ -29,15 +29,19 @@ const Sidebar = () => {
   const catalogSelected =
     pathname === PATH.ATTRIBUTES || !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
-  const selectedKey = catalogSelected
-    ? "attributes"
-    : pathname === PATH.PRODUCT
-      ? "2"
-      : paymentsSelected
-        ? "payments"
-        : pathname === PATH.ORDER || orderDetail
-          ? "3"
-          : "1";
+  const customersSelected =
+    pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
+  const selectedKey = customersSelected
+    ? "customers"
+    : catalogSelected
+      ? "attributes"
+      : pathname === PATH.PRODUCT
+        ? "2"
+        : paymentsSelected
+          ? "payments"
+          : pathname === PATH.ORDER || orderDetail
+            ? "3"
+            : "1";
 
   const items = [
     { key: "1", icon: <PieChartOutlined />, label: "Trang chủ", onClick: () => navigate("/") },
@@ -68,13 +72,10 @@ const Sidebar = () => {
       ]
     },
     {
-      key: "sub1",
-      label: "Quản lý Khách hàng",
+      key: "customers",
+      label: "Khách hàng",
       icon: <MailOutlined />,
-      children: [
-        { key: "5", label: "Danh sách Khách hàng", onClick: () => navigate("/customers") },
-        { key: "6", label: "Thêm Khách hàng", onClick: () => navigate("/customers/add") }
-      ]
+      onClick: () => navigate(PATH.CUSTOMERS)
     },
     {
       key: "sub2",

@@ -47,6 +47,54 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("loads the registered Customers URL with selected navigation and accurate breadcrumbs", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : {
+              data: [
+                {
+                  _id: "customer-id",
+                  email: "an@example.test",
+                  status: "UNVERIFIED",
+                  firstName: "An"
+                }
+              ],
+              total: 25,
+              page: config.params.page,
+              pageSize: config.params.pageSize,
+              totalPage: 3
+            }
+      );
+    const path = "/customers?page=2&search=An&status=UNVERIFIED";
+    const router = renderRoute(path);
+    await screen.findByText("an@example.test");
+    expect(screen.getByRole("menuitem", { name: "Khách hàng" }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(within(screen.getByRole("navigation")).getByText("Khách hàng")).toBeTruthy();
+    expect(within(screen.getByRole("navigation")).queryByText("Sản phẩm")).toBeNull();
+    expect(router.state.location.search).toBe("?page=2&search=An&status=UNVERIFIED");
+    expect(screen.queryByRole("menuitem", { name: "Thêm Khách hàng" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Thu gọn menu" }));
+    expect(screen.getByRole("menuitem", { name: "Khách hàng" }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(screen.getByRole("button", { name: "Mở menu" })).toBeTruthy();
+  });
+
+  it("guards direct Customers navigation and keeps creation off the router", async () => {
+    clearSession();
+    const router = renderRoute("/customers");
+    await screen.findByText("Đăng nhập vào CMS");
+    expect(router.state.location.pathname).toBe("/auth/login");
+    expect(
+      routes.flatMap(route => route.children ?? []).some(route => route.path === "/customers/add")
+    ).toBe(false);
+  });
+
   it.each([
     ["/orders", "Quản lý Đơn hàng"],
     ["/payments", "Quản lý Thanh toán"]

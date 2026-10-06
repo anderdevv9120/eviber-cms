@@ -5,6 +5,7 @@ export const PATH = {
   ORDER: "/orders",
   ORDER_DETAIL: "/orders/:orderId",
   PAYMENTS: "/payments",
+  CUSTOMERS: "/customers",
   ATTRIBUTES: "/catalog/attributes",
   ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId"
 };
