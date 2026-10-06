@@ -25,6 +25,8 @@ const profile = {
 // Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
 configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
+  // Sidebar lưu trạng thái thu gọn vào localStorage — không để rò giữa các test
+  localStorage.clear();
   useAppStore.getState().clearProfile();
   axiosRequest.defaults.adapter = async config =>
     response(
@@ -82,7 +84,7 @@ describe("CMS data router", () => {
       url.searchParams.set("returnTo", returnTo);
       const router = renderRoute(`${url.pathname}${url.search}`);
       await screen.findByRole("heading", { name: label });
-      expect(screen.getByRole("menuitem", { name: "Khách hàng" }).className).toContain(
+      expect(screen.getByRole("menuitem", { name: /Khách hàng/ }).className).toContain(
         "ant-menu-item-selected"
       );
       const crumbs = within(screen.getByRole("navigation"));
@@ -123,7 +125,7 @@ describe("CMS data router", () => {
     const path = "/customers?page=2&search=An&status=UNVERIFIED";
     const router = renderRoute(path);
     await screen.findByText("an@example.test");
-    expect(screen.getByRole("menuitem", { name: "Khách hàng" }).className).toContain(
+    expect(screen.getByRole("menuitem", { name: /Khách hàng/ }).className).toContain(
       "ant-menu-item-selected"
     );
     expect(within(screen.getByRole("navigation")).getByText("Khách hàng")).toBeTruthy();
@@ -131,7 +133,7 @@ describe("CMS data router", () => {
     expect(router.state.location.search).toBe("?page=2&search=An&status=UNVERIFIED");
     expect(screen.queryByRole("menuitem", { name: "Thêm Khách hàng" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Thu gọn menu" }));
-    expect(screen.getByRole("menuitem", { name: "Khách hàng" }).className).toContain(
+    expect(screen.getByRole("menuitem", { name: /Khách hàng/ }).className).toContain(
       "ant-menu-item-selected"
     );
     expect(screen.getByRole("button", { name: "Mở menu" })).toBeTruthy();
