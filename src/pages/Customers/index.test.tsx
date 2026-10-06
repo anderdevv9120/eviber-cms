@@ -224,6 +224,45 @@ describe("Customers list and creation", () => {
     ).toBe(false);
     expect(api.listCustomersAPI).toHaveBeenCalledTimes(1);
   });
+  it("never treats pre-creation results as a successful recovery read", async () => {
+    const otherRead = deferred<Awaited<ReturnType<typeof api.listCustomersAPI>>>();
+    const recoveryRead = deferred<Awaited<ReturnType<typeof api.listCustomersAPI>>>();
+    vi.mocked(api.listCustomersAPI)
+      .mockResolvedValueOnce(list([customer]))
+      .mockReturnValueOnce(otherRead.promise)
+      .mockReturnValueOnce(recoveryRead.promise);
+    vi.mocked(api.createCustomerAPI).mockRejectedValueOnce(new ApiError("Write uncertain"));
+    renderList("/customers?search=an@example.test");
+    await screen.findByText("an@example.test");
+    fireEvent.change(screen.getByLabelText("Tìm khách hàng"), { target: { value: "other" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tìm kiếm" }));
+    await waitFor(() => expect(api.listCustomersAPI).toHaveBeenCalledTimes(2));
+    await fillCreate();
+    fireEvent.click(await screen.findByRole("button", { name: "Tìm email đã gửi" }));
+    await waitFor(() => expect(api.listCustomersAPI).toHaveBeenCalledTimes(3));
+    expect(
+      (screen.getByRole("button", { name: "Thêm khách hàng" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    expect(screen.queryByText("an@example.test")).toBeNull();
+    await act(async () => recoveryRead.reject(new Error("Recovery read failed")));
+    await screen.findByText("Recovery read failed");
+    expect(
+      (screen.getByRole("button", { name: "Thêm khách hàng" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    await act(async () => otherRead.resolve(list([customer])));
+    expect(
+      (screen.getByRole("button", { name: "Thêm khách hàng" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    expect(api.createCustomerAPI).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Thêm khách hàng" }) as HTMLButtonElement).disabled
+      ).toBe(false)
+    );
+    expect(api.listCustomersAPI).toHaveBeenCalledTimes(4);
+    expect(api.createCustomerAPI).toHaveBeenCalledTimes(1);
+  });
   it("update mode sends only profile fields and has no password", async () => {
     const submit = vi.fn().mockResolvedValue(undefined);
     render(<CustomerForm customer={customer} onSubmit={submit} onCancel={() => {}} />);

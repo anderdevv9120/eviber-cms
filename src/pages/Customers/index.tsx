@@ -57,49 +57,53 @@ function useCustomersList() {
   const [view, setView] = useState<ListView>({ key });
   const request = useRef<{ controller: AbortController; key: string } | null>(null);
   // Stable identity makes the network Effect depend on committed query changes.
-  const fetchList = useCallback(async (): Promise<ListResult> => {
-    request.current?.controller.abort();
-    const current = { controller: new AbortController(), key };
-    request.current = current;
-    const currentQuery = parseCustomerListQuery(new URLSearchParams(key));
-    const fetchPage = async (pageQuery: CustomerListQuery) => {
-      const { data } = await (pageQuery.tab === "guests" ? listGuestBuyersAPI : listCustomersAPI)(
-        pageQuery,
-        current.controller.signal
-      );
-      if (current.controller.signal.aborted || request.current !== current)
-        throw new Error("Yêu cầu danh sách đã bị thay thế");
-      if (
-        !data ||
-        !Array.isArray(data.data) ||
-        !Number.isSafeInteger(data.total) ||
-        data.total < 0 ||
-        !Number.isSafeInteger(data.totalPage) ||
-        data.totalPage < 0 ||
-        data.page !== pageQuery.page ||
-        data.pageSize !== pageQuery.pageSize
-      )
-        throw new Error("Không nhận được danh sách khách hàng hợp lệ. Vui lòng thử lại.");
-      return data;
-    };
-    try {
-      let data = await fetchPage(currentQuery);
-      const lastPage = Math.max(1, data.totalPage);
-      if (currentQuery.page > lastPage) {
-        const recovered = { ...currentQuery, page: lastPage };
-        const recoveredParams = serializeCustomerListQuery(recovered);
-        current.key = recoveredParams.toString();
-        setParams(recoveredParams, { replace: true });
-        data = await fetchPage(recovered);
+  const fetchList = useCallback(
+    async (nextQuery?: CustomerListQuery): Promise<ListResult> => {
+      request.current?.controller.abort();
+      const readKey = nextQuery ? serializeCustomerListQuery(nextQuery).toString() : key;
+      const current = { controller: new AbortController(), key: readKey };
+      request.current = current;
+      const currentQuery = parseCustomerListQuery(new URLSearchParams(readKey));
+      const fetchPage = async (pageQuery: CustomerListQuery) => {
+        const { data } = await (pageQuery.tab === "guests" ? listGuestBuyersAPI : listCustomersAPI)(
+          pageQuery,
+          current.controller.signal
+        );
+        if (current.controller.signal.aborted || request.current !== current)
+          throw new Error("Yêu cầu danh sách đã bị thay thế");
+        if (
+          !data ||
+          !Array.isArray(data.data) ||
+          !Number.isSafeInteger(data.total) ||
+          data.total < 0 ||
+          !Number.isSafeInteger(data.totalPage) ||
+          data.totalPage < 0 ||
+          data.page !== pageQuery.page ||
+          data.pageSize !== pageQuery.pageSize
+        )
+          throw new Error("Không nhận được danh sách khách hàng hợp lệ. Vui lòng thử lại.");
+        return data;
+      };
+      try {
+        let data = await fetchPage(currentQuery);
+        const lastPage = Math.max(1, data.totalPage);
+        if (currentQuery.page > lastPage) {
+          const recovered = { ...currentQuery, page: lastPage };
+          const recoveredParams = serializeCustomerListQuery(recovered);
+          current.key = recoveredParams.toString();
+          setParams(recoveredParams, { replace: true });
+          data = await fetchPage(recovered);
+        }
+        setView({ key: current.key, result: data });
+        return data;
+      } catch (cause) {
+        if (!current.controller.signal.aborted && request.current === current)
+          setView({ key: current.key, error: getErrorMessage(cause) });
+        throw cause;
       }
-      setView({ key: current.key, result: data });
-      return data;
-    } catch (cause) {
-      if (!current.controller.signal.aborted && request.current === current)
-        setView({ key: current.key, error: getErrorMessage(cause) });
-      throw cause;
-    }
-  }, [key, setParams]);
+    },
+    [key, setParams]
+  );
 
   useEffect(() => {
     if (request.current?.key !== key)
@@ -127,14 +131,15 @@ function useCustomersList() {
       return serializeCustomerListQuery(next);
     });
   };
-  const reload = () => {
-    setView({ key });
-    return fetchList();
+  const reload = (nextQuery?: CustomerListQuery) => {
+    const nextParams = nextQuery ? serializeCustomerListQuery(nextQuery) : undefined;
+    setView({ key: nextParams?.toString() ?? key });
+    if (nextParams && nextParams.toString() !== key) setParams(nextParams);
+    return fetchList(nextQuery);
   };
   const currentView = view.key === key ? view : undefined;
   return {
     query,
-    key,
     result: currentView?.result,
     error: currentView?.error,
     loading: !currentView?.result && !currentView?.error,
@@ -146,7 +151,7 @@ function useCustomersList() {
 
 export default function Customers() {
   const navigate = useNavigate();
-  const { query, key, result, error, loading, changeQuery, reload, isCurrent } = useCustomersList();
+  const { query, result, error, loading, changeQuery, reload, isCurrent } = useCustomersList();
   const listSearch = serializeCustomerListQuery(query).toString();
   const returnTo = listSearch ? `${PATH.CUSTOMERS}?${listSearch}` : PATH.CUSTOMERS;
   const registeredLink = (id: string) => ({
@@ -156,7 +161,7 @@ export default function Customers() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const [recovery, setRecovery] = useState<{ email: string; searched: boolean } | null>(null);
+  const [recovery, setRecovery] = useState<{ email: string; confirmed: boolean } | null>(null);
   const mounted = useRef(false);
   useEffect(() => {
     mounted.current = true;
@@ -165,7 +170,7 @@ export default function Customers() {
     };
   }, []);
   const reviewed =
-    !!recovery?.searched &&
+    !!recovery?.confirmed &&
     query.tab === "registered" &&
     query.search === recovery.email &&
     !query.status &&
@@ -176,11 +181,23 @@ export default function Customers() {
     if (!savingRef.current) setCreating(false);
   };
   const refresh = () => {
+    if (
+      recovery &&
+      !recovery.confirmed &&
+      query.tab === "registered" &&
+      query.search === recovery.email &&
+      !query.status
+    ) {
+      searchAfterCreation().catch(() => {
+        // Recovery failures remain inline and keep creation locked.
+      });
+      return;
+    }
     reload().catch(() => {
       /* Read failure is shown inline. */
     });
   };
-  const searchAfterCreation = () => {
+  const searchAfterCreation = async () => {
     if (!recovery) return;
     const next: CustomerListQuery = {
       tab: "registered",
@@ -189,9 +206,16 @@ export default function Customers() {
       search: recovery.email
     };
     setCreating(false);
-    setRecovery({ ...recovery, searched: true });
-    if (serializeCustomerListQuery(next).toString() === key) refresh();
-    else changeQuery({ ...next, status: undefined });
+    setRecovery({ email: recovery.email, confirmed: false });
+    try {
+      await reload(next);
+      if (mounted.current)
+        setRecovery(current =>
+          current && current.email === next.search ? { ...current, confirmed: true } : current
+        );
+    } catch {
+      // An uncertain write stays locked until an explicit recovery read succeeds.
+    }
   };
   const create = async (input: CreateCustomerInput) => {
     if (recovery || savingRef.current) return;
@@ -214,7 +238,7 @@ export default function Customers() {
         mounted.current &&
         (!(cause instanceof ApiError) || cause.status === undefined || cause.status >= 500)
       )
-        setRecovery({ email: input.email.trim().toLowerCase(), searched: false });
+        setRecovery({ email: input.email.trim().toLowerCase(), confirmed: false });
       throw cause;
     } finally {
       savingRef.current = false;
