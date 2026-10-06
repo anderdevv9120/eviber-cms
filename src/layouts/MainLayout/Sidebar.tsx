@@ -115,7 +115,7 @@ const Sidebar = () => {
       collapsed={collapsed}
       width={230}
       collapsedWidth={80}
-      className='sticky top-0 self-start h-screen'
+      className='sticky top-0 z-20 self-start h-screen'
     >
       <Flex
         justify='center'
