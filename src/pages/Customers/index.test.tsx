@@ -10,6 +10,13 @@ import RegisteredCustomerDetail from "./RegisteredCustomerDetail";
 import GuestBuyerDetail from "./GuestBuyerDetail";
 import { order } from "@/test/order-fixtures";
 
+vi.mock("@/services/checkout-settings", () => ({
+  getCheckoutSettingsAPI: vi.fn(async () => ({
+    data: { allowGuestCheckout: true },
+    message: "success"
+  })),
+  updateCheckoutSettingsAPI: vi.fn()
+}));
 vi.mock("@/services/customers", () => ({
   listCustomersAPI: vi.fn(),
   listGuestBuyersAPI: vi.fn(),
