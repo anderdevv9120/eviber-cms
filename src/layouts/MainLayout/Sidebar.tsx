@@ -14,9 +14,19 @@ import { PATH } from "@/constants/paths";
 import { safeOrderReturnTo } from "@/pages/Orders/order-list-query";
 
 const { Sider } = Layout;
+const COLLAPSED_KEY = "cms.sidebarCollapsed";
+
+// Storage có thể bị chặn (private mode, site data tắt) → mặc định mở, không lưu
+const readCollapsed = () => {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
 
 const Sidebar = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const params = new URLSearchParams(search);
@@ -42,6 +52,16 @@ const Sidebar = () => {
           : pathname === PATH.ORDER || orderDetail
             ? "3"
             : "1";
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+    } catch {
+      // bỏ qua: chỉ mất phần nhớ trạng thái
+    }
+  };
 
   const items = [
     { key: "1", icon: <PieChartOutlined />, label: "Trang chủ", onClick: () => navigate("/") },
@@ -89,7 +109,14 @@ const Sidebar = () => {
   ];
 
   return (
-    <Sider trigger={null} collapsible collapsed={collapsed} width={230} collapsedWidth={80}>
+    <Sider
+      trigger={null}
+      collapsible
+      collapsed={collapsed}
+      width={230}
+      collapsedWidth={80}
+      className='sticky top-0 self-start h-screen'
+    >
       <Flex
         justify='center'
         align='center'
@@ -101,7 +128,7 @@ const Sidebar = () => {
         <Button
           type='text'
           icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           aria-label={collapsed ? "Mở menu" : "Thu gọn menu"}
           className='w-16! h-16 absolute right-[-84px] top-0'
         />
