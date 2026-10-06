@@ -31,14 +31,19 @@ const second = banner("b", "Banner B", 1);
 const ok = <T,>(data: T) => ({ data, message: "success" });
 
 const setup = () => {
-  const router = createMemoryRouter([{ path: "/banners", element: <Banners /> }], {
-    initialEntries: ["/banners"]
-  });
+  const router = createMemoryRouter(
+    [
+      { path: "/banners", element: <Banners /> },
+      { path: "/other", element: <p>Trang khác</p> }
+    ],
+    { initialEntries: ["/banners"] }
+  );
   render(
     <ConfigProvider theme={{ token: { motion: false } }}>
       <RouterProvider router={router} />
     </ConfigProvider>
   );
+  return router;
 };
 const rows = () => within(screen.getByRole("table")).getAllByRole("row").slice(1);
 const drag = (label: string, target: HTMLElement) => {
@@ -106,6 +111,17 @@ describe("banners page", () => {
     await waitFor(() => expect(api.reorderBannersAPI).toHaveBeenCalledWith(["b", "a"]));
   });
 
+  it("asks before leaving with an unsaved order", async () => {
+    const router = setup();
+    await screen.findByText("Banner A");
+    drag("Banner B", rows()[0]);
+    void router.navigate("/other");
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getAllByText("Thứ tự chưa được lưu").length).toBeGreaterThan(0);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bỏ thay đổi và rời đi" }));
+    expect(await screen.findByText("Trang khác")).toBeTruthy();
+  });
+
   it("reloads and explains when the saved order is stale", async () => {
     vi.mocked(api.reorderBannersAPI).mockRejectedValue(new ApiError("stale", 409));
     setup();
@@ -134,15 +150,16 @@ describe("banners page", () => {
     expect(api.createBannerAPI).not.toHaveBeenCalled();
   });
 
-  it("rejects an unsafe button link", async () => {
-    setup();
-    const dialog = await openCreate();
-    fireEvent.change(within(dialog).getByLabelText("Đường dẫn nút"), {
-      target: { value: "javascript:alert(1)" }
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
-    expect(await within(dialog).findByText(/Đường dẫn phải bắt đầu bằng/)).toBeTruthy();
-  });
+  it.each(["javascript:alert(1)", "/\\evil.example"])(
+    "rejects an unsafe button link %s",
+    async href => {
+      setup();
+      const dialog = await openCreate();
+      fireEvent.change(within(dialog).getByLabelText("Đường dẫn nút"), { target: { value: href } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
+      expect(await within(dialog).findByText(/Đường dẫn phải bắt đầu bằng/)).toBeTruthy();
+    }
+  );
 
   it("uploads an image, previews it and creates the banner with the uploaded path", async () => {
     vi.mocked(api.createBannerAPI).mockResolvedValue(ok(banner("c", "Sale", 2)));

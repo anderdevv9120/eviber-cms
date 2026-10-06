@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, Flex, Popconfirm, Spin, Switch, Typography } from "antd";
+import { Alert, App, Button, Flex, Popconfirm, Spin, Switch, Typography } from "antd";
 import type { TableProps } from "antd";
 import SortableTable from "@/components/SortableTable";
 import useOrderDraft from "@/hooks/useOrderDraft";
@@ -19,7 +19,16 @@ import { successNotification } from "@/utils/notification";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import BannerForm from "./BannerForm";
 
+// useUnsavedOrderWarning cần modal từ antd <App> (như AttributeDetail)
 export default function Banners() {
+  return (
+    <App component={false}>
+      <BannersContent />
+    </App>
+  );
+}
+
+function BannersContent() {
   const [banners, setBanners] = useState<Banner[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);

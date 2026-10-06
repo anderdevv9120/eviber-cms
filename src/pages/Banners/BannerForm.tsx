@@ -5,8 +5,8 @@ import { uploadImageAPI, type Banner, type BannerInput } from "@/services/banner
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
-// Khớp backend: path nội bộ (không `//`) hoặc https — chặn javascript:/protocol-relative
-const HREF_PATTERN = /^(\/(?!\/)\S*|https:\/\/\S+)$/;
+// Khớp backend: path nội bộ (không `//` hay `/\`) hoặc https — chặn javascript:/protocol-relative
+const HREF_PATTERN = /^(\/(?![/\\])\S*|https:\/\/\S+)$/;
 
 interface Values {
   image?: string;
