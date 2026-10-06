@@ -333,11 +333,6 @@ export default function Customers() {
         ]}
       />
       <Flex gap={12} wrap className='mb-4'>
-        <CustomerSearch
-          key={query.search ?? ""}
-          search={query.search ?? ""}
-          onSearch={search => changeQuery({ search })}
-        />
         {query.tab === "registered" && (
           <Select<CustomerStatus | "">
             aria-label='Lọc trạng thái khách hàng'
@@ -353,6 +348,11 @@ export default function Customers() {
             ]}
           />
         )}
+        <CustomerSearch
+          key={query.search ?? ""}
+          search={query.search ?? ""}
+          onSearch={search => changeQuery({ search })}
+        />
       </Flex>
       {recovery && !creating && (
         <Alert
