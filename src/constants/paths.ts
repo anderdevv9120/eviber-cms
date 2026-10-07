@@ -11,7 +11,8 @@ export const PATH = {
   ATTRIBUTES: "/catalog/attributes",
   ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId",
   BANNERS: "/banners",
-  REVIEWS: "/reviews"
+  REVIEWS: "/reviews",
+  REPORTS: "/reports"
 };
 
 export const PATH_AUTH = {

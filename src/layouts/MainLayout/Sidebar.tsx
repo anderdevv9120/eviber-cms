@@ -9,7 +9,8 @@ import {
   MailOutlined,
   AppstoreOutlined,
   PictureOutlined,
-  StarOutlined
+  StarOutlined,
+  BarChartOutlined
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -44,21 +45,23 @@ const Sidebar = () => {
   const customersSelected =
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
   const selectedKey =
-    pathname === PATH.REVIEWS
-      ? "reviews"
-      : pathname === PATH.BANNERS
-        ? "banners"
-        : customersSelected
-          ? "customers"
-          : catalogSelected
-            ? "attributes"
-            : pathname === PATH.PRODUCT
-              ? "2"
-              : paymentsSelected
-                ? "payments"
-                : pathname === PATH.ORDER || orderDetail
-                  ? "3"
-                  : "1";
+    pathname === PATH.REPORTS
+      ? "reports"
+      : pathname === PATH.REVIEWS
+        ? "reviews"
+        : pathname === PATH.BANNERS
+          ? "banners"
+          : customersSelected
+            ? "customers"
+            : catalogSelected
+              ? "attributes"
+              : pathname === PATH.PRODUCT
+                ? "2"
+                : paymentsSelected
+                  ? "payments"
+                  : pathname === PATH.ORDER || orderDetail
+                    ? "3"
+                    : "1";
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -117,13 +120,10 @@ const Sidebar = () => {
       onClick: () => navigate(PATH.REVIEWS)
     },
     {
-      key: "sub2",
-      label: "Báo cáo và Thống kê",
-      icon: <AppstoreOutlined />,
-      children: [
-        { key: "9", label: "Báo cáo Doanh thu", onClick: () => navigate("/reports/revenue") },
-        { key: "10", label: "Báo cáo Sản phẩm", onClick: () => navigate("/reports/products") }
-      ]
+      key: "reports",
+      label: "Báo cáo bán hàng",
+      icon: <BarChartOutlined />,
+      onClick: () => navigate(PATH.REPORTS)
     }
   ];
 

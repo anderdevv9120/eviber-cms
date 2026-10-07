@@ -241,7 +241,7 @@ describe("CMS data router", () => {
     expect(router.state.location.pathname).toBe("/auth/login");
   });
 
-  it.each(["/", "/auth/login", "/dashboard", "/product", "/orders"])(
+  it.each(["/", "/auth/login", "/dashboard", "/product", "/orders", "/reports"])(
     "preserves existing destination and profile at %s",
     async path => {
       const router = renderRoute(path);
@@ -252,6 +252,38 @@ describe("CMS data router", () => {
       expect(screen.queryByText("Unexpected Application Error!")).toBeNull();
     }
   );
+
+  it("navigates between Dashboard and Reports with route-aware menu and breadcrumbs", async () => {
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, profile);
+      // Sections show inline read failures; this test covers navigation only.
+      throw new AxiosError("offline", AxiosError.ERR_NETWORK, config);
+    };
+    const router = renderRoute("/dashboard");
+    await screen.findByRole("heading", { name: "Tổng quan vận hành" });
+    const crumbs = () => within(screen.getByRole("navigation"));
+    expect(screen.getByRole("menuitem", { name: /Trang chủ/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(crumbs().getByText("Trang chủ")).toBeTruthy();
+    expect(crumbs().queryByText("Sản phẩm")).toBeNull();
+    expect(
+      screen.queryByRole("menuitem", { name: /Báo cáo Doanh thu|Báo cáo Sản phẩm/ })
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Báo cáo bán hàng/ }));
+    await screen.findByRole("heading", { name: "Báo cáo bán hàng" });
+    expect(router.state.location.pathname).toBe("/reports");
+    expect(screen.getByRole("menuitem", { name: /Báo cáo bán hàng/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(screen.getByRole("menuitem", { name: /Trang chủ/ }).className).not.toContain(
+      "ant-menu-item-selected"
+    );
+    expect(crumbs().getByText("Báo cáo bán hàng")).toBeTruthy();
+    expect(crumbs().queryByText("Trang chủ")).toBeNull();
+    await act(() => router.navigate(-1));
+    await screen.findByRole("heading", { name: "Tổng quan vận hành" });
+  }, 20000);
 
   it("keeps the original editor placeholder on /product, not on the Dashboard", async () => {
     const router = renderRoute("/product");

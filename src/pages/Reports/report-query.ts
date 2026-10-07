@@ -16,6 +16,8 @@ function calendarTime(date: string) {
   return Number.isFinite(time) && isoDay(time) === date ? time : null;
 }
 
+/** YYYY-MM-DD as the Vietnamese DD/MM/YYYY display. */
+export const calendarLabel = (date: string) => date.split("-").reverse().join("/");
 export const vietnamToday = (now = new Date()) => isoDay(now.getTime() + VIETNAM_OFFSET_MS);
 
 export function reportPresetRange(preset: ReportPreset, today: string) {

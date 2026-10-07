@@ -21,6 +21,7 @@ const RegisteredCustomerDetail = lazy(() => import("./pages/Customers/Registered
 const GuestBuyerDetail = lazy(() => import("./pages/Customers/GuestBuyerDetail"));
 const Banners = lazy(() => import("./pages/Banners"));
 const Reviews = lazy(() => import("./pages/Reviews"));
+const Reports = lazy(() => import("./pages/Reports"));
 
 export const routes: RouteObject[] = [
   {
@@ -58,7 +59,8 @@ export const routes: RouteObject[] = [
       { path: PATH.ATTRIBUTES, element: <Attributes /> },
       { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> },
       { path: PATH.BANNERS, element: <Banners /> },
-      { path: PATH.REVIEWS, element: <Reviews /> }
+      { path: PATH.REVIEWS, element: <Reviews /> },
+      { path: PATH.REPORTS, element: <Reports /> }
     ]
   },
   { path: "*", element: <NotFound /> }
