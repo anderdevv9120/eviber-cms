@@ -10,6 +10,7 @@ import MainLayout from "./layouts/MainLayout";
 const ForgetPassword = lazy(() => import("./pages/auth/ForgetPassword"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Product = lazy(() => import("./pages/Product"));
 const Attributes = lazy(() => import("./pages/Attributes"));
 const AttributeDetail = lazy(() => import("./pages/Attributes/AttributeDetail"));
 const OrderDetail = lazy(() => import("./pages/Orders/OrderDetail"));
@@ -47,7 +48,7 @@ export const routes: RouteObject[] = [
     children: [
       { path: PATH.HOME, element: <Navigate to={PATH.DASHBOARD} /> },
       { path: PATH.DASHBOARD, element: <Dashboard /> },
-      { path: PATH.PRODUCT, element: <Dashboard /> },
+      { path: PATH.PRODUCT, element: <Product /> },
       { path: PATH.ORDER, element: <Orders /> },
       { path: PATH.PAYMENTS, element: <Payments /> },
       { path: PATH.CUSTOMERS, element: <Customers /> },

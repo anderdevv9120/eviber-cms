@@ -253,6 +253,15 @@ describe("CMS data router", () => {
     }
   );
 
+  it("keeps the original editor placeholder on /product, not on the Dashboard", async () => {
+    const router = renderRoute("/product");
+    await waitFor(() => expect(document.querySelector("[contenteditable='true']")).not.toBeNull());
+    expect(screen.queryByRole("heading", { name: "Tổng quan vận hành" })).toBeNull();
+    await act(() => router.navigate("/dashboard"));
+    await screen.findByRole("heading", { name: "Tổng quan vận hành" });
+    expect(document.querySelector("[contenteditable='true']")).toBeNull();
+  }, 20000);
+
   it("supports direct detail, selected/open catalog menu, scoped breadcrumbs, list and back navigation", async () => {
     const router = renderRoute("/catalog/attributes/size-id");
     await screen.findByRole("link", { name: "Về danh sách thuộc tính" });
