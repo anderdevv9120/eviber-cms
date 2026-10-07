@@ -20,7 +20,8 @@ describe("order transport through the shared Axios client", () => {
       pageSize: 20,
       search: "An & Bình",
       status: "cancelled",
-      paymentStatus: "paid"
+      paymentStatus: "paid",
+      attention: "refund-needed"
     } as const;
     expect(await api.listOrdersAPI(query, signal)).toEqual({
       data: orderList(),

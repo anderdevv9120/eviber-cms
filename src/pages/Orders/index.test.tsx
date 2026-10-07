@@ -110,6 +110,34 @@ describe("Orders list", () => {
     });
   });
 
+  it("shows a clearable attention selector that resets page and stays in detail return context", async () => {
+    const requests: unknown[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      requests.push(config.params);
+      return response(config, orderList([order], config.params.page, 100, config.params.pageSize));
+    };
+    const router = setup("/orders?page=3&status=pending");
+    await screen.findByRole("link", { name: "Chi tiết" });
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lọc đơn cần chú ý" }));
+    fireEvent.click(await screen.findByText("Chờ chuyển khoản"));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?status=pending&attention=awaiting-transfer")
+    );
+    const link = await screen.findByRole("link", { name: "Chi tiết" });
+    expect(
+      new URL(link.getAttribute("href")!, "http://test.local").searchParams.get("returnTo")
+    ).toBe("/orders?status=pending&attention=awaiting-transfer");
+    expect(requests[requests.length - 1]).toEqual({
+      page: 1,
+      pageSize: 10,
+      status: "pending",
+      attention: "awaiting-transfer"
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lọc đơn cần chú ý" }));
+    fireEvent.click(await screen.findByText("Tất cả đơn hàng"));
+    await waitFor(() => expect(router.state.location.search).toBe("?status=pending"));
+  });
+
   it("restores reload/deep-link inputs and retains complete detail origin", async () => {
     axiosRequest.defaults.adapter = async config => response(config, orderList([order], 2, 35, 20));
     setup("/orders?page=2&pageSize=20&search=An&status=pending&paymentStatus=unpaid");

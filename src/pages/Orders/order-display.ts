@@ -1,4 +1,5 @@
 import type {
+  OrderAttention,
   OrderStatus,
   PaymentStatus,
   PaymentAction,
@@ -19,6 +20,10 @@ export const paymentStatusLabels: Record<PaymentStatus, string> = {
   paid: "Đã thanh toán",
   refunded: "Đã hoàn tiền",
   failed: "Thanh toán thất bại"
+};
+export const orderAttentionLabels: Record<OrderAttention, string> = {
+  "awaiting-transfer": "Chờ chuyển khoản",
+  "refund-needed": "Cần hoàn tiền"
 };
 export const paymentActionLabels: Record<PaymentAction, string> = {
   receipt: "Ghi nhận thanh toán",

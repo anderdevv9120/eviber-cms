@@ -6,6 +6,7 @@ import { Link, useLocation } from "react-router";
 import { PATH } from "@/constants/paths";
 import type {
   AdminOrderSummary,
+  OrderAttention,
   OrderStatus,
   PaymentAction,
   PaymentStatus
@@ -17,6 +18,7 @@ import {
   formatOrderAmount,
   formatOrderDate,
   missingOrderData,
+  orderAttentionLabels,
   orderStatusLabels,
   paymentActionLabels,
   paymentMethodLabels,
@@ -153,6 +155,19 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
             { value: "", label: "Tất cả trạng thái thanh toán" },
             ...Object.entries(paymentStatusLabels).map(([value, label]) => ({
               value: value as PaymentStatus,
+              label
+            }))
+          ]}
+        />
+        <Select<OrderAttention | "">
+          aria-label='Lọc đơn cần chú ý'
+          style={{ minWidth: 200 }}
+          value={query.attention ?? ""}
+          onChange={attention => changeQuery({ attention: attention || undefined })}
+          options={[
+            { value: "", label: "Tất cả đơn hàng" },
+            ...Object.entries(orderAttentionLabels).map(([value, label]) => ({
+              value: value as OrderAttention,
               label
             }))
           ]}

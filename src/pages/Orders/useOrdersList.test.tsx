@@ -72,6 +72,40 @@ describe("URL-driven order reads", () => {
     expect(result.current.query.status).toBeUndefined();
   });
 
+  it("sends attention with other filters, resets page on attention change and keeps it otherwise", async () => {
+    const requests: unknown[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      requests.push(config.params);
+      return response(config, orderList([order], config.params.page, 100, config.params.pageSize));
+    };
+    const { result } = setup("/payments?page=3&status=pending&attention=awaiting-transfer");
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(requests).toEqual([
+      { page: 3, pageSize: 10, status: "pending", attention: "awaiting-transfer" }
+    ]);
+    await act(() => result.current.changeQuery({ search: "An" }));
+    await act(() => result.current.changeQuery({ page: 4 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.location.search).toBe(
+      "?page=4&search=An&status=pending&attention=awaiting-transfer"
+    );
+    await act(() => result.current.changeQuery({ attention: "refund-needed" }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.location.search).toBe(
+      "?search=An&status=pending&attention=refund-needed"
+    );
+    await act(() => result.current.changeQuery({ page: 2 }));
+    await act(() => result.current.changeQuery({ attention: undefined }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.location.search).toBe("?search=An&status=pending");
+    expect(requests[requests.length - 1]).toEqual({
+      page: 1,
+      pageSize: 10,
+      search: "An",
+      status: "pending"
+    });
+  });
+
   it.each([1, 0])("recovers page 3 to page 1 once for total %s", async total => {
     const pages: number[] = [];
     axiosRequest.defaults.adapter = async config => {

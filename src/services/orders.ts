@@ -7,6 +7,8 @@ export type PaymentStatus = "unpaid" | "paid" | "refunded" | "failed";
 export type PaymentAction = "receipt" | "refund" | "correction";
 export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "E_WALLET";
 export type OrderActorType = "customer" | "admin" | "system" | "webhook";
+/** Current-state queues shared with dashboard counts; ANDed with the other list filters. */
+export type OrderAttention = "awaiting-transfer" | "refund-needed";
 
 export interface OrderActor {
   actorType: OrderActorType;
@@ -110,6 +112,7 @@ export interface OrderListQuery {
   search?: string;
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  attention?: OrderAttention;
 }
 export interface OrderListResult {
   data: AdminOrderSummary[];

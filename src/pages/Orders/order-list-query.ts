@@ -1,5 +1,5 @@
-import type { OrderListQuery, OrderStatus, PaymentStatus } from "@/services/orders";
-import { orderStatusLabels, paymentStatusLabels } from "./order-display";
+import type { OrderAttention, OrderListQuery, OrderStatus, PaymentStatus } from "@/services/orders";
+import { orderAttentionLabels, orderStatusLabels, paymentStatusLabels } from "./order-display";
 
 /** Repeated keys invalidate only that field; unknown keys never reach the API. */
 export function parseOrderListQuery(params: URLSearchParams): OrderListQuery {
@@ -9,6 +9,7 @@ export function parseOrderListQuery(params: URLSearchParams): OrderListQuery {
   const search = single("search")?.trim();
   const status = single("status");
   const paymentStatus = single("paymentStatus");
+  const attention = single("attention");
   const query: OrderListQuery = {
     page:
       page && /^\d+$/.test(page) && Number.isSafeInteger(Number(page)) && Number(page) > 0
@@ -22,13 +23,22 @@ export function parseOrderListQuery(params: URLSearchParams): OrderListQuery {
     query.status = status as OrderStatus;
   if (paymentStatus && Object.prototype.hasOwnProperty.call(paymentStatusLabels, paymentStatus))
     query.paymentStatus = paymentStatus as PaymentStatus;
+  if (attention && Object.prototype.hasOwnProperty.call(orderAttentionLabels, attention))
+    query.attention = attention as OrderAttention;
   return query;
 }
 
 /** Default values stay implicit so unfiltered lists retain their plain URLs. */
 export function serializeOrderListQuery(query: OrderListQuery): URLSearchParams {
   const params = new URLSearchParams();
-  for (const key of ["page", "pageSize", "search", "status", "paymentStatus"] as const) {
+  for (const key of [
+    "page",
+    "pageSize",
+    "search",
+    "status",
+    "paymentStatus",
+    "attention"
+  ] as const) {
     const value = query[key];
     if (value !== undefined) params.set(key, String(value));
   }
@@ -39,6 +49,7 @@ export function serializeOrderListQuery(query: OrderListQuery): URLSearchParams 
   if (normalized.search) result.set("search", normalized.search);
   if (normalized.status) result.set("status", normalized.status);
   if (normalized.paymentStatus) result.set("paymentStatus", normalized.paymentStatus);
+  if (normalized.attention) result.set("attention", normalized.attention);
   return result;
 }
 

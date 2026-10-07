@@ -74,7 +74,11 @@ export function useOrdersList() {
   const changeQuery = (changes: OrderListQuery) => {
     setParams(previous => {
       const next = { ...parseOrderListQuery(previous), ...changes };
-      if (["search", "status", "paymentStatus", "pageSize"].some(field => field in changes))
+      if (
+        ["search", "status", "paymentStatus", "attention", "pageSize"].some(
+          field => field in changes
+        )
+      )
         next.page = 1;
       return serializeOrderListQuery(next);
     });

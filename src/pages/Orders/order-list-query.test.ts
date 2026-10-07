@@ -86,6 +86,32 @@ describe("order list URLs", () => {
       search: "100%"
     });
   });
+  it("keeps a valid attention queue alongside other filters and drops unknown or repeated ones", () => {
+    const params = serializeOrderListQuery({
+      page: 2,
+      pageSize: 10,
+      status: "pending",
+      attention: "awaiting-transfer"
+    });
+    expect(params.toString()).toBe("page=2&status=pending&attention=awaiting-transfer");
+    expect(parseOrderListQuery(params)).toEqual({
+      page: 2,
+      pageSize: 10,
+      status: "pending",
+      attention: "awaiting-transfer"
+    });
+    expect(parseOrderListQuery(new URLSearchParams("attention=refund-needed"))).toEqual({
+      page: 1,
+      pageSize: 10,
+      attention: "refund-needed"
+    });
+    for (const search of [
+      "attention=unknown",
+      "attention=Refund-Needed",
+      "attention=refund-needed&attention=refund-needed"
+    ])
+      expect(parseOrderListQuery(new URLSearchParams(search))).toEqual({ page: 1, pageSize: 10 });
+  });
   it.each([
     null,
     "https://evil.test/payments",
@@ -112,6 +138,12 @@ describe("order list URLs", () => {
       safeOrderReturnTo("/payments?page=-1&pageSize=30&status=bad&redirect=https://evil.test")
     ).toBe("/payments");
     expect(safeOrderReturnTo("/orders?page=2&page=3&search=%FF")).toBe("/orders");
+    expect(safeOrderReturnTo("/payments?page=2&attention=refund-needed&evil=1")).toBe(
+      "/payments?page=2&attention=refund-needed"
+    );
+    expect(safeOrderReturnTo("/orders?attention=refund-needed&attention=awaiting-transfer")).toBe(
+      "/orders"
+    );
   });
 });
 
