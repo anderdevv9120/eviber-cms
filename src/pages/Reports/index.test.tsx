@@ -313,6 +313,26 @@ describe("Sales reports", () => {
     expect(sku.getByText("variant-1")).toBeTruthy();
   });
 
+  it("shows a day whose paid orders have no valid money as unavailable, not zero", async () => {
+    serve(query =>
+      report(query, {
+        daily: [
+          { date: "2026-10-01", paidOrderCount: 2, unitsSold: 3, paidOrderValue: vnd(1000000) },
+          { date: "2026-10-02", paidOrderCount: 1, unitsSold: 1, paidOrderValue: [] }
+        ],
+        excludedMonetaryData: { paidOrders: 1, refundedOrders: 0, items: 0 }
+      })
+    );
+    setup();
+    await loaded();
+    const daily = region("Giá trị đơn đã thanh toán theo ngày");
+    const day = within(daily.getAllByRole("row")[2]);
+    expect(day.getByText("Không có số liệu")).toBeTruthy();
+    expect(day.queryByText(money(0, "VND"))).toBeNull();
+    const bar = daily.getByRole("img", { name: /VND/ }).querySelectorAll("rect")[1];
+    expect(bar.querySelector("title")?.textContent).toBe("02/10/2026: Không có số liệu");
+  });
+
   it("shows fulfillment and payment breakdowns independently with unknown buckets", async () => {
     serve();
     setup();

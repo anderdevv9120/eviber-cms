@@ -4,8 +4,13 @@ import type { DailySales } from "@/services/reports";
 import { formatOrderAmount } from "../Orders/order-display";
 import { calendarLabel } from "./report-query";
 
+const unavailable = "Không có số liệu";
+// Paid orders with no valid money (all excluded) are unavailable, not a real zero.
 const amountOn = (day: DailySales, currency: string) =>
-  day.paidOrderValue.find(total => total.currency === currency)?.amount ?? 0;
+  day.paidOrderValue.find(total => total.currency === currency)?.amount ??
+  (day.paidOrderValue.length || !day.paidOrderCount ? 0 : null);
+const amountText = (amount: number | null, currency: string) =>
+  amount === null ? unavailable : formatOrderAmount(amount, currency);
 
 /**
  * One bar chart per currency, each on its own scale, because unlike currencies never share an
@@ -17,7 +22,7 @@ export default function DailySalesChart({ daily }: { daily: DailySales[] }) {
   ].sort();
   const charts = currencies
     .map(currency => ({ currency, values: daily.map(day => amountOn(day, currency)) }))
-    .filter(chart => Math.max(...chart.values) > 0);
+    .filter(chart => Math.max(...chart.values.map(Number)) > 0);
   const columns: TableColumnsType<DailySales> = [
     { title: "Ngày", dataIndex: "date", render: calendarLabel },
     { title: "Đơn đã thanh toán", dataIndex: "paidOrderCount" },
@@ -25,7 +30,7 @@ export default function DailySalesChart({ daily }: { daily: DailySales[] }) {
     ...currencies.map(currency => ({
       title: `Giá trị (${currency})`,
       key: currency,
-      render: (_: unknown, day: DailySales) => formatOrderAmount(amountOn(day, currency), currency)
+      render: (_: unknown, day: DailySales) => amountText(amountOn(day, currency), currency)
     }))
   ];
 
@@ -37,7 +42,7 @@ export default function DailySalesChart({ daily }: { daily: DailySales[] }) {
         </Typography.Paragraph>
       )}
       {charts.map(({ currency, values }) => {
-        const max = Math.max(...values);
+        const max = Math.max(...values.map(Number));
         return (
           <figure key={currency} className='mb-6'>
             <Flex justify='space-between'>
@@ -54,7 +59,7 @@ export default function DailySalesChart({ daily }: { daily: DailySales[] }) {
               className='block w-full h-40 border-b border-slate-300 text-blue-600'
             >
               {values.map((value, index) => {
-                const height = (value / max) * 100;
+                const height = (Number(value) / max) * 100;
                 return (
                   <rect
                     key={daily[index].date}
@@ -65,7 +70,7 @@ export default function DailySalesChart({ daily }: { daily: DailySales[] }) {
                     fill='currentColor'
                   >
                     <title>
-                      {`${calendarLabel(daily[index].date)}: ${formatOrderAmount(value, currency)}`}
+                      {`${calendarLabel(daily[index].date)}: ${amountText(value, currency)}`}
                     </title>
                   </rect>
                 );
