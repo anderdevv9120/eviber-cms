@@ -67,6 +67,13 @@ const upload = (dialog: HTMLElement) => {
 
 describe("banners page", () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      "URL",
+      class extends URL {
+        static createObjectURL = vi.fn(() => "blob:http://localhost/banner-preview");
+        static revokeObjectURL = vi.fn();
+      }
+    );
     vi.mocked(api.listBannersAPI)
       .mockReset()
       .mockResolvedValue(ok([first, second]));
@@ -148,6 +155,7 @@ describe("banners page", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     expect(await within(dialog).findByText(/Nhập cả nội dung nút và đường dẫn/)).toBeTruthy();
     expect(api.createBannerAPI).not.toHaveBeenCalled();
+    expect(api.uploadImageAPI).not.toHaveBeenCalled();
   });
 
   it.each(["javascript:alert(1)", "/\\evil.example"])(
@@ -161,13 +169,14 @@ describe("banners page", () => {
     }
   );
 
-  it("uploads an image, previews it and creates the banner with the uploaded path", async () => {
+  it("previews locally and uploads only when saving the banner", async () => {
     vi.mocked(api.createBannerAPI).mockResolvedValue(ok(banner("c", "Sale", 2)));
     setup();
     const dialog = await openCreate();
     upload(dialog);
     const preview = await within(dialog).findByAltText("Ảnh banner xem trước");
-    expect(preview.getAttribute("src")).toBe("http://api.test:8001/images/hero_1.png");
+    expect(preview.getAttribute("src")).toBe("blob:http://localhost/banner-preview");
+    expect(api.uploadImageAPI).not.toHaveBeenCalled();
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: " Sale " } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     await waitFor(() =>
@@ -180,6 +189,33 @@ describe("banners page", () => {
         isActive: true
       })
     );
+    expect(api.uploadImageAPI).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels a selected image without uploading", async () => {
+    setup();
+    const dialog = await openCreate();
+    upload(dialog);
+    await within(dialog).findByAltText("Ảnh banner xem trước");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.uploadImageAPI).not.toHaveBeenCalled();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/banner-preview");
+  });
+
+  it("keeps the selection for retry when upload fails and does not save the banner", async () => {
+    vi.mocked(api.uploadImageAPI).mockRejectedValueOnce(new ApiError("File too large", 413));
+    setup();
+    const dialog = await openCreate();
+    upload(dialog);
+    await within(dialog).findByAltText("Ảnh banner xem trước");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Sale" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
+    expect(await within(dialog).findByText("File too large")).toBeTruthy();
+    expect(api.createBannerAPI).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
+    await waitFor(() => expect(api.createBannerAPI).toHaveBeenCalledTimes(1));
+    expect(api.uploadImageAPI).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the form open with the error when saving fails", async () => {
@@ -192,6 +228,9 @@ describe("banners page", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     expect(await within(dialog).findByText("Tiêu đề quá dài")).toBeTruthy();
     expect((within(dialog).getByLabelText("Tiêu đề") as HTMLInputElement).value).toBe("Sale");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
+    await waitFor(() => expect(api.createBannerAPI).toHaveBeenCalledTimes(2));
+    expect(api.uploadImageAPI).toHaveBeenCalledTimes(1);
   });
 
   it("deletes a banner after confirmation", async () => {

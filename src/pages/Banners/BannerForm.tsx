@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Switch, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { uploadImageAPI, type Banner, type BannerInput } from "@/services/banners";
@@ -25,32 +25,32 @@ interface Props {
 export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
   const [form] = Form.useForm<Values>();
   const image = Form.useWatch("image", form);
-  const [uploading, setUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ file: File; preview: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const upload = async (file: File) => {
-    setUploading(true);
-    setError(null);
-    try {
-      const res = await uploadImageAPI(file);
-      form.setFieldValue("image", res.data.path);
-      await form.validateFields(["image"]);
-    } catch (cause) {
-      setError(getErrorMessage(cause));
-    } finally {
-      setUploading(false);
-    }
-  };
+  useEffect(() => {
+    return () => {
+      if (selectedImage) URL.revokeObjectURL(selectedImage.preview);
+    };
+  }, [selectedImage]);
 
   const submit = async () => {
+    if (saving) return;
     const values = await form.validateFields().catch(() => null);
     if (!values) return;
     setSaving(true);
     setError(null);
     try {
+      let imagePath = values.image!;
+      if (selectedImage) {
+        const res = await uploadImageAPI(selectedImage.file);
+        imagePath = res.data.path;
+        form.setFieldValue("image", imagePath);
+        setSelectedImage(null);
+      }
       await onSubmit({
-        image: values.image!,
+        image: imagePath,
         title: values.title!.trim(),
         subtitle: values.subtitle?.trim() ?? "",
         ctaLabel: values.ctaLabel?.trim() ?? "",
@@ -68,18 +68,14 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
     <Modal
       open
       title={banner ? "Sửa banner" : "Thêm banner"}
-      onCancel={onCancel}
+      onCancel={() => {
+        if (!saving) onCancel();
+      }}
       footer={[
         <Button key='cancel' onClick={onCancel} disabled={saving}>
           Hủy
         </Button>,
-        <Button
-          key='save'
-          type='primary'
-          loading={saving}
-          disabled={uploading}
-          onClick={() => void submit()}
-        >
+        <Button key='save' type='primary' loading={saving} onClick={submit}>
           Lưu banner
         </Button>
       ]}
@@ -87,6 +83,7 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
       <Form<Values>
         form={form}
         layout='vertical'
+        disabled={saving}
         initialValues={{
           image: banner?.image,
           title: banner?.title,
@@ -113,14 +110,18 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
               />
             )}
             <Upload
+              disabled={saving}
               accept='image/png,image/jpeg,image/webp,image/gif'
               showUploadList={false}
               beforeUpload={file => {
-                void upload(file);
+                const preview = URL.createObjectURL(file);
+                setSelectedImage({ file, preview });
+                form.setFieldValue("image", preview);
+                setError(null);
                 return false;
               }}
             >
-              <Button icon={<UploadOutlined />} loading={uploading}>
+              <Button icon={<UploadOutlined />} disabled={saving}>
                 {image ? "Đổi ảnh" : "Tải ảnh lên"}
               </Button>
             </Upload>
