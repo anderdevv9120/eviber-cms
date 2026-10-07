@@ -13,7 +13,14 @@ export interface AdminReview {
   content?: string;
   images: string[];
   status: ReviewStatus;
-  adminReply: { content: string; repliedAt: string; repliedBy: string } | null;
+  contentRevision: number;
+  adminReply: {
+    content: string;
+    repliedAt: string;
+    repliedBy: string;
+    contentRevision: number;
+    isStale: boolean;
+  } | null;
   product: { _id: string; name: string | null; image: string | null } | null;
   variantId: string | null;
   orderId: string | null;
@@ -59,13 +66,15 @@ export const getReviewAPI = (id: string, signal?: AbortSignal): Promise<ApiRespo
   axiosRequest.get(reviewPath(id), { ...inlineErrors, signal });
 export const updateReviewStatusAPI = (
   id: string,
-  status: ReviewStatus
+  status: ReviewStatus,
+  expectedContentRevision: number
 ): Promise<ApiResponse<AdminReview>> =>
-  axiosRequest.patch(`${reviewPath(id)}/status`, { status }, inlineErrors);
+  axiosRequest.patch(`${reviewPath(id)}/status`, { status, expectedContentRevision }, inlineErrors);
 export const saveReviewReplyAPI = (
   id: string,
-  content: string
+  content: string,
+  expectedContentRevision: number
 ): Promise<ApiResponse<AdminReview>> =>
-  axiosRequest.put(`${reviewPath(id)}/reply`, { content }, inlineErrors);
+  axiosRequest.put(`${reviewPath(id)}/reply`, { content, expectedContentRevision }, inlineErrors);
 export const deleteReviewReplyAPI = (id: string): Promise<ApiResponse<AdminReview>> =>
   axiosRequest.delete(`${reviewPath(id)}/reply`, inlineErrors);

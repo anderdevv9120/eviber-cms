@@ -17,8 +17,8 @@ describe("review transport", () => {
       signal
     );
     await api.getReviewAPI("id/1", signal);
-    await api.updateReviewStatusAPI("id/1", "approved");
-    await api.saveReviewReplyAPI("id/1", "Cảm ơn");
+    await api.updateReviewStatusAPI("id/1", "approved", 2);
+    await api.saveReviewReplyAPI("id/1", "Cảm ơn", 2);
     await api.deleteReviewReplyAPI("id/1");
     expect(calls.map(c => [c.method, c.url, c.params, c.toastError])).toEqual([
       [
@@ -32,8 +32,8 @@ describe("review transport", () => {
       ["put", "/reviews/id%2F1/reply", undefined, false],
       ["delete", "/reviews/id%2F1/reply", undefined, false]
     ]);
-    expect(JSON.parse(calls[2].data)).toEqual({ status: "approved" });
-    expect(JSON.parse(calls[3].data)).toEqual({ content: "Cảm ơn" });
+    expect(JSON.parse(calls[2].data)).toEqual({ status: "approved", expectedContentRevision: 2 });
+    expect(JSON.parse(calls[3].data)).toEqual({ content: "Cảm ơn", expectedContentRevision: 2 });
     expect(calls[0].signal).toBe(signal);
   });
 

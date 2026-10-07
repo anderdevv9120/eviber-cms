@@ -28,6 +28,7 @@ const review = (overrides: Partial<api.AdminReview> = {}): api.AdminReview => ({
   content: "Áo đẹp, giao nhanh",
   images: [],
   status: "pending",
+  contentRevision: 0,
   adminReply: null,
   product: { _id: "p1", name: "Áo Thun", image: "/images/p1.jpg" },
   variantId: null,
@@ -102,7 +103,9 @@ describe("reviews page", () => {
     await within(drawer).findByText("Áo đẹp, giao nhanh");
     expect(within(drawer).getByRole("button", { name: "Từ chối" })).toBeTruthy();
     fireEvent.click(within(drawer).getByRole("button", { name: "Duyệt" }));
-    await waitFor(() => expect(api.updateReviewStatusAPI).toHaveBeenCalledWith("r1", "approved"));
+    await waitFor(() =>
+      expect(api.updateReviewStatusAPI).toHaveBeenCalledWith("r1", "approved", 0)
+    );
     await waitFor(() => expect(api.listReviewsAPI).toHaveBeenCalledTimes(2));
   });
 
@@ -143,22 +146,28 @@ describe("reviews page", () => {
     expect(await within(drawer).findByText("Sản phẩm đã bị xóa")).toBeTruthy();
   });
 
-  it("saves a trimmed reply and notes it is not on the storefront yet", async () => {
+  it("saves a trimmed reply and explains approved product review visibility", async () => {
     vi.mocked(api.saveReviewReplyAPI).mockResolvedValue(
       ok(
         review({
-          adminReply: { content: "Cảm ơn", repliedAt: "2026-10-06T00:00:00.000Z", repliedBy: "a" }
+          adminReply: {
+            content: "Cảm ơn",
+            repliedAt: "2026-10-06T00:00:00.000Z",
+            repliedBy: "a",
+            contentRevision: 0,
+            isStale: false
+          }
         })
       )
     );
     setup();
     const drawer = await openDrawer();
-    expect(await within(drawer).findByText(/chưa hiển thị trên trang bán hàng/)).toBeTruthy();
+    expect(await within(drawer).findByText(/chỉ hiển thị cùng đánh giá đã duyệt/)).toBeTruthy();
     fireEvent.change(within(drawer).getByLabelText("Nội dung phản hồi"), {
       target: { value: "  Cảm ơn  " }
     });
     fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
-    await waitFor(() => expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("r1", "Cảm ơn"));
+    await waitFor(() => expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("r1", "Cảm ơn", 0));
     expect(await within(drawer).findByRole("button", { name: "Xóa phản hồi" })).toBeTruthy();
   });
 
@@ -171,5 +180,114 @@ describe("reviews page", () => {
     fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
     expect(await within(drawer).findByText("Máy chủ lỗi")).toBeTruthy();
     expect((box as HTMLTextAreaElement).value).toBe("Cảm ơn bạn");
+  });
+
+  it("moderates the content revision loaded in the drawer", async () => {
+    vi.mocked(api.getReviewAPI).mockResolvedValue(ok(review({ contentRevision: 3 })));
+    setup();
+    const drawer = await openDrawer();
+    fireEvent.click(await within(drawer).findByRole("button", { name: "Duyệt" }));
+    await waitFor(() =>
+      expect(api.updateReviewStatusAPI).toHaveBeenCalledWith("r1", "approved", 3)
+    );
+  });
+
+  it.each([false, true])(
+    "shows staleness %s and allows saving identical reply text to acknowledge it",
+    async isStale => {
+      const adminReply = {
+        content: "Cảm ơn",
+        repliedAt: "2026-10-06T00:00:00.000Z",
+        repliedBy: "a",
+        contentRevision: isStale ? 0 : 2,
+        isStale
+      };
+      vi.mocked(api.getReviewAPI).mockResolvedValue(ok(review({ contentRevision: 2, adminReply })));
+      vi.mocked(api.saveReviewReplyAPI).mockResolvedValue(
+        ok(
+          review({
+            contentRevision: 2,
+            adminReply: { ...adminReply, contentRevision: 2, isStale: false }
+          })
+        )
+      );
+      setup();
+      const drawer = await openDrawer();
+      await within(drawer).findByLabelText("Nội dung phản hồi");
+      const label = "Đánh giá đã được cập nhật sau phản hồi này.";
+      expect(Boolean(within(drawer).queryByText(label))).toBe(isStale);
+      fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
+      await waitFor(() => expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("r1", "Cảm ơn", 2));
+      await waitFor(() => expect(within(drawer).queryByText(label)).toBeNull());
+    }
+  );
+
+  it.each(["reply", "status"])(
+    "preserves the reply draft after a %s 409 and reloads content before another save",
+    async action => {
+      vi.mocked(api.getReviewAPI)
+        .mockResolvedValueOnce(ok(review({ contentRevision: 2 })))
+        .mockResolvedValueOnce(
+          ok(review({ contentRevision: 3, content: "Khách vừa sửa nội dung" }))
+        );
+      const conflict = new ApiError("Đánh giá đã được cập nhật. Vui lòng tải lại.", 409);
+      vi.mocked(api.saveReviewReplyAPI)
+        .mockRejectedValueOnce(conflict)
+        .mockResolvedValueOnce(ok(review({ contentRevision: 3 })));
+      vi.mocked(api.updateReviewStatusAPI).mockRejectedValueOnce(conflict);
+      setup();
+      const drawer = await openDrawer();
+      const box = await within(drawer).findByLabelText("Nội dung phản hồi");
+      fireEvent.change(box, { target: { value: "Bản nháp của admin" } });
+      fireEvent.click(
+        within(drawer).getByRole("button", { name: action === "reply" ? "Lưu phản hồi" : "Duyệt" })
+      );
+      expect(await within(drawer).findByText("Khách vừa sửa nội dung")).toBeTruthy();
+      expect((box as HTMLTextAreaElement).value).toBe("Bản nháp của admin");
+      expect(within(drawer).getByText(conflict.message)).toBeTruthy();
+      expect(api.getReviewAPI).toHaveBeenCalledTimes(2);
+      expect(api.saveReviewReplyAPI).toHaveBeenCalledTimes(action === "reply" ? 1 : 0);
+      await waitFor(() =>
+        expect(
+          (within(drawer).getByRole("button", { name: "Lưu phản hồi" }) as HTMLButtonElement)
+            .disabled
+        ).toBe(false)
+      );
+      fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
+      await waitFor(() =>
+        expect(api.saveReviewReplyAPI).toHaveBeenLastCalledWith("r1", "Bản nháp của admin", 3)
+      );
+    }
+  );
+
+  it("removes the stale marker when deleting a reply", async () => {
+    vi.mocked(api.getReviewAPI).mockResolvedValue(
+      ok(
+        review({
+          contentRevision: 1,
+          adminReply: {
+            content: "Phản hồi cũ",
+            repliedAt: "2026-10-06T00:00:00.000Z",
+            repliedBy: "a",
+            contentRevision: 0,
+            isStale: true
+          }
+        })
+      )
+    );
+    vi.mocked(api.deleteReviewReplyAPI).mockResolvedValue(ok(review({ contentRevision: 1 })));
+    setup();
+    const drawer = await openDrawer();
+    expect(
+      await within(drawer).findByText("Đánh giá đã được cập nhật sau phản hồi này.")
+    ).toBeTruthy();
+    fireEvent.click(within(drawer).getByRole("button", { name: "Xóa phản hồi" }));
+    await waitFor(() => expect(api.deleteReviewReplyAPI).toHaveBeenCalledWith("r1"));
+    await waitFor(() =>
+      expect(within(drawer).queryByText("Đánh giá đã được cập nhật sau phản hồi này.")).toBeNull()
+    );
+    expect((within(drawer).getByLabelText("Nội dung phản hồi") as HTMLTextAreaElement).value).toBe(
+      ""
+    );
   });
 });

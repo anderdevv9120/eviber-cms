@@ -161,11 +161,11 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
                 danger={next === "rejected"}
                 disabled={busy}
                 onClick={() =>
-                  void act(
-                    () => updateReviewStatusAPI(review._id, next),
+                  act(
+                    () => updateReviewStatusAPI(review._id, next, review.contentRevision),
                     next === "approved" ? "Đã duyệt đánh giá" : "Đã từ chối đánh giá",
                     false
-                  )
+                  ).catch(cause => setActionError(getErrorMessage(cause)))
                 }
               >
                 {next === "approved" ? "Duyệt" : "Từ chối"}
@@ -178,8 +178,11 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
           <Alert
             type='info'
             showIcon
-            title='Phản hồi được lưu nhưng chưa hiển thị trên trang bán hàng.'
+            title='Phản hồi chỉ hiển thị cùng đánh giá đã duyệt trên trang sản phẩm.'
           />
+          {review.adminReply?.isStale && (
+            <Tag color='warning'>Đánh giá đã được cập nhật sau phản hồi này.</Tag>
+          )}
           <Input.TextArea
             aria-label='Nội dung phản hồi'
             value={reply}
@@ -193,11 +196,11 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
               type='primary'
               disabled={busy || !reply.trim()}
               onClick={() =>
-                void act(
-                  () => saveReviewReplyAPI(review._id, reply.trim()),
+                act(
+                  () => saveReviewReplyAPI(review._id, reply.trim(), review.contentRevision),
                   "Đã lưu phản hồi",
                   true
-                )
+                ).catch(cause => setActionError(getErrorMessage(cause)))
               }
             >
               Lưu phản hồi
@@ -207,7 +210,9 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
                 danger
                 disabled={busy}
                 onClick={() =>
-                  void act(() => deleteReviewReplyAPI(review._id), "Đã xóa phản hồi", true)
+                  act(() => deleteReviewReplyAPI(review._id), "Đã xóa phản hồi", true).catch(
+                    cause => setActionError(getErrorMessage(cause))
+                  )
                 }
               >
                 Xóa phản hồi
