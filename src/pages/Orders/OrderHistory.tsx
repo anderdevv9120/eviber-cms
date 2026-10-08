@@ -68,7 +68,11 @@ export default function OrderHistory({ order }: { order: AdminOrderDetail }) {
                 title: "Thao tác",
                 key: "action",
                 render: (_, entry) =>
-                  entry.action ? paymentActionLabels[entry.action] : legacyPaymentActionLabel
+                  entry.action
+                    ? paymentActionLabels[entry.action]
+                    : entry.status === "not_required"
+                      ? paymentStatusLabels.not_required
+                      : legacyPaymentActionLabel
               },
               ...commonColumns,
               {

@@ -53,6 +53,28 @@ describe("shared order detail", () => {
     expect(screen.getByRole("button", { name: "Xác nhận đơn hàng" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Hủy đơn hàng" })).toBeTruthy();
   });
+  it("shows a fixed voucher from the stored order snapshot, not a percentage", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        checkoutInfo: {
+          ...order.checkoutInfo,
+          discountAmount: 50000,
+          totalPrice: 180000,
+          couponCode: "SAVE50K",
+          couponName: "Giảm 50K",
+          couponDiscountType: "fixed_amount",
+          couponDiscountValue: 50000,
+          couponDiscountPercentage: undefined
+        }
+      });
+    renderDetail();
+    const totals = within(await screen.findByRole("region", { name: "Tổng tiền" }));
+    expect(totals.getByText("SAVE50K")).toBeTruthy();
+    expect(totals.getByText("Mức giảm của mã")).toBeTruthy();
+    expect(totals.getAllByText("50.000 ₫")).toHaveLength(2);
+    expect(totals.queryByText(/%/)).toBeNull();
+  });
   it("renders purchase snapshots, quantity totals, stored checkout and recipient/payment fields", async () => {
     const requests: string[] = [];
     axiosRequest.defaults.adapter = async config => {

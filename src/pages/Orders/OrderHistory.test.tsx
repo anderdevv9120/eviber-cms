@@ -83,6 +83,30 @@ describe("order histories", () => {
     expect(screen.queryByText(/2026/)).toBeNull();
   });
 
+  it("labels the system free-order entry as no payment required, not a legacy change", () => {
+    render(
+      <OrderHistory
+        order={{
+          ...order,
+          paymentStatus: "not_required",
+          paymentHistory: [
+            {
+              status: "not_required",
+              changedAt: "2026-10-08T01:00:00Z",
+              changedBy: { actorType: "system" },
+              note: "Không cần thanh toán: tổng đơn hàng bằng 0 VND."
+            }
+          ]
+        }}
+      />
+    );
+    const payment = within(screen.getByRole("region", { name: "Lịch sử thanh toán" }));
+    const row = payment.getAllByRole("row")[1];
+    expect(within(row).getAllByText("Không cần thanh toán")).toHaveLength(2);
+    expect(within(row).getByText("Hệ thống")).toBeTruthy();
+    expect(payment.queryByText("Thay đổi cũ (chưa phân loại)")).toBeNull();
+  });
+
   it.each([undefined, []])("handles absent and empty histories (%s)", histories => {
     render(
       <OrderHistory order={{ ...order, statusHistory: histories, paymentHistory: histories }} />

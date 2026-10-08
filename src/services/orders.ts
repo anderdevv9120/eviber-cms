@@ -62,6 +62,9 @@ export interface AdminOrderSummary {
     shippingFee?: number;
     totalPrice: number;
     couponCode?: string;
+    couponName?: string;
+    couponDiscountType?: "percentage" | "fixed_amount";
+    couponDiscountValue?: number;
     couponDiscountPercentage?: number;
     currency?: string;
   };

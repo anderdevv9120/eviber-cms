@@ -19,6 +19,19 @@ import {
 import OrderHistory from "./OrderHistory";
 import OrderActionDialog, { type OrderActionIntent } from "./OrderActionDialog";
 
+// Stored purchase snapshot; legacy orders without a type keep the old percentage field.
+const couponDiscount = (
+  checkout: AdminOrderDetail["checkoutInfo"],
+  amount: (value?: number) => string
+) => {
+  if (checkout.couponDiscountType === "fixed_amount") return amount(checkout.couponDiscountValue);
+  const percentage =
+    checkout.couponDiscountType === "percentage"
+      ? checkout.couponDiscountValue
+      : checkout.couponDiscountPercentage;
+  return percentage === undefined ? missingOrderData : `${percentage}%`;
+};
+
 export default function OrderDetail() {
   const { orderId = "" } = useParams();
   const [params] = useSearchParams();
@@ -285,11 +298,8 @@ function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: str
                 },
                 {
                   key: "coupon-percent",
-                  label: "Tỷ lệ giảm giá",
-                  children:
-                    order.checkoutInfo.couponDiscountPercentage === undefined
-                      ? missingOrderData
-                      : `${order.checkoutInfo.couponDiscountPercentage}%`
+                  label: "Mức giảm của mã",
+                  children: couponDiscount(order.checkoutInfo, amount)
                 }
               ]}
             />
