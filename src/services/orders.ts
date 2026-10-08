@@ -3,9 +3,10 @@ import axiosRequest from "@/utils/request";
 
 export type OrderStatus =
   "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned";
-export type PaymentStatus = "unpaid" | "paid" | "refunded" | "failed";
+export type PaymentStatus = "unpaid" | "paid" | "refunded" | "failed" | "not_required";
+export type WritablePaymentStatus = Exclude<PaymentStatus, "not_required">;
 export type PaymentAction = "receipt" | "refund" | "correction";
-export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "E_WALLET";
+export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "E_WALLET" | "NO_PAYMENT";
 export type OrderActorType = "customer" | "admin" | "system" | "webhook";
 /** Current-state queues shared with dashboard counts; ANDed with the other list filters. */
 export type OrderAttention = "awaiting-transfer" | "refund-needed";
@@ -97,7 +98,7 @@ export interface OrderActionEligibility {
     action: PaymentAction;
     enabled: boolean;
     reason: string | null;
-    targets: PaymentStatus[];
+    targets: WritablePaymentStatus[];
     requiresNote: boolean;
   }[];
   returnDeadline: string | null;
@@ -127,7 +128,7 @@ export interface TransitionOrderInput {
   note?: string;
 }
 export interface UpdatePaymentInput {
-  paymentStatus: PaymentStatus;
+  paymentStatus: WritablePaymentStatus;
   action: PaymentAction;
   expectedRevision: number;
   note?: string;

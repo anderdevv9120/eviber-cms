@@ -3,7 +3,7 @@ import { Alert, Button, Input, Radio } from "antd";
 import type {
   AdminOrderDetail,
   PaymentAction,
-  PaymentStatus,
+  WritablePaymentStatus,
   UpdatePaymentInput
 } from "@/services/orders";
 import { validateNote, validateReference, type ActionDraft } from "./order-action-input";
@@ -20,7 +20,7 @@ export interface PaymentFormProps {
 }
 
 // Ordinary receipt/refund never offer a free status choice; only correction does.
-const fixedTargets: Partial<Record<PaymentAction, PaymentStatus>> = {
+const fixedTargets: Partial<Record<PaymentAction, WritablePaymentStatus>> = {
   receipt: "paid",
   refund: "refunded"
 };
@@ -95,7 +95,7 @@ export default function PaymentForm({
         <Radio.Group
           className='mb-3 flex flex-col gap-1'
           value={target}
-          onChange={event => onDraftChange({ target: event.target.value as PaymentStatus })}
+          onChange={event => onDraftChange({ target: event.target.value as WritablePaymentStatus })}
         >
           {targets.map(item => (
             <Radio key={item} value={item}>

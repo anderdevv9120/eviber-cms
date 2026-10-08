@@ -33,7 +33,7 @@ const report = (query: SalesReportQuery, overrides: Partial<SalesReport> = {}): 
     returned: 0,
     unknown: 1
   },
-  paymentStatuses: { unpaid: 3, paid: 4, refunded: 1, failed: 0, unknown: 1 },
+  paymentStatuses: { unpaid: 3, paid: 4, refunded: 1, failed: 0, not_required: 0, unknown: 1 },
   daily: [
     { date: "2026-10-01", paidOrderCount: 2, unitsSold: 3, paidOrderValue: vnd(1000000) },
     { date: "2026-10-02", paidOrderCount: 0, unitsSold: 0, paidOrderValue: [] },
@@ -111,6 +111,57 @@ afterEach(() => {
 });
 
 describe("Sales reports", () => {
+  it("shows free-order volume and the undiscounted merchandise value without paid receipts", async () => {
+    serve(query =>
+      report(query, {
+        ordersPlaced: 1,
+        paidOrderCount: 0,
+        paidOrderValue: [],
+        unitsSold: 2,
+        refundedOrderCount: 0,
+        refundedOrderValue: [],
+        paymentStatuses: {
+          unpaid: 0,
+          paid: 0,
+          refunded: 0,
+          failed: 0,
+          not_required: 1,
+          unknown: 0
+        },
+        daily: [{ date: "2026-10-01", paidOrderCount: 0, unitsSold: 2, paidOrderValue: [] }],
+        topProducts: [
+          {
+            productId: "free-product",
+            label: "Quà tặng",
+            missingLabel: false,
+            unitsSold: 2,
+            merchandiseValue: vnd(80000)
+          }
+        ],
+        topSkus: [
+          {
+            variantId: "free-sku",
+            label: "FREE-SKU",
+            missingLabel: false,
+            unitsSold: 2,
+            merchandiseValue: vnd(80000)
+          }
+        ]
+      })
+    );
+    setup();
+    await loaded();
+    expect(group("Số lượng đã bán").getByText("2")).toBeTruthy();
+    expect(group("Đơn đã thanh toán").getByText("0")).toBeTruthy();
+    expect(group("Giá trị đơn đã thanh toán").getByText("0")).toBeTruthy();
+    expect(
+      region("Trạng thái thanh toán").getByRole("row", { name: "Không cần thanh toán 1" })
+    ).toBeTruthy();
+    expect(region("Sản phẩm bán chạy").getByText(money(80000, "VND"))).toBeTruthy();
+    expect(region("SKU bán chạy").getByText(money(80000, "VND"))).toBeTruthy();
+    expect(screen.getByText(/trước giảm giá voucher/)).toBeTruthy();
+    expect(region("Giá trị đơn đã thanh toán theo ngày").queryByRole("img")).toBeNull();
+  });
   it("reads This month by default and shows cohort, paid and refunded metrics separately", async () => {
     const { calls } = serve();
     setup();
@@ -344,7 +395,7 @@ describe("Sales reports", () => {
     const payment = region("Trạng thái thanh toán");
     expect(payment.getByRole("row", { name: "Đã thanh toán 4" })).toBeTruthy();
     expect(payment.getByRole("row", { name: "Đã hoàn tiền 1" })).toBeTruthy();
-    expect(payment.getAllByRole("row")).toHaveLength(6);
+    expect(payment.getAllByRole("row")).toHaveLength(7);
   });
 
   it("ignores a superseded read and never shows old totals for new filters", async () => {

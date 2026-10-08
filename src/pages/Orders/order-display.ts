@@ -19,7 +19,8 @@ export const paymentStatusLabels: Record<PaymentStatus, string> = {
   unpaid: "Chưa thanh toán",
   paid: "Đã thanh toán",
   refunded: "Đã hoàn tiền",
-  failed: "Thanh toán thất bại"
+  failed: "Thanh toán thất bại",
+  not_required: "Không cần thanh toán"
 };
 export const orderAttentionLabels: Record<OrderAttention, string> = {
   "awaiting-transfer": "Chờ chuyển khoản",
@@ -34,7 +35,8 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
   CARD: "Thẻ",
   BANK_TRANSFER: "Chuyển khoản ngân hàng",
-  E_WALLET: "Ví điện tử"
+  E_WALLET: "Ví điện tử",
+  NO_PAYMENT: "Không thanh toán"
 };
 export const orderActorLabels: Record<OrderActorType, string> = {
   customer: "Khách hàng",

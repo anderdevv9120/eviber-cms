@@ -68,6 +68,33 @@ const targets = () =>
   screen.queryAllByRole("radio").map(radio => (radio as HTMLInputElement).value);
 
 describe("payment form", () => {
+  it.each<PaymentAction>(["receipt", "refund", "correction"])(
+    "cannot submit %s for an order whose backend requires no payment",
+    action => {
+      const free = detail({
+        paymentStatus: "not_required",
+        paymentInfo: { method: "NO_PAYMENT" },
+        actions: {
+          ...order.actions,
+          paymentActions: order.actions.paymentActions.map(item => ({
+            ...item,
+            enabled: false,
+            targets: [],
+            reason: "Đơn hàng không cần thanh toán"
+          }))
+        }
+      });
+      const onSubmit = vi.fn();
+      render(<Harness action={action} order={free} onSubmit={onSubmit} />);
+      expect(targets()).toEqual([]);
+      expect((screen.getByRole("button", { name: "Xác nhận" }) as HTMLButtonElement).disabled).toBe(
+        true
+      );
+      confirm();
+      expect(onSubmit).not.toHaveBeenCalled();
+    }
+  );
+
   it.each<[PaymentAction, AdminOrderDetail, PaymentStatus]>([
     ["receipt", order, "paid"],
     ["refund", refundable, "refunded"]

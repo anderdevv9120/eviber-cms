@@ -8,6 +8,56 @@ vi.mock("@/utils/notification", () => ({ errorNotification: vi.fn() }));
 import { errorNotification } from "@/utils/notification";
 
 describe("order transport through the shared Axios client", () => {
+  it("reads the backend free-payment state through list filters and detail without inventing receipts", async () => {
+    const free: api.AdminOrderDetail = {
+      ...order,
+      paymentStatus: "not_required",
+      paymentInfo: { method: "NO_PAYMENT" },
+      checkoutInfo: { ...order.checkoutInfo, totalPrice: 0 },
+      paidAt: undefined,
+      paymentDueAt: undefined,
+      paymentHistory: [],
+      actions: {
+        ...order.actions,
+        paymentActions: order.actions.paymentActions.map(action => ({
+          ...action,
+          enabled: false,
+          targets: []
+        }))
+      }
+    };
+    const calls: InternalAxiosRequestConfig[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(config);
+      return response(config, config.url === "/orders" ? orderList([free]) : free);
+    };
+    const signal = new AbortController().signal;
+    expect(await api.listOrdersAPI({ paymentStatus: "not_required" }, signal)).toEqual({
+      data: orderList([free]),
+      message: "success"
+    });
+    expect(await api.getOrderAPI(free._id, signal)).toEqual({ data: free, message: "success" });
+    expect(axiosRequest.getUri(calls[0])).toContain("/orders?paymentStatus=not_required");
+    expect(calls.map(call => [call.method, call.signal, call.toastError])).toEqual([
+      ["get", signal, false],
+      ["get", signal, false]
+    ]);
+  });
+
+  it("keeps the backend-derived free-payment status out of writable CMS targets", () => {
+    const input: api.UpdatePaymentInput = {
+      // @ts-expect-error Free-payment status is never an admin mutation target.
+      paymentStatus: "not_required",
+      action: "correction",
+      expectedRevision: 4
+    };
+    // @ts-expect-error Backend payment eligibility cannot offer a free-payment target.
+    const target: api.OrderActionEligibility["paymentActions"][number]["targets"][number] =
+      "not_required";
+    expect(input.paymentStatus).toBe("not_required");
+    expect(target).toBe("not_required");
+  });
+
   it("keeps one envelope, combined filters, encoded IDs and read cancellation", async () => {
     const calls: InternalAxiosRequestConfig[] = [];
     axiosRequest.defaults.adapter = async config => {

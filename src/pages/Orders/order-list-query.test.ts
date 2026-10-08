@@ -16,6 +16,18 @@ import {
 } from "./order-display";
 
 describe("order list URLs", () => {
+  it("preserves the read-only free-payment filter and detail return context", () => {
+    const params = new URLSearchParams("page=2&paymentStatus=not_required");
+    expect(parseOrderListQuery(params)).toEqual({
+      page: 2,
+      pageSize: 10,
+      paymentStatus: "not_required"
+    });
+    expect(serializeOrderListQuery(parseOrderListQuery(params)).toString()).toBe(params.toString());
+    expect(safeOrderReturnTo("/payments?paymentStatus=not_required")).toBe(
+      "/payments?paymentStatus=not_required"
+    );
+  });
   it("serializes submitted search and combined filters, with page reset", () => {
     const params = serializeOrderListQuery({
       page: 1,
@@ -157,9 +169,21 @@ describe("snapshot display", () => {
       "cancelled",
       "returned"
     ]);
-    expect(Object.keys(paymentStatusLabels)).toEqual(["unpaid", "paid", "refunded", "failed"]);
+    expect(Object.keys(paymentStatusLabels)).toEqual([
+      "unpaid",
+      "paid",
+      "refunded",
+      "failed",
+      "not_required"
+    ]);
     expect(Object.keys(paymentActionLabels)).toEqual(["receipt", "refund", "correction"]);
-    expect(Object.keys(paymentMethodLabels)).toEqual(["CASH", "CARD", "BANK_TRANSFER", "E_WALLET"]);
+    expect(Object.keys(paymentMethodLabels)).toEqual([
+      "CASH",
+      "CARD",
+      "BANK_TRANSFER",
+      "E_WALLET",
+      "NO_PAYMENT"
+    ]);
   });
   it("uses stored currency, preserves zero and exposes missing legacy data", () => {
     expect(formatOrderAmount(1234.5, "USD")).toBe(

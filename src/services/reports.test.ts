@@ -30,7 +30,7 @@ const sales: api.SalesReport = {
     returned: 0,
     unknown: 0
   },
-  paymentStatuses: { unpaid: 2, paid: 1, refunded: 0, failed: 0, unknown: 0 },
+  paymentStatuses: { unpaid: 2, paid: 1, refunded: 0, failed: 0, not_required: 0, unknown: 0 },
   daily: [
     {
       date: "2026-10-01",
@@ -66,6 +66,27 @@ const stock: api.StockReport = {
 };
 
 describe("report transport through the shared Axios client", () => {
+  it("preserves free-order counts, units and merchandise snapshots with no paid value", async () => {
+    const free: api.SalesReport = {
+      ...sales,
+      ordersPlaced: 1,
+      paidOrderCount: 0,
+      paidOrderValue: [],
+      paymentStatuses: { unpaid: 0, paid: 0, refunded: 0, failed: 0, not_required: 1, unknown: 0 },
+      daily: [{ date: "2026-10-01", paidOrderCount: 0, unitsSold: 2, paidOrderValue: [] }],
+      topProducts: [
+        { ...sales.topProducts[0], merchandiseValue: [{ currency: "VND", amount: 80000 }] }
+      ]
+    };
+    axiosRequest.defaults.adapter = async config => response(config, free);
+    expect(
+      await api.getSalesReportAPI({ from: "2026-10-01", to: "2026-10-01", deliveredOnly: true })
+    ).toEqual({
+      data: free,
+      message: "success"
+    });
+  });
+
   it("reads all three report endpoints with exact query wire format, one envelope and cancellation", async () => {
     const calls: InternalAxiosRequestConfig[] = [];
     axiosRequest.defaults.adapter = async config => {

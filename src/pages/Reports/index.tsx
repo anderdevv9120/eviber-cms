@@ -345,8 +345,8 @@ function ReportBody({ report }: { report: SalesReport }) {
       </Typography.Paragraph>
 
       <Typography.Paragraph type='secondary'>
-        Xếp theo số lượng bán. Giá trị hàng hóa tính theo giá lúc đặt, trước giảm giá của đơn và
-        không gồm phí vận chuyển.
+        Xếp theo số lượng bán, gồm đơn không cần thanh toán. Giá trị hàng hóa tính theo giá lúc đặt,
+        trước giảm giá voucher của đơn và không gồm phí vận chuyển.
       </Typography.Paragraph>
       <BestSellers
         title='Sản phẩm bán chạy'

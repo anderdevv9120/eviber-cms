@@ -15,6 +15,44 @@ const renderDetail = (path = "/orders/order-id") => {
 };
 
 describe("shared order detail", () => {
+  it("displays the free-payment state and only enabled fulfillment actions", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        paymentStatus: "not_required",
+        paymentInfo: { method: "NO_PAYMENT" },
+        paidAt: undefined,
+        paymentDueAt: undefined,
+        checkoutInfo: { ...order.checkoutInfo, totalPrice: 0 },
+        actions: {
+          ...order.actions,
+          orderStatuses: order.actions.orderStatuses.map(action => ({
+            ...action,
+            enabled: true,
+            reason: null
+          })),
+          paymentActions: order.actions.paymentActions.map(action => ({
+            ...action,
+            enabled: false,
+            targets: [],
+            reason: "Đơn hàng không cần thanh toán"
+          }))
+        }
+      });
+    renderDetail();
+    const payment = within(await screen.findByRole("region", { name: "Thông tin thanh toán" }));
+    expect(payment.getByText("Không cần thanh toán")).toBeTruthy();
+    expect(payment.getByText("Không thanh toán")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Tổng tiền" })).getByText("0 ₫")).toBeTruthy();
+    for (const name of [
+      "Ghi nhận thanh toán",
+      "Ghi nhận hoàn tiền",
+      "Điều chỉnh trạng thái thanh toán"
+    ])
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    expect(screen.getByRole("button", { name: "Xác nhận đơn hàng" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hủy đơn hàng" })).toBeTruthy();
+  });
   it("renders purchase snapshots, quantity totals, stored checkout and recipient/payment fields", async () => {
     const requests: string[] = [];
     axiosRequest.defaults.adapter = async config => {

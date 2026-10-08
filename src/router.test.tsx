@@ -151,11 +151,13 @@ describe("CMS data router", () => {
 
   it.each([
     ["/orders", "Quản lý Đơn hàng"],
-    ["/payments", "Quản lý Thanh toán"]
+    ["/payments", "Quản lý Thanh toán"],
+    ["/orders", "Quản lý Đơn hàng", "not_required"],
+    ["/payments", "Quản lý Thanh toán", "not_required"]
   ])(
     "preserves %s query through detail/back, browser Back and a direct reload",
-    async (path, label) => {
-      const query = "?page=3&pageSize=20&search=An&status=pending&paymentStatus=unpaid";
+    async (path, label, paymentStatus = "unpaid") => {
+      const query = `?page=3&pageSize=20&search=An&status=pending&paymentStatus=${paymentStatus}`;
       const router = renderRoute(`${path}${query}`);
       const link = await screen.findByRole("link", { name: "Chi tiết" });
       expect(screen.getByRole("heading", { name: label })).toBeTruthy();

@@ -1,10 +1,10 @@
-import type { PaymentStatus } from "@/services/orders";
+import type { WritablePaymentStatus } from "@/services/orders";
 
 export const NOTE_MAX = 500;
 export const REFERENCE_MAX = 100;
 
 export interface ActionDraft {
-  target?: PaymentStatus;
+  target?: WritablePaymentStatus;
   note: string;
   reference: string;
 }

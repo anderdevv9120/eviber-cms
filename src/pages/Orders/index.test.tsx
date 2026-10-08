@@ -16,6 +16,29 @@ function setup(path = "/orders") {
 }
 
 describe("Orders list", () => {
+  it("reads free orders through their payment filter and displays zero and backend payment labels", async () => {
+    const requests: unknown[] = [];
+    const free = {
+      ...order,
+      paymentStatus: "not_required",
+      paymentInfo: { method: "NO_PAYMENT" },
+      checkoutInfo: { ...order.checkoutInfo, totalPrice: 0 }
+    };
+    axiosRequest.defaults.adapter = async config => {
+      requests.push(config.params);
+      return response(config, { ...orderList(), data: [free] });
+    };
+    setup("/orders?paymentStatus=not_required");
+    await screen.findByRole("link", { name: "Chi tiết" });
+    expect(requests).toEqual([{ page: 1, pageSize: 10, paymentStatus: "not_required" }]);
+    const row = within(screen.getByRole("row", { name: /ORD-SNAPSHOT/ }));
+    expect(row.getByText("0 ₫")).toBeTruthy();
+    expect(row.getByText("Không cần thanh toán")).toBeTruthy();
+    expect(row.getByText("Không thanh toán")).toBeTruthy();
+    expect(row.getByRole("link", { name: "Chi tiết" }).getAttribute("href")).toContain(
+      "paymentStatus%3Dnot_required"
+    );
+  });
   it("renders every order column and API total as order count", async () => {
     const requests: unknown[] = [];
     axiosRequest.defaults.adapter = async config => {
