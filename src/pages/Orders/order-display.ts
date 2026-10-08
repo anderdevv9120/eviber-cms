@@ -36,7 +36,7 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
   CARD: "Thẻ",
   BANK_TRANSFER: "Chuyển khoản ngân hàng",
   E_WALLET: "Ví điện tử",
-  NO_PAYMENT: "Không thanh toán"
+  NO_PAYMENT: "Không cần thanh toán"
 };
 export const orderActorLabels: Record<OrderActorType, string> = {
   customer: "Khách hàng",

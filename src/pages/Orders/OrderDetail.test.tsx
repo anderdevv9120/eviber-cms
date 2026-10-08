@@ -41,8 +41,7 @@ describe("shared order detail", () => {
       });
     renderDetail();
     const payment = within(await screen.findByRole("region", { name: "Thông tin thanh toán" }));
-    expect(payment.getByText("Không cần thanh toán")).toBeTruthy();
-    expect(payment.getByText("Không thanh toán")).toBeTruthy();
+    expect(payment.getAllByText("Không cần thanh toán")).toHaveLength(2);
     expect(within(screen.getByRole("region", { name: "Tổng tiền" })).getByText("0 ₫")).toBeTruthy();
     for (const name of [
       "Ghi nhận thanh toán",

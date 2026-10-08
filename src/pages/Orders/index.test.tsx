@@ -33,8 +33,8 @@ describe("Orders list", () => {
     expect(requests).toEqual([{ page: 1, pageSize: 10, paymentStatus: "not_required" }]);
     const row = within(screen.getByRole("row", { name: /ORD-SNAPSHOT/ }));
     expect(row.getByText("0 ₫")).toBeTruthy();
-    expect(row.getByText("Không cần thanh toán")).toBeTruthy();
-    expect(row.getByText("Không thanh toán")).toBeTruthy();
+    // Spec §6: both method and status read "No payment required", never "not paid".
+    expect(row.getAllByText("Không cần thanh toán")).toHaveLength(2);
     expect(row.getByRole("link", { name: "Chi tiết" }).getAttribute("href")).toContain(
       "paymentStatus%3Dnot_required"
     );
