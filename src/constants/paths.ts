@@ -12,6 +12,7 @@ export const PATH = {
   ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId",
   BANNERS: "/banners",
   REVIEWS: "/reviews",
+  VOUCHERS: "/vouchers",
   REPORTS: "/reports"
 };
 

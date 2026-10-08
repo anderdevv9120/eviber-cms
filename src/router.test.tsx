@@ -49,6 +49,34 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens vouchers from the sidebar and selects its breadcrumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : {
+              data: [],
+              total: 0,
+              totalPage: 0,
+              page: config.params?.page ?? 1,
+              pageSize: config.params?.pageSize ?? 10
+            }
+      );
+    const router = renderRoute("/vouchers?search=SAVE");
+    await screen.findByRole("heading", { name: "Voucher" });
+    expect((await screen.findByRole("menuitem", { name: /Voucher/ })).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(within(screen.getByRole("navigation")).getByText("Voucher")).toBeTruthy();
+    expect(screen.getByRole("searchbox", { name: "Tìm voucher" }).getAttribute("value")).toBe(
+      "SAVE"
+    );
+    await act(() => router.navigate("/dashboard"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Voucher/ }));
+    await screen.findByRole("heading", { name: "Voucher" });
+    expect(router.state.location.pathname).toBe("/vouchers");
+  });
   it.each([
     ["/customers/registered/customer-id", "Khách hàng đã đăng ký", "/customers?page=2&search=An"],
     [

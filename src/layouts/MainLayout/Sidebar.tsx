@@ -61,7 +61,9 @@ const Sidebar = () => {
                   ? "payments"
                   : pathname === PATH.ORDER || orderDetail
                     ? "3"
-                    : "1";
+                    : pathname === PATH.VOUCHERS
+                      ? "vouchers"
+                      : "1";
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -106,6 +108,12 @@ const Sidebar = () => {
       label: "Khách hàng",
       icon: <MailOutlined />,
       onClick: () => navigate(PATH.CUSTOMERS)
+    },
+    {
+      key: "vouchers",
+      label: "Voucher",
+      icon: <ContainerOutlined />,
+      onClick: () => navigate(PATH.VOUCHERS)
     },
     {
       key: "banners",

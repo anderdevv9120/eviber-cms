@@ -1,0 +1,218 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Button, Flex, Input, Pagination, Select, Spin, Table, Typography } from "antd";
+import type { TableColumnsType } from "antd";
+import viVN from "antd/locale/vi_VN";
+import { useSearchParams } from "react-router";
+import {
+  listVouchersAPI,
+  type AdminCouponSummary,
+  type VoucherListQuery,
+  type VoucherPage
+} from "@/services/vouchers";
+import { useAppStore } from "@/store/useAppStore";
+import { getErrorMessage } from "@/utils/getErrorMessage";
+import { formatOrderAmount } from "@/pages/Orders/order-display";
+import {
+  availabilityLabels,
+  checkVoucherPage,
+  parseVoucherQuery,
+  serializeVoucherQuery,
+  voucherLocalDate
+} from "./voucher-query";
+import VoucherDrawer from "./VoucherDrawer";
+
+// Copied from Customers: one request owns recovery and its canonical URL.
+function useVouchersList() {
+  const [params, setParams] = useSearchParams();
+  const query = parseVoucherQuery(params);
+  const key = serializeVoucherQuery(query).toString();
+  const [view, setView] = useState<{
+    key: string;
+    result?: VoucherPage<AdminCouponSummary>;
+    error?: string;
+  }>({ key });
+  const request = useRef<{ controller: AbortController; key: string } | null>(null);
+  const fetchList = useCallback(async () => {
+    request.current?.controller.abort();
+    const current = { controller: new AbortController(), key };
+    request.current = current;
+    const currentQuery = parseVoucherQuery(new URLSearchParams(key));
+    const fetchPage = async (pageQuery: VoucherListQuery) => {
+      const { data } = await listVouchersAPI(pageQuery, current.controller.signal);
+      if (current.controller.signal.aborted || request.current !== current)
+        throw new Error("Yêu cầu đã bị thay thế");
+      return checkVoucherPage(data, pageQuery);
+    };
+    try {
+      let data = await fetchPage(currentQuery);
+      const lastPage = Math.max(1, data.totalPage);
+      if (currentQuery.page > lastPage) {
+        const recovered = { ...currentQuery, page: lastPage };
+        const recoveredParams = serializeVoucherQuery(recovered);
+        current.key = recoveredParams.toString();
+        setParams(recoveredParams, { replace: true });
+        data = await fetchPage(recovered);
+      }
+      setView({ key: current.key, result: data });
+    } catch (cause) {
+      if (!current.controller.signal.aborted && request.current === current)
+        setView({ key: current.key, error: getErrorMessage(cause) });
+    }
+  }, [key, setParams]);
+  useEffect(() => {
+    if (request.current?.key !== key)
+      fetchList().catch(() => {
+        /* Active errors are inline. */
+      });
+    return () => {
+      if (request.current?.key !== key) return;
+      request.current.controller.abort();
+      request.current = null;
+    };
+  }, [fetchList, key]);
+  useEffect(
+    () => () => {
+      request.current?.controller.abort();
+      request.current = null;
+    },
+    []
+  );
+  const changeQuery = (changes: Partial<VoucherListQuery>) =>
+    setParams(previous => {
+      const next = { ...parseVoucherQuery(previous), ...changes };
+      if (["search", "availability", "pageSize"].some(field => field in changes)) next.page = 1;
+      return serializeVoucherQuery(next);
+    });
+  const reload = () => {
+    setView({ key });
+    fetchList().catch(() => {
+      /* Active errors are inline. */
+    });
+  };
+  const current = view.key === key ? view : { key };
+  return { query, changeQuery, reload, ...current };
+}
+
+function VoucherPage() {
+  const { query, key, changeQuery, reload, result, error } = useVouchersList();
+  const [selection, setSelection] = useState<{ id: string | null; session: number } | null>(null);
+  const columns: TableColumnsType<AdminCouponSummary> = [
+    {
+      title: "Mã",
+      key: "code",
+      render: (_, row) => (
+        <Button type='link' onClick={() => setSelection({ id: row._id, session: Date.now() })}>
+          {row.code}
+        </Button>
+      )
+    },
+    { title: "Tên", dataIndex: "name" },
+    {
+      title: "Giảm",
+      key: "discount",
+      render: (_, row) =>
+        row.discountType === "percentage"
+          ? `${row.discountValue}%`
+          : formatOrderAmount(row.discountValue, "VND")
+    },
+    {
+      title: "Tình trạng",
+      key: "availability",
+      render: (_, row) => availabilityLabels[row.availability]
+    },
+    { title: "Đã dùng", dataIndex: "usedCount" },
+    {
+      title: "Còn lại",
+      key: "remaining",
+      render: (_, row) => (row.remainingUses === null ? "Không giới hạn" : row.remainingUses)
+    },
+    {
+      title: "Bắt đầu (UTC+07:00)",
+      key: "start",
+      render: (_, row) => voucherLocalDate(row.startDate).replace("T", " ")
+    },
+    {
+      title: "Kết thúc (UTC+07:00)",
+      key: "end",
+      render: (_, row) => voucherLocalDate(row.endDate).replace("T", " ")
+    }
+  ];
+  return (
+    <section className='min-w-0'>
+      <Flex justify='space-between' align='center' gap={12} wrap>
+        <Typography.Title level={2}>Voucher</Typography.Title>
+        <Flex gap={8}>
+          <Button onClick={reload} disabled={!result && !error}>
+            Tải lại
+          </Button>
+          <Button type='primary' onClick={() => setSelection({ id: null, session: Date.now() })}>
+            Thêm voucher
+          </Button>
+        </Flex>
+      </Flex>
+      <Flex gap={12} wrap className='mb-4'>
+        <Input.Search
+          key={key}
+          aria-label='Tìm voucher'
+          defaultValue={query.search}
+          maxLength={255}
+          enterButton='Tìm kiếm'
+          style={{ maxWidth: 400 }}
+          onSearch={search => changeQuery({ search: search.trim() || undefined })}
+        />
+        <Select
+          aria-label='Lọc tình trạng voucher'
+          value={query.availability}
+          allowClear
+          placeholder='Tất cả tình trạng'
+          style={{ width: 220 }}
+          options={Object.entries(availabilityLabels).map(([value, label]) => ({ value, label }))}
+          onChange={availability => changeQuery({ availability })}
+        />
+      </Flex>
+      {error ? (
+        <Alert type='error' title={error} action={<Button onClick={reload}>Thử lại</Button>} />
+      ) : !result ? (
+        <Spin aria-label='Đang tải voucher' />
+      ) : (
+        <>
+          <Table
+            rowKey='_id'
+            columns={columns}
+            dataSource={result.data}
+            pagination={false}
+            scroll={{ x: 1000 }}
+            locale={{ emptyText: "Không có voucher" }}
+          />
+          <Flex justify='space-between' wrap gap={12} className='mt-4'>
+            <Typography.Text>Tổng {result.total} voucher</Typography.Text>
+            <Pagination
+              locale={viVN.Pagination}
+              current={query.page}
+              pageSize={query.pageSize}
+              total={result.total}
+              showSizeChanger
+              pageSizeOptions={[10, 20, 50, 100]}
+              onChange={(page, pageSize) =>
+                changeQuery(pageSize === query.pageSize ? { page } : { pageSize })
+              }
+            />
+          </Flex>
+        </>
+      )}
+      {selection && (
+        <VoucherDrawer
+          key={`${selection.id ?? "new"}:${selection.session}`}
+          voucherId={selection.id}
+          onClose={() => setSelection(null)}
+          onChanged={reload}
+        />
+      )}
+    </section>
+  );
+}
+
+export default function Vouchers() {
+  const accountId = useAppStore(state => state.profile?._id);
+  return accountId ? <VoucherPage key={accountId} /> : null;
+}
