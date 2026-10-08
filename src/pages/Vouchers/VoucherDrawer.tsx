@@ -204,6 +204,7 @@ export default function VoucherDrawer({
   const [attempt, setAttempt] = useState(0);
   const lifetime = useRef<AbortController | null>(null);
   const saving = useRef(false);
+  const [formVersion, setFormVersion] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     lifetime.current = controller;
@@ -259,6 +260,7 @@ export default function VoucherDrawer({
     if (voucherId && voucher) {
       const { code: _code, ...rules } = input;
       await write({ ...rules, expectedRevision: voucher.revision });
+      setFormVersion(version => version + 1);
     } else await write(input);
   };
   const reload = () => {
@@ -333,7 +335,7 @@ export default function VoucherDrawer({
             </Button>
           )}
           <VoucherForm
-            key={`form:${voucher?._id ?? "new"}:${voucher?.revision ?? "new"}`}
+            key={`form:${voucher?._id ?? "new"}:${formVersion}`}
             voucher={voucher}
             busy={busy || conflict}
             onSubmit={submit}

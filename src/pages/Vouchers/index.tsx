@@ -96,6 +96,7 @@ function useVouchersList() {
 function VoucherPage() {
   const { query, key, changeQuery, reload, result, error } = useVouchersList();
   const [selection, setSelection] = useState<{ id: string | null; session: number } | null>(null);
+  const [savedVersion, setSavedVersion] = useState(0);
   const columns: TableColumnsType<AdminCouponSummary> = [
     {
       title: "Mã",
@@ -150,6 +151,17 @@ function VoucherPage() {
           </Button>
         </Flex>
       </Flex>
+      <div role='status' aria-live='polite' aria-atomic='true'>
+        {savedVersion > 0 && (
+          <Alert
+            key={savedVersion}
+            role='presentation'
+            type='success'
+            title='Đã lưu voucher thành công'
+            className='mb-4'
+          />
+        )}
+      </div>
       <Flex gap={12} wrap className='mb-4'>
         <Input.Search
           key={key}
@@ -205,7 +217,10 @@ function VoucherPage() {
           key={`${selection.id ?? "new"}:${selection.session}`}
           voucherId={selection.id}
           onClose={() => setSelection(null)}
-          onChanged={reload}
+          onChanged={() => {
+            setSavedVersion(version => version + 1);
+            reload();
+          }}
         />
       )}
     </section>

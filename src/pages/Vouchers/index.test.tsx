@@ -161,6 +161,7 @@ describe("voucher rules form", () => {
       endDate: "2026-10-09T17:00:00.000Z"
     });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Tạo voucher" })).toBeNull());
+    expect(screen.getByRole("status").textContent).toBe("Đã lưu voucher thành công");
   });
   it("keeps code immutable and sends literal percentage/cap, unlimited, and UTC dates", async () => {
     const save = vi.fn(async (_input: api.CouponInput) => {});
@@ -296,6 +297,38 @@ describe("voucher rules form", () => {
 });
 
 describe("voucher list, revision recovery and history", () => {
+  it("preserves unsaved rules through a confirmed toggle and saves them with the new revision", async () => {
+    vi.mocked(api.updateVoucherAPI)
+      .mockResolvedValueOnce({
+        data: { ...voucher, isActive: false, availability: "disabled", revision: 1 },
+        message: "success"
+      })
+      .mockResolvedValueOnce({
+        data: { ...voucher, name: "Dirty name", discountValue: 30, isActive: false, revision: 2 },
+        message: "success"
+      });
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "SAVE_20" }));
+    await screen.findByLabelText("Tên voucher");
+    change("Tên voucher", "Dirty name");
+    change("Giá trị giảm", "30");
+    fireEvent.click(screen.getByRole("button", { name: "Tắt voucher" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Xác nhận" }));
+    await screen.findByRole("button", { name: "Bật voucher" });
+    expect((screen.getByLabelText("Tên voucher") as HTMLInputElement).value).toBe("Dirty name");
+    expect((screen.getByLabelText("Giá trị giảm") as HTMLInputElement).value).toBe("30");
+    expect(screen.getByRole("status").textContent).toBe("Đã lưu voucher thành công");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu voucher" }));
+    await waitFor(() => expect(api.updateVoucherAPI).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.updateVoucherAPI).mock.calls[1][1]).toMatchObject({
+      expectedRevision: 1,
+      name: "Dirty name",
+      discountValue: 30,
+      isActive: false
+    });
+    await screen.findByText("Phiên bản hiện tại: 2");
+    expect(screen.getByRole("status").textContent).toBe("Đã lưu voucher thành công");
+  });
   it("keeps a stale draft locked if recovery fails and requires an explicit fresh read", async () => {
     vi.mocked(api.getVoucherAPI)
       .mockResolvedValueOnce({ data: voucher, message: "success" })
