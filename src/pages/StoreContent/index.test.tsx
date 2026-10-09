@@ -1,0 +1,130 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ConfigProvider } from "antd";
+import "@/test/attribute-fixtures";
+import { ApiError } from "@/utils/request";
+import * as api from "@/services/storeContent";
+import { uploadImageAPI } from "@/services/banners";
+import StoreContent from "./index";
+
+vi.mock("@/constants/env", () => ({
+  ADMIN_API_URL: "http://api.test:8001/admin/v1",
+  STOREFRONT_URL: "http://shop.test"
+}));
+vi.mock("@/services/storeContent", () => ({
+  getStoreSettingsAPI: vi.fn(),
+  saveStoreSettingsAPI: vi.fn()
+}));
+vi.mock("@/services/banners", () => ({ uploadImageAPI: vi.fn() }));
+vi.mock("@/utils/notification", () => ({
+  successNotification: vi.fn(),
+  errorNotification: vi.fn()
+}));
+
+const settings: api.Revisioned<api.StoreSettings> = {
+  contact: { address: "Số 8 Phạm Hùng", email: "hotro@clothes.vn", phone: "1900 0000" },
+  socials: { facebook: "", instagram: "", twitter: "" },
+  promoTiles: [
+    {
+      title: "Ưu đãi",
+      description: "Giảm giá",
+      ctaLabel: "Mua ngay",
+      href: "/collection",
+      image: "https://img.test/a.jpg",
+      theme: "light"
+    },
+    {
+      title: "Hàng mới",
+      description: "Mỗi tuần",
+      ctaLabel: "Khám phá",
+      href: "/collection",
+      image: "https://img.test/b.jpg",
+      theme: "dark"
+    }
+  ],
+  homePromises: [1, 2, 3, 4].map(n => ({ title: `Cam kết ${n}`, description: `Mô tả ${n}` })),
+  productPromises: ["Giao nhanh", "Đổi size", "COD"],
+  revision: 3
+};
+const ok = <T,>(data: T) => ({ data, message: "success" });
+const setup = () =>
+  render(
+    <ConfigProvider theme={{ token: { motion: false } }}>
+      <StoreContent />
+    </ConfigProvider>
+  );
+const save = () => fireEvent.click(screen.getByRole("button", { name: "Lưu nội dung" }));
+
+describe("store content page", () => {
+  beforeEach(() => {
+    vi.mocked(api.getStoreSettingsAPI).mockReset().mockResolvedValue(ok(settings));
+    vi.mocked(api.saveStoreSettingsAPI)
+      .mockReset()
+      .mockImplementation(async input => ok({ ...input, revision: input.revision + 1 }));
+    vi.mocked(uploadImageAPI).mockReset();
+  });
+
+  it("saves the full settings payload with the loaded revision", async () => {
+    setup();
+    fireEvent.change(await screen.findByLabelText("Số điện thoại"), {
+      target: { value: "0900 111 222" }
+    });
+    save();
+    await waitFor(() =>
+      expect(api.saveStoreSettingsAPI).toHaveBeenCalledWith({
+        ...settings,
+        contact: { ...settings.contact, phone: "0900 111 222" },
+        revision: 3
+      })
+    );
+  });
+
+  it("uploads a tile image and saves its path", async () => {
+    vi.mocked(uploadImageAPI).mockResolvedValue(ok({ path: "/images/new.jpg" }));
+    const { container } = setup();
+    await screen.findByLabelText("Số điện thoại");
+    const input = container.querySelectorAll<HTMLInputElement>('input[type="file"]')[0];
+    fireEvent.change(input, {
+      target: { files: [new File(["x"], "tile.png", { type: "image/png" })] }
+    });
+    await waitFor(() =>
+      expect(screen.getByAltText("Ảnh ô khuyến mãi 1").getAttribute("src")).toContain(
+        "/images/new.jpg"
+      )
+    );
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].promoTiles[0].image).toBe(
+      "/images/new.jpg"
+    );
+  });
+
+  it("blocks saving after a stale revision until the admin reloads", async () => {
+    vi.mocked(api.saveStoreSettingsAPI).mockRejectedValueOnce(new ApiError("Stale", 409));
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    save();
+    expect(
+      await screen.findByText("Nội dung đã thay đổi. Tải lại để bỏ bản nháp trước khi lưu.")
+    ).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Lưu nội dung" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+    await waitFor(() => expect(api.getStoreSettingsAPI).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Lưu nội dung" }) as HTMLButtonElement).disabled
+      ).toBe(false)
+    );
+  });
+
+  it("shows a retryable load error", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockRejectedValueOnce(new ApiError("Máy chủ lỗi", 500));
+    setup();
+    expect(await screen.findByText("Không tải được nội dung cửa hàng")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByLabelText("Số điện thoại")).toBeTruthy();
+  });
+});

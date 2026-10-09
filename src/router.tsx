@@ -23,6 +23,8 @@ const Banners = lazy(() => import("./pages/Banners"));
 const Reviews = lazy(() => import("./pages/Reviews"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Vouchers = lazy(() => import("./pages/Vouchers"));
+const StoreContent = lazy(() => import("./pages/StoreContent"));
+const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
   {
@@ -62,6 +64,8 @@ export const routes: RouteObject[] = [
       { path: PATH.BANNERS, element: <Banners /> },
       { path: PATH.REVIEWS, element: <Reviews /> },
       { path: PATH.VOUCHERS, element: <Vouchers /> },
+      { path: PATH.STORE_CONTENT, element: <StoreContent /> },
+      { path: PATH.POLICIES, element: <Policies /> },
       { path: PATH.REPORTS, element: <Reports /> }
     ]
   },

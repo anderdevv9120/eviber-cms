@@ -10,7 +10,8 @@ import {
   AppstoreOutlined,
   PictureOutlined,
   StarOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  FileTextOutlined
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -44,26 +45,31 @@ const Sidebar = () => {
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const customersSelected =
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
+  const contentSelected = pathname === PATH.STORE_CONTENT || pathname === PATH.POLICIES;
   const selectedKey =
-    pathname === PATH.REPORTS
-      ? "reports"
-      : pathname === PATH.REVIEWS
-        ? "reviews"
-        : pathname === PATH.BANNERS
-          ? "banners"
-          : customersSelected
-            ? "customers"
-            : catalogSelected
-              ? "attributes"
-              : pathname === PATH.PRODUCT
-                ? "2"
-                : paymentsSelected
-                  ? "payments"
-                  : pathname === PATH.ORDER || orderDetail
-                    ? "3"
-                    : pathname === PATH.VOUCHERS
-                      ? "vouchers"
-                      : "1";
+    pathname === PATH.STORE_CONTENT
+      ? "store-content"
+      : pathname === PATH.POLICIES
+        ? "policies"
+        : pathname === PATH.REPORTS
+          ? "reports"
+          : pathname === PATH.REVIEWS
+            ? "reviews"
+            : pathname === PATH.BANNERS
+              ? "banners"
+              : customersSelected
+                ? "customers"
+                : catalogSelected
+                  ? "attributes"
+                  : pathname === PATH.PRODUCT
+                    ? "2"
+                    : paymentsSelected
+                      ? "payments"
+                      : pathname === PATH.ORDER || orderDetail
+                        ? "3"
+                        : pathname === PATH.VOUCHERS
+                          ? "vouchers"
+                          : "1";
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -122,6 +128,19 @@ const Sidebar = () => {
       onClick: () => navigate(PATH.BANNERS)
     },
     {
+      key: "content",
+      label: "Nội dung",
+      icon: <FileTextOutlined />,
+      children: [
+        {
+          key: "store-content",
+          label: "Nội dung cửa hàng",
+          onClick: () => navigate(PATH.STORE_CONTENT)
+        },
+        { key: "policies", label: "Trang chính sách", onClick: () => navigate(PATH.POLICIES) }
+      ]
+    },
+    {
       key: "reviews",
       label: "Đánh giá",
       icon: <StarOutlined />,
@@ -165,7 +184,15 @@ const Sidebar = () => {
         mode='inline'
         selectedKeys={[selectedKey]}
         openKeys={
-          catalogSelected && !collapsed ? Array.from(new Set([...openKeys, "catalog"])) : openKeys
+          collapsed
+            ? openKeys
+            : Array.from(
+                new Set([
+                  ...openKeys,
+                  ...(catalogSelected ? ["catalog"] : []),
+                  ...(contentSelected ? ["content"] : [])
+                ])
+              )
         }
         onOpenChange={setOpenKeys}
         items={items}

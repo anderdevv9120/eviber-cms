@@ -13,6 +13,8 @@ export const PATH = {
   BANNERS: "/banners",
   REVIEWS: "/reviews",
   VOUCHERS: "/vouchers",
+  STORE_CONTENT: "/store-content",
+  POLICIES: "/policies",
   REPORTS: "/reports"
 };
 

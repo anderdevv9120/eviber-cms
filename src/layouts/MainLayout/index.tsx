@@ -69,17 +69,21 @@ const MainLayout = () => {
               },
               ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
             ]
-          : pathname === PATH.BANNERS
-            ? [{ title: "Banner" }]
-            : pathname === PATH.REVIEWS
-              ? [{ title: "Đánh giá" }]
-              : pathname === PATH.REPORTS
-                ? [{ title: "Báo cáo bán hàng" }]
-                : pathname === PATH.VOUCHERS
-                  ? [{ title: "Voucher" }]
-                  : pathname === PATH.DASHBOARD
-                    ? [{ title: "Trang chủ" }]
-                    : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
+          : pathname === PATH.STORE_CONTENT
+            ? [{ title: "Nội dung" }, { title: "Nội dung cửa hàng" }]
+            : pathname === PATH.POLICIES
+              ? [{ title: "Nội dung" }, { title: "Trang chính sách" }]
+              : pathname === PATH.BANNERS
+                ? [{ title: "Banner" }]
+                : pathname === PATH.REVIEWS
+                  ? [{ title: "Đánh giá" }]
+                  : pathname === PATH.REPORTS
+                    ? [{ title: "Báo cáo bán hàng" }]
+                    : pathname === PATH.VOUCHERS
+                      ? [{ title: "Voucher" }]
+                      : pathname === PATH.DASHBOARD
+                        ? [{ title: "Trang chủ" }]
+                        : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 

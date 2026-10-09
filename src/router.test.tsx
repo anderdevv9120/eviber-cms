@@ -77,6 +77,41 @@ describe("CMS data router", () => {
     await screen.findByRole("heading", { name: "Voucher" });
     expect(router.state.location.pathname).toBe("/vouchers");
   });
+  it("opens store content from the Nội dung group with breadcrumbs", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : {
+              contact: { address: "A", email: "a@b.vn", phone: "1" },
+              socials: { facebook: "", instagram: "", twitter: "" },
+              promoTiles: [0, 1].map(() => ({
+                title: "T",
+                description: "D",
+                ctaLabel: "C",
+                href: "/collection",
+                image: "https://img.test/a.jpg",
+                theme: "light"
+              })),
+              homePromises: [0, 1, 2, 3].map(() => ({ title: "T", description: "D" })),
+              productPromises: ["a", "b", "c"],
+              revision: 0
+            }
+      );
+    const router = renderRoute("/store-content");
+    await screen.findByRole("heading", { name: "Nội dung cửa hàng" });
+    expect(
+      (await screen.findByRole("menuitem", { name: /Nội dung cửa hàng/ })).className
+    ).toContain("ant-menu-item-selected");
+    // `navigation` is the breadcrumb (same as the vouchers case above)
+    const breadcrumb = within(screen.getByRole("navigation"));
+    expect(breadcrumb.getByText("Nội dung")).toBeTruthy();
+    expect(breadcrumb.getByText("Nội dung cửa hàng")).toBeTruthy();
+    await act(() => router.navigate("/dashboard"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Trang chính sách/ }));
+    expect(router.state.location.pathname).toBe("/policies");
+  });
   it.each([
     ["/customers/registered/customer-id", "Khách hàng đã đăng ký", "/customers?page=2&search=An"],
     [
