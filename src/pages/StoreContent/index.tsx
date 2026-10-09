@@ -135,13 +135,16 @@ export default function StoreContent() {
     const controller = new AbortController();
     getStoreSettingsAPI(controller.signal)
       .then(({ data }) => {
-        if (!controller.signal.aborted) setSettings(data);
+        if (controller.signal.aborted) return;
+        // The form store outlives the remount; initialValues alone would let the old draft win
+        form.setFieldsValue(data);
+        setSettings(data);
       })
       .catch(cause => {
         if (!controller.signal.aborted) setLoadError(getErrorMessage(cause));
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, form]);
 
   // Bỏ bản nháp: tải lại bản mới nhất và dựng lại form từ đầu
   const reload = () => {
@@ -305,7 +308,12 @@ export default function StoreContent() {
         </Flex>
       </Form>
       <Flex justify='end'>
-        <Button type='primary' loading={saving} disabled={conflict} onClick={save}>
+        <Button
+          type='primary'
+          loading={saving}
+          disabled={conflict || uploading !== null}
+          onClick={save}
+        >
           Lưu nội dung
         </Button>
       </Flex>

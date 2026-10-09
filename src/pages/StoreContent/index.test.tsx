@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigProvider } from "antd";
@@ -49,9 +50,12 @@ const settings: api.Revisioned<api.StoreSettings> = {
 const ok = <T,>(data: T) => ({ data, message: "success" });
 const setup = () =>
   render(
-    <ConfigProvider theme={{ token: { motion: false } }}>
-      <StoreContent />
-    </ConfigProvider>
+    // StrictMode like main.tsx: dev double-mount must not wipe the loaded form
+    <StrictMode>
+      <ConfigProvider theme={{ token: { motion: false } }}>
+        <StoreContent />
+      </ConfigProvider>
+    </StrictMode>
   );
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Lưu nội dung" }));
 
@@ -66,6 +70,9 @@ describe("store content page", () => {
 
   it("saves the full settings payload with the loaded revision", async () => {
     setup();
+    expect(((await screen.findByLabelText("Số điện thoại")) as HTMLInputElement).value).toBe(
+      "1900 0000"
+    );
     fireEvent.change(await screen.findByLabelText("Số điện thoại"), {
       target: { value: "0900 111 222" }
     });
@@ -102,7 +109,12 @@ describe("store content page", () => {
   it("blocks saving after a stale revision until the admin reloads", async () => {
     vi.mocked(api.saveStoreSettingsAPI).mockRejectedValueOnce(new ApiError("Stale", 409));
     setup();
-    await screen.findByLabelText("Số điện thoại");
+    fireEvent.change(await screen.findByLabelText("Số điện thoại"), {
+      target: { value: "0900 draft" }
+    });
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(
+      ok({ ...settings, contact: { ...settings.contact, phone: "0911 fresh" }, revision: 4 })
+    );
     save();
     expect(
       await screen.findByText("Nội dung đã thay đổi. Tải lại để bỏ bản nháp trước khi lưu.")
@@ -111,19 +123,43 @@ describe("store content page", () => {
       (screen.getByRole("button", { name: "Lưu nội dung" }) as HTMLButtonElement).disabled
     ).toBe(true);
 
+    const loads = vi.mocked(api.getStoreSettingsAPI).mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
-    await waitFor(() => expect(api.getStoreSettingsAPI).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(vi.mocked(api.getStoreSettingsAPI).mock.calls.length).toBeGreaterThan(loads)
+    );
     await waitFor(() =>
       expect(
         (screen.getByRole("button", { name: "Lưu nội dung" }) as HTMLButtonElement).disabled
       ).toBe(false)
     );
+    // Reload discards the draft and shows the other admin's saved copy
+    expect((screen.getByLabelText("Số điện thoại") as HTMLInputElement).value).toBe("0911 fresh");
+  });
+
+  it("blocks saving while a tile image is uploading", async () => {
+    let finishUpload: (value: ReturnType<typeof ok<{ path: string }>>) => void = () => {};
+    vi.mocked(uploadImageAPI).mockReturnValue(
+      new Promise(resolve => {
+        finishUpload = resolve;
+      }) as ReturnType<typeof uploadImageAPI>
+    );
+    const { container } = setup();
+    await screen.findByLabelText("Số điện thoại");
+    const saveButton = screen.getByRole("button", { name: "Lưu nội dung" }) as HTMLButtonElement;
+    fireEvent.change(container.querySelectorAll<HTMLInputElement>('input[type="file"]')[0], {
+      target: { files: [new File(["x"], "tile.png", { type: "image/png" })] }
+    });
+    await waitFor(() => expect(saveButton.disabled).toBe(true));
+    finishUpload(ok({ path: "/images/new.jpg" }));
+    await waitFor(() => expect(saveButton.disabled).toBe(false));
   });
 
   it("shows a retryable load error", async () => {
-    vi.mocked(api.getStoreSettingsAPI).mockRejectedValueOnce(new ApiError("Máy chủ lỗi", 500));
+    vi.mocked(api.getStoreSettingsAPI).mockRejectedValue(new ApiError("Máy chủ lỗi", 500));
     setup();
     expect(await screen.findByText("Không tải được nội dung cửa hàng")).toBeTruthy();
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(ok(settings));
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(await screen.findByLabelText("Số điện thoại")).toBeTruthy();
   });
