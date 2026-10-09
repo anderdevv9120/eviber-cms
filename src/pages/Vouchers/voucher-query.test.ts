@@ -3,6 +3,7 @@ import {
   parseVoucherQuery,
   serializeVoucherQuery,
   voucherInstant,
+  voucherDisplayDate,
   voucherLocalDate
 } from "./voucher-query";
 
@@ -37,6 +38,8 @@ describe("voucher URL and shop instants", () => {
     expect(voucherLocalDate("2026-10-08T17:00:00.000Z")).toBe("2026-10-09T00:00");
     expect(voucherInstant("2026-10-09T00:00:01.123")).toBe("2026-10-08T17:00:01.123Z");
     expect(voucherLocalDate("2026-10-08T17:00:01.123Z")).toBe("2026-10-09T00:00:01.123");
+    expect(voucherDisplayDate("2026-10-08T17:00:00.000Z")).toBe("09/10/2026 00:00:00");
+    expect(voucherDisplayDate("2026-10-08T17:00:01.123Z")).toBe("09/10/2026 00:00:01");
   });
   it.each([
     "",

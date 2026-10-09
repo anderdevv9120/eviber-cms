@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { deferred } from "@/test/attribute-fixtures";
 import { useAppStore } from "@/store/useAppStore";
@@ -102,6 +102,15 @@ const drawer = () => {
 };
 const change = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
+// Typing a full `DD/MM/YYYY HH:mm:ss` value and pressing Enter commits the antd picker.
+const pickDate = (label: string, value: string) => {
+  const input = screen.getByLabelText(label);
+  fireEvent.mouseDown(input);
+  fireEvent.change(input, { target: { value } });
+  fireEvent.keyDown(input, { key: "Enter" });
+};
+const search = (label: string, value: string) =>
+  fireEvent.change(screen.getByRole("combobox", { name: label }), { target: { value } });
 const select = async (label: string, text: string) => {
   fireEvent.mouseDown(await screen.findByRole("combobox", { name: label }));
   fireEvent.click(await screen.findByText(text, { selector: ".ant-select-item-option-content" }));
@@ -140,8 +149,8 @@ describe("voucher rules form", () => {
     change("Mã voucher", " save_20 ");
     change("Tên voucher", " Sale ");
     change("Giảm tối đa (VND)", "50000");
-    change("Bắt đầu (UTC+07:00)", "2026-10-09T00:00");
-    change("Kết thúc (UTC+07:00)", "2026-10-10T00:00");
+    pickDate("Thời điểm có hiệu lực", "09/10/2026 00:00:00");
+    pickDate("Thời điểm kết thúc", "10/10/2026 00:00:00");
     fireEvent.click(screen.getByRole("button", { name: "Tạo voucher" }));
     await waitFor(() => expect(api.createVoucherAPI).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.createVoucherAPI).mock.calls[0][0]).toEqual({
@@ -167,8 +176,8 @@ describe("voucher rules form", () => {
     const save = vi.fn(async (_input: api.CouponInput) => {});
     render(<VoucherForm voucher={voucher} busy={false} onSubmit={save} />);
     expect((screen.getByLabelText("Mã voucher") as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByLabelText("Bắt đầu (UTC+07:00)") as HTMLInputElement).value).toBe(
-      "2026-10-09T00:00"
+    expect((screen.getByLabelText("Thời điểm có hiệu lực") as HTMLInputElement).value).toBe(
+      "09/10/2026 00:00:00"
     );
     change("Giới hạn toàn bộ", "");
     change("Giới hạn mỗi tài khoản", "");
@@ -208,14 +217,39 @@ describe("voucher rules form", () => {
   it("rejects reversed dates and an empty selected scope", async () => {
     const save = vi.fn();
     render(<VoucherForm voucher={voucher} busy={false} onSubmit={save} />);
-    change("Kết thúc (UTC+07:00)", "2026-10-08T00:00");
+    pickDate("Thời điểm kết thúc", "08/10/2026 00:00:00");
     fireEvent.click(screen.getByRole("button", { name: "Lưu voucher" }));
     await screen.findByText("Kết thúc phải sau bắt đầu");
-    change("Kết thúc (UTC+07:00)", "2026-10-10T00:00");
+    pickDate("Thời điểm kết thúc", "10/10/2026 00:00:00");
     await select("Phạm vi", "Sản phẩm đã chọn");
     fireEvent.click(screen.getByRole("button", { name: "Lưu voucher" }));
     await screen.findByText("Chọn ít nhất một mục");
     expect(save).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["Thời điểm có hiệu lực", "00:00:00"],
+    ["Thời điểm kết thúc", "23:59:59"]
+  ])("saves %s with default %s on a day click, keeping the picker open", async (label, time) => {
+    render(<VoucherForm voucher={null} busy={false} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText(label) as HTMLInputElement;
+    fireEvent.mouseDown(input);
+    fireEvent.click(input);
+    const panel = await waitFor(() => document.querySelector<HTMLElement>(".ant-picker-dropdown")!);
+    fireEvent.click(panel.querySelector(".ant-picker-cell-in-view .ant-picker-cell-inner")!);
+    await waitFor(() => expect(input.value.endsWith(time)).toBe(true));
+    expect(panel.classList.contains("ant-picker-dropdown-hidden")).toBe(false);
+    expect(within(panel).queryByRole("button", { name: "OK" })).toBeNull();
+  });
+  it("groups VND thousands and deletes the digit beside a separator", () => {
+    render(<VoucherForm voucher={voucher} busy={false} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText("Đơn tối thiểu (VND)") as HTMLInputElement;
+    expect(input.value).toBe("300,000");
+    input.setSelectionRange(4, 4);
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(input.selectionStart).toBe(3);
+    input.setSelectionRange(3, 3);
+    fireEvent.keyDown(input, { key: "Delete" });
+    expect(input.selectionStart).toBe(4);
   });
   it("selects products/categories and explicitly clears irrelevant targets and cap", async () => {
     const save = vi.fn(async (_input: api.CouponInput) => {});
@@ -279,13 +313,13 @@ describe("voucher rules form", () => {
       />
     );
     await waitFor(() => expect(api.listVoucherProductTargetsAPI).toHaveBeenCalledTimes(1));
-    change("Tìm sản phẩm", "shirt");
+    search("Sản phẩm áp dụng", "shirt");
     await waitFor(() => expect(api.listVoucherProductTargetsAPI).toHaveBeenCalledTimes(2));
     expect(vi.mocked(api.listVoucherProductTargetsAPI).mock.calls[0][1]?.aborted).toBe(true);
     await act(async () => pending.resolve(list([{ _id: categoryId, name: "OLD SELECTOR" }])));
     await select("Sản phẩm áp dụng", "Shirt");
     vi.mocked(api.listVoucherProductTargetsAPI).mockResolvedValue(list([]));
-    change("Tìm sản phẩm", "unrelated");
+    search("Sản phẩm áp dụng", "unrelated");
     await waitFor(() => expect(api.listVoucherProductTargetsAPI).toHaveBeenCalledTimes(3));
     expect(
       screen.getByText("Shirt", { selector: ".ant-select-selection-item-content" })

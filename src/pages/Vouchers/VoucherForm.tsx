@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   Alert,
   Button,
   Checkbox,
+  DatePicker,
   Flex,
   Form,
   Input,
@@ -11,6 +12,7 @@ import {
   Select,
   Typography
 } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import {
   listVoucherCategoryTargetsAPI,
   listVoucherProductTargetsAPI,
@@ -22,7 +24,43 @@ import {
   type VoucherPage
 } from "@/services/vouchers";
 import { getErrorMessage } from "@/utils/getErrorMessage";
-import { checkVoucherPage, voucherInstant, voucherLocalDate } from "./voucher-query";
+import {
+  checkVoucherPage,
+  voucherDateFormat,
+  voucherInstant,
+  voucherLocalDate
+} from "./voucher-query";
+
+// ponytail: the picker edits wall-clock fields only; the form keeps the shop-local (UTC+07:00)
+// string that voucherInstant converts, so the browser time zone never shifts the instant.
+const dateField = {
+  getValueProps: (value?: string) => ({ value: value ? dayjs(value) : null }),
+  normalize: (value: Dayjs | null) => (value ? value.format("YYYY-MM-DDTHH:mm:ss") : "")
+};
+const datePicker = (time: "startOf" | "endOf") => (
+  <DatePicker
+    className='w-full!'
+    format={voucherDateFormat}
+    placeholder='Chọn thời điểm'
+    needConfirm={false}
+    showTime={{ defaultOpenValue: dayjs()[time]("day") }}
+  />
+);
+
+const moneyInput = {
+  className: "w-full!",
+  formatter: (value?: string | number) => `${value ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
+  parser: (value?: string) => (value ?? "").replace(/,/g, "") as unknown as number,
+  // The formatter re-adds a deleted separator, so step over it and delete the digit instead.
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const at = input.selectionStart;
+    if (at === null || at !== input.selectionEnd) return;
+    if (event.key === "Backspace" && input.value[at - 1] === ",")
+      input.setSelectionRange(at - 1, at - 1);
+    if (event.key === "Delete" && input.value[at] === ",") input.setSelectionRange(at + 1, at + 1);
+  }
+};
 
 function TargetPicker({
   scope,
@@ -68,12 +106,6 @@ function TargetPicker({
   };
   return (
     <Flex vertical gap={8}>
-      <Input
-        aria-label={scope === "products" ? "Tìm sản phẩm" : "Tìm danh mục"}
-        value={query.search}
-        maxLength={255}
-        onChange={event => changeQuery(event.target.value)}
-      />
       {view.error && (
         <Alert
           type='error'
@@ -93,7 +125,14 @@ function TargetPicker({
       <Select
         aria-label={label}
         mode='multiple'
-        showSearch={false}
+        placeholder={scope === "products" ? "Tìm và chọn sản phẩm" : "Tìm và chọn danh mục"}
+        // Server-side search: the API pages targets, so the Select must not filter locally.
+        showSearch={{
+          searchValue: query.search,
+          onSearch: search => changeQuery(search.slice(0, 255)),
+          filterOption: false,
+          autoClearSearchValue: false
+        }}
         loading={!view.result && !view.error}
         value={value}
         options={options}
@@ -101,17 +140,25 @@ function TargetPicker({
           setRetained(ids.map((id: string) => targets.get(id)!).filter(Boolean));
           onChange?.(ids);
         }}
+        popupRender={menu => (
+          <>
+            {menu}
+            {view.result && view.result.total > query.pageSize && (
+              // Keep focus in the Select so paging does not close the popup.
+              <div className='px-2 pt-2' onMouseDown={event => event.preventDefault()}>
+                <Pagination
+                  size='small'
+                  current={query.page}
+                  pageSize={query.pageSize}
+                  total={view.result.total}
+                  showSizeChanger={false}
+                  onChange={page => changeQuery(query.search, page)}
+                />
+              </div>
+            )}
+          </>
+        )}
       />
-      {view.result && view.result.total > query.pageSize && (
-        <Pagination
-          size='small'
-          current={query.page}
-          pageSize={query.pageSize}
-          total={view.result.total}
-          showSizeChanger={false}
-          onChange={page => changeQuery(query.search, page)}
-        />
-      )}
     </Flex>
   );
 }
@@ -258,7 +305,7 @@ export default function VoucherForm({
         dependencies={["discountType"]}
         rules={[integer(1, type === "percentage" ? 100 : Number.MAX_SAFE_INTEGER)]}
       >
-        <InputNumber className='w-full!' />
+        <InputNumber {...moneyInput} />
       </Form.Item>
       {type === "percentage" && (
         <Form.Item
@@ -266,11 +313,11 @@ export default function VoucherForm({
           label='Giảm tối đa (VND)'
           rules={[integer(1, Number.MAX_SAFE_INTEGER, true)]}
         >
-          <InputNumber className='w-full!' placeholder='Không giới hạn' />
+          <InputNumber {...moneyInput} placeholder='Không giới hạn' />
         </Form.Item>
       )}
       <Form.Item name='minOrderAmount' label='Đơn tối thiểu (VND)' rules={[integer(0)]}>
-        <InputNumber className='w-full!' />
+        <InputNumber {...moneyInput} />
       </Form.Item>
       <Form.Item name='scopeType' label='Phạm vi'>
         <Select
@@ -309,30 +356,40 @@ export default function VoucherForm({
           />
         </Form.Item>
       )}
-      <Form.Item name='startDate' label='Bắt đầu (UTC+07:00)' rules={[dateRule]}>
-        <Input type='datetime-local' step='0.001' />
-      </Form.Item>
-      <Form.Item
-        name='endDate'
-        label='Kết thúc (UTC+07:00)'
-        dependencies={["startDate"]}
-        rules={[
-          dateRule,
-          {
-            validator: (_, value: string) => {
-              try {
-                return voucherInstant(value) > voucherInstant(form.getFieldValue("startDate"))
-                  ? Promise.resolve()
-                  : Promise.reject(new Error("Kết thúc phải sau bắt đầu"));
-              } catch {
-                return Promise.resolve();
+      <Flex gap={16}>
+        <Form.Item
+          name='startDate'
+          label='Thời điểm có hiệu lực'
+          className='flex-1'
+          rules={[dateRule]}
+          {...dateField}
+        >
+          {datePicker("startOf")}
+        </Form.Item>
+        <Form.Item
+          name='endDate'
+          label='Thời điểm kết thúc'
+          className='flex-1'
+          dependencies={["startDate"]}
+          {...dateField}
+          rules={[
+            dateRule,
+            {
+              validator: (_, value: string) => {
+                try {
+                  return voucherInstant(value) > voucherInstant(form.getFieldValue("startDate"))
+                    ? Promise.resolve()
+                    : Promise.reject(new Error("Kết thúc phải sau bắt đầu"));
+                } catch {
+                  return Promise.resolve();
+                }
               }
             }
-          }
-        ]}
-      >
-        <Input type='datetime-local' step='0.001' />
-      </Form.Item>
+          ]}
+        >
+          {datePicker("endOf")}
+        </Form.Item>
+      </Flex>
       <Typography.Paragraph>
         Để trống giới hạn để không giới hạn. Mặc định mỗi tài khoản dùng một lần.
       </Typography.Paragraph>

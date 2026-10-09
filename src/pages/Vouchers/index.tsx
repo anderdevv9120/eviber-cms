@@ -17,7 +17,7 @@ import {
   checkVoucherPage,
   parseVoucherQuery,
   serializeVoucherQuery,
-  voucherLocalDate
+  voucherDisplayDate
 } from "./voucher-query";
 import VoucherDrawer from "./VoucherDrawer";
 
@@ -102,7 +102,11 @@ function VoucherPage() {
       title: "Mã",
       key: "code",
       render: (_, row) => (
-        <Button type='link' onClick={() => setSelection({ id: row._id, session: Date.now() })}>
+        <Button
+          type='link'
+          className='px-0'
+          onClick={() => setSelection({ id: row._id, session: Date.now() })}
+        >
           {row.code}
         </Button>
       )
@@ -128,29 +132,19 @@ function VoucherPage() {
       render: (_, row) => (row.remainingUses === null ? "Không giới hạn" : row.remainingUses)
     },
     {
-      title: "Bắt đầu (UTC+07:00)",
+      title: "Thời điểm có hiệu lực",
       key: "start",
-      render: (_, row) => voucherLocalDate(row.startDate).replace("T", " ")
+      render: (_, row) => voucherDisplayDate(row.startDate)
     },
     {
-      title: "Kết thúc (UTC+07:00)",
+      title: "Thời điểm kết thúc",
       key: "end",
-      render: (_, row) => voucherLocalDate(row.endDate).replace("T", " ")
+      render: (_, row) => voucherDisplayDate(row.endDate)
     }
   ];
   return (
     <section className='min-w-0'>
-      <Flex justify='space-between' align='center' gap={12} wrap>
-        <Typography.Title level={2}>Voucher</Typography.Title>
-        <Flex gap={8}>
-          <Button onClick={reload} disabled={!result && !error}>
-            Tải lại
-          </Button>
-          <Button type='primary' onClick={() => setSelection({ id: null, session: Date.now() })}>
-            Thêm voucher
-          </Button>
-        </Flex>
-      </Flex>
+      <Typography.Title level={2}>Voucher</Typography.Title>
       <div role='status' aria-live='polite' aria-atomic='true'>
         {savedVersion > 0 && (
           <Alert
@@ -162,7 +156,7 @@ function VoucherPage() {
           />
         )}
       </div>
-      <Flex gap={12} wrap className='mb-4'>
+      <Flex gap={12} wrap align='center' className='mb-4'>
         <Input.Search
           key={key}
           aria-label='Tìm voucher'
@@ -181,6 +175,14 @@ function VoucherPage() {
           options={Object.entries(availabilityLabels).map(([value, label]) => ({ value, label }))}
           onChange={availability => changeQuery({ availability })}
         />
+        <Flex gap={8} className='ml-auto'>
+          <Button onClick={reload} disabled={!result && !error}>
+            Tải lại
+          </Button>
+          <Button type='primary' onClick={() => setSelection({ id: null, session: Date.now() })}>
+            Thêm voucher
+          </Button>
+        </Flex>
       </Flex>
       {error ? (
         <Alert type='error' title={error} action={<Button onClick={reload}>Thử lại</Button>} />

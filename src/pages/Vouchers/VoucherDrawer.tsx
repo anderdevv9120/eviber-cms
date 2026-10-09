@@ -28,7 +28,12 @@ import {
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { formatOrderAmount } from "@/pages/Orders/order-display";
-import { availabilityLabels, checkVoucherPage, voucherLocalDate } from "./voucher-query";
+import {
+  availabilityLabels,
+  checkVoucherPage,
+  voucherDisplayDate,
+  voucherLocalDate
+} from "./voucher-query";
 import VoucherForm from "./VoucherForm";
 
 function checkVoucher(voucher: AdminCouponDetail, id?: string | null): AdminCouponDetail {
@@ -106,9 +111,9 @@ function VoucherHistory({ voucherId }: { voucherId: string }) {
       render: (_, row) => formatOrderAmount(row.discountAmount, "VND")
     },
     {
-      title: "Sử dụng (UTC+07:00)",
+      title: "Sử dụng",
       key: "used",
-      render: (_, row) => voucherLocalDate(row.consumedAt).replace("T", " ")
+      render: (_, row) => voucherDisplayDate(row.consumedAt)
     },
     {
       title: "Trạng thái",
@@ -116,11 +121,11 @@ function VoucherHistory({ voucherId }: { voucherId: string }) {
       render: (_, row) => (row.state === "counted" ? "Đang tính lượt" : "Đã hoàn lượt")
     },
     {
-      title: "Hoàn lượt (UTC+07:00)",
+      title: "Hoàn lượt",
       key: "released",
       render: (_, row) => (
         <>
-          {row.releasedAt ? voucherLocalDate(row.releasedAt).replace("T", " ") : "—"}
+          {row.releasedAt ? voucherDisplayDate(row.releasedAt) : "—"}
           <div>{row.releaseReason ?? "—"}</div>
         </>
       )

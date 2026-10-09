@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import type { CouponAvailability, VoucherListQuery, VoucherPage } from "@/services/vouchers";
 
 export const availabilityLabels: Record<CouponAvailability, string> = {
@@ -55,6 +56,9 @@ export function voucherLocalDate(iso: string): string {
     .replace(/:00\.000$/, "")
     .replace(/\.000$/, "");
 }
+export const voucherDateFormat = "DD/MM/YYYY HH:mm:ss";
+export const voucherDisplayDate = (iso: string): string =>
+  dayjs(voucherLocalDate(iso)).format(voucherDateFormat);
 export function voucherInstant(local: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(local))
     throw new Error("Ngày không hợp lệ");
