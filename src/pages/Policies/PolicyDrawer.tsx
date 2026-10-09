@@ -181,7 +181,10 @@ export default function PolicyDrawer({ slug, onClose, onSaved }: Props) {
               </a>
             )}
           </Flex>
-          <RichEditor key={editorKey} initialHtml={page.contentHtml} onChange={onEditorChange} />
+          {/* Khóa editor khi đang lưu — lưu xong editor mount lại với HTML server, phím gõ thêm sẽ mất */}
+          <div inert={saving} aria-busy={saving}>
+            <RichEditor key={editorKey} initialHtml={page.contentHtml} onChange={onEditorChange} />
+          </div>
         </Flex>
       )}
     </Drawer>

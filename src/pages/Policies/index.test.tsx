@@ -143,6 +143,15 @@ describe("policy pages", () => {
     expect(api.listPoliciesAPI).toHaveBeenCalledTimes(2);
   });
 
+  it("locks the editor while saving so typing cannot be lost on remount", async () => {
+    setup();
+    const editor = await openReturns();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(editor.closest("[inert]")).not.toBeNull();
+    await waitFor(() => expect(api.savePolicyAPI).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText("Nội dung").closest("[inert]")).toBeNull());
+  });
+
   it("closes without a prompt when only the editor's mount emission happened", async () => {
     const confirm = vi.spyOn(window, "confirm");
     setup();
