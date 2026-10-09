@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Drawer, Flex, Input, Result, Spin, Switch, Typography } from "antd";
+import { Alert, Button, Flex, Input, Modal, Result, Spin, Switch, Typography } from "antd";
 import { RichEditor } from "@/components/RichEditor";
 import { STOREFRONT_URL } from "@/constants/env";
 import {
@@ -17,6 +17,8 @@ import { successNotification } from "@/utils/notification";
 const EDITOR_SETTLE_MS = 400;
 const SAVED_MESSAGE = "Đã lưu. Cửa hàng cập nhật trong tối đa 5 phút.";
 const CONFLICT_MESSAGE = "Nội dung đã thay đổi. Tải lại để bỏ bản nháp trước khi lưu.";
+// Toolbar RichEditor rộng ~920px — modal đủ rộng để không phải cuộn ngang
+const MODAL_WIDTH = 1040;
 
 interface Props {
   slug: PolicySlug;
@@ -24,7 +26,7 @@ interface Props {
   onSaved(): void;
 }
 
-export default function PolicyDrawer({ slug, onClose, onSaved }: Props) {
+export default function PolicyModal({ slug, onClose, onSaved }: Props) {
   const [page, setPage] = useState<PolicyPage | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -115,13 +117,17 @@ export default function PolicyDrawer({ slug, onClose, onSaved }: Props) {
   };
 
   return (
-    <Drawer
+    <Modal
       open
-      size='large'
+      width={MODAL_WIDTH}
       title={page ? `Sửa: ${page.title}` : "Trang chính sách"}
-      onClose={close}
-      extra={
+      onCancel={close}
+      footer={[
+        <Button key='cancel' onClick={close} disabled={saving}>
+          Hủy
+        </Button>,
         <Button
+          key='save'
           type='primary'
           loading={saving}
           disabled={!page || conflict || !title.trim()}
@@ -129,7 +135,7 @@ export default function PolicyDrawer({ slug, onClose, onSaved }: Props) {
         >
           Lưu
         </Button>
-      }
+      ]}
     >
       {loadError ? (
         <Result
@@ -187,6 +193,6 @@ export default function PolicyDrawer({ slug, onClose, onSaved }: Props) {
           </div>
         </Flex>
       )}
-    </Drawer>
+    </Modal>
   );
 }

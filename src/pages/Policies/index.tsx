@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Flex, Result, Spin, Table, Tag, Typography } from "antd";
 import { listPoliciesAPI, type PolicyPageSummary, type PolicySlug } from "@/services/storeContent";
 import { getErrorMessage } from "@/utils/getErrorMessage";
-import PolicyDrawer from "./PolicyDrawer";
+import PolicyModal from "./PolicyModal";
 
 export default function Policies() {
   const [rows, setRows] = useState<PolicyPageSummary[] | null>(null);
@@ -71,9 +71,7 @@ export default function Policies() {
           ]}
         />
       )}
-      {editing && (
-        <PolicyDrawer slug={editing} onClose={() => setEditing(null)} onSaved={refresh} />
-      )}
+      {editing && <PolicyModal slug={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
     </Flex>
   );
 }
