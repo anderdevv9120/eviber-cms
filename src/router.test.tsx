@@ -306,7 +306,7 @@ describe("CMS data router", () => {
     expect(router.state.location.pathname).toBe("/auth/login");
   });
 
-  it.each(["/", "/auth/login", "/dashboard", "/product", "/orders", "/reports"])(
+  it.each(["/", "/auth/login", "/dashboard", "/products", "/orders", "/reports"])(
     "preserves existing destination and profile at %s",
     async path => {
       const router = renderRoute(path);
@@ -350,13 +350,42 @@ describe("CMS data router", () => {
     await screen.findByRole("heading", { name: "Tổng quan vận hành" });
   }, 20000);
 
-  it("keeps the original editor placeholder on /product, not on the Dashboard", async () => {
-    const router = renderRoute("/product");
-    await waitFor(() => expect(document.querySelector("[contenteditable='true']")).not.toBeNull());
-    expect(screen.queryByRole("heading", { name: "Tổng quan vận hành" })).toBeNull();
+  it("renders the products list on /products", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : config.url === "/products"
+            ? { data: [], total: 0, page: 1, pageSize: 20, totalPage: 1 }
+            : []
+      );
+    const router = renderRoute("/products");
+    await screen.findByRole("heading", { name: "Sản phẩm" });
+    expect(await screen.findByText("Không có sản phẩm")).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Sản phẩm/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
     await act(() => router.navigate("/dashboard"));
     await screen.findByRole("heading", { name: "Tổng quan vận hành" });
-    expect(document.querySelector("[contenteditable='true']")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Sản phẩm" })).toBeNull();
+  }, 20000);
+
+  it("highlights Sản phẩm on a product detail route and navigates to the list", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : config.url === "/products"
+            ? { data: [], total: 0, page: 1, pageSize: 20, totalPage: 1 }
+            : []
+      );
+    const router = renderRoute("/products/abc");
+    const menu = await screen.findByRole("menuitem", { name: /Sản phẩm/ });
+    await waitFor(() => expect(menu.className).toContain("ant-menu-item-selected"));
+    fireEvent.click(menu);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
   }, 20000);
 
   it("supports direct detail, selected/open catalog menu, scoped breadcrumbs, list and back navigation", async () => {

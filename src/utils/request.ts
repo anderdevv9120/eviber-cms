@@ -27,14 +27,19 @@ const SESSION_EXPIRED_MESSAGE = "Phiên đăng nhập đã hết hạn";
 export class ApiError extends Error {
   status?: number;
   messages: string | string[];
+  /** `errors` của BE (`{ code, ...details }`) để caller map lỗi theo mã */
+  errors?: ApiErrorDetails;
 
-  constructor(messages: string | string[], status?: number) {
+  constructor(messages: string | string[], status?: number, errors?: ApiErrorDetails) {
     super(Array.isArray(messages) ? String(messages[0] ?? "") : messages);
     this.name = "ApiError";
     this.messages = messages;
     this.status = status;
+    this.errors = errors;
   }
 }
+
+export type ApiErrorDetails = { code?: string } & Record<string, unknown>;
 
 interface RefreshSubscriber {
   onSuccess: (token: string) => void;
@@ -102,8 +107,13 @@ const toApiError = (error: AxiosError): ApiError => {
   if (UNREACHABLE_CODES.includes(error.code)) {
     return new ApiError(NETWORK_ERROR_MESSAGE);
   }
-  const data = error.response?.data as { message?: string | string[] } | undefined;
-  return new ApiError(data?.message ?? error.message, error.response?.status);
+  const data = error.response?.data as
+    { message?: string | string[]; errors?: unknown } | undefined;
+  const errors =
+    data?.errors && typeof data.errors === "object" && !Array.isArray(data.errors)
+      ? (data.errors as ApiErrorDetails)
+      : undefined;
+  return new ApiError(data?.message ?? error.message, error.response?.status, errors);
 };
 
 const axiosRequest = axios.create({

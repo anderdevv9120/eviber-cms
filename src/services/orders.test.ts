@@ -152,7 +152,9 @@ describe("order transport through the shared Axios client", () => {
               action: "receipt",
               expectedRevision: 0
             });
-      await expect(result).rejects.toEqual(new ApiError("Đơn hàng đã thay đổi", 409));
+      await expect(result).rejects.toEqual(
+        new ApiError("Đơn hàng đã thay đổi", 409, { code: "order00001" })
+      );
       expect(adapter).toHaveBeenCalledTimes(1);
       expect(errorNotification).not.toHaveBeenCalled();
     }

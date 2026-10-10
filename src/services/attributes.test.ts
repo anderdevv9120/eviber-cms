@@ -109,7 +109,7 @@ describe("attribute transport through the real shared client", () => {
         })
       );
     await expect(api.deleteAttributeAPI("a", 4)).rejects.toEqual(
-      new ApiError("Dictionary changed", 409)
+      new ApiError("Dictionary changed", 409, { productUsageCount: 2, variantUsageCount: 3 })
     );
     expect(errorNotification).not.toHaveBeenCalled();
   });

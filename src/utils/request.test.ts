@@ -154,4 +154,25 @@ describe("request interceptor", () => {
       message: "Không thể kết nối đến máy chủ, vui lòng thử lại"
     });
   });
+
+  it("lỗi 4xx giữ `errors` của BE để caller map theo mã", async () => {
+    const reject = (data: unknown) =>
+      vi.fn(async (config: InternalAxiosRequestConfig) =>
+        Promise.reject(
+          new AxiosError("fail", "400", config, null, {
+            data,
+            status: 400,
+            statusText: "",
+            headers: {},
+            config
+          })
+        )
+      );
+    apiHandler = reject({ message: "x", errors: { code: "product00016", missing: ["IMAGE"] } });
+    const error = await axiosRequest.get("/a").catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).errors).toEqual({ code: "product00016", missing: ["IMAGE"] });
+    apiHandler = reject({ message: "x", errors: ["bad"] });
+    expect(((await axiosRequest.get("/a").catch(c => c)) as ApiError).errors).toBeUndefined();
+  });
 });

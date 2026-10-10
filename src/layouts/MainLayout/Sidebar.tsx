@@ -45,6 +45,7 @@ const Sidebar = () => {
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const customersSelected =
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
+  const productsSelected = pathname === PATH.PRODUCTS || pathname.startsWith(`${PATH.PRODUCTS}/`);
   const contentSelected = pathname === PATH.STORE_CONTENT || pathname === PATH.POLICIES;
   const selectedKey =
     pathname === PATH.STORE_CONTENT
@@ -61,7 +62,7 @@ const Sidebar = () => {
                 ? "customers"
                 : catalogSelected
                   ? "attributes"
-                  : pathname === PATH.PRODUCT
+                  : productsSelected
                     ? "2"
                     : paymentsSelected
                       ? "payments"
@@ -87,7 +88,7 @@ const Sidebar = () => {
       key: "2",
       icon: <DesktopOutlined />,
       label: "Quản lý Sản phẩm",
-      onClick: () => navigate("/product")
+      onClick: () => navigate(PATH.PRODUCTS)
     },
     {
       key: "3",
