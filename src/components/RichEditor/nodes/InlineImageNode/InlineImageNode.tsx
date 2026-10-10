@@ -47,7 +47,9 @@ export interface UpdateInlineImagePayload {
 
 function $convertInlineImageElement(domNode: Node): null | DOMConversionOutput {
   if (isHTMLElement(domNode) && domNode.nodeName === "IMG") {
-    const { alt: altText, src, width, height } = domNode as HTMLImageElement;
+    const { alt: altText, width, height } = domNode as HTMLImageElement;
+    // Attribute, not the resolved `src`: a relative /images/ path must not become a CMS-origin URL
+    const src = domNode.getAttribute("src") ?? "";
     const node = $createInlineImageNode({ altText, height, src, width });
     return { node };
   }

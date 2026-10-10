@@ -30,7 +30,11 @@ import { useAttributeCatalog } from "./useAttributeCatalog";
 import VariantGrid, { type CellErrors } from "./VariantGrid";
 import ProductSeoSection from "./ProductSeoSection";
 import PublishChecklist from "./PublishChecklist";
-import { publishMissing } from "./product-publish";
+import {
+  DESCRIPTION_IMAGE_INVALID,
+  hasInvalidDescriptionImage,
+  publishMissing
+} from "./product-publish";
 
 // RichEditor emits HTML 300 ms after the last change — wait long enough that Save right after
 // typing still sends the last keystroke (Policies PolicyModal)
@@ -284,6 +288,10 @@ function ProductEditorPage({ id }: { id?: string }) {
       setCellErrors(gridErrors);
       if (!values) return setError("Kiểm tra lại thông tin sản phẩm");
       if (Object.keys(gridErrors).length) return setError(GRID_INVALID_MESSAGE);
+      // The server would silently empty these (data: from file insert, http:, other paths)
+      if (hasInvalidDescriptionImage(html.current)) {
+        return setDescriptionError(DESCRIPTION_IMAGE_INVALID);
+      }
       const input = buildInput(values);
       let view: ProductEditorView;
       try {

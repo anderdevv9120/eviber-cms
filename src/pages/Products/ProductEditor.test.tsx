@@ -9,6 +9,7 @@ import { ApiError } from "@/utils/request";
 import * as api from "@/services/products";
 import * as attributesApi from "@/services/attributes";
 import ProductEditor from "./ProductEditor";
+import { DESCRIPTION_IMAGE_INVALID } from "./product-publish";
 
 vi.mock("@/services/products", () => ({
   getProductAPI: vi.fn(),
@@ -294,6 +295,18 @@ describe("ProductEditor — existing product", () => {
     fireEvent.click(button("Lưu"));
     await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
     expect(lastUpdate()[1].description).toBe("<p>Mới</p>");
+  });
+
+  it("blocks Save when a description image would be stripped by the server", async () => {
+    renderEditor();
+    await loaded();
+    type(
+      screen.getByRole("textbox", { name: "Mô tả" }),
+      '<p>Ảnh <img src="data:image/png;base64,AAAA" alt="tệp"></p>'
+    );
+    fireEvent.click(button("Lưu"));
+    expect(await screen.findByText(DESCRIPTION_IMAGE_INVALID)).toBeTruthy();
+    expect(api.updateProductAPI).not.toHaveBeenCalled();
   });
 
   it("disables Save & Publish while the checklist is incomplete", async () => {

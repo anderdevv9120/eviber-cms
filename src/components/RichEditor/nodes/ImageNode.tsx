@@ -52,7 +52,9 @@ function $convertImageElement(domNode: Node): null | DOMConversionOutput {
   if (img.src.startsWith("file:///") || isGoogleDocCheckboxImg(img)) {
     return null;
   }
-  const { alt: altText, src, width, height } = img;
+  const { alt: altText, width, height } = img;
+  // Attribute, not the resolved `img.src`: a relative /images/ path must not become a CMS-origin URL
+  const src = img.getAttribute("src") ?? "";
   const node = $createImageNode({ altText, height, src, width });
   return { node };
 }
