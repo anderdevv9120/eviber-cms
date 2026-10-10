@@ -8,8 +8,11 @@ import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/products";
 import * as attributesApi from "@/services/attributes";
+import * as bannersApi from "@/services/banners";
+import { errorNotification } from "@/utils/notification";
 import ProductEditor from "./ProductEditor";
 import { DESCRIPTION_IMAGE_INVALID } from "./product-publish";
+import { PRODUCT_ERROR } from "./product-errors";
 
 vi.mock("@/services/products", () => ({
   getProductAPI: vi.fn(),
@@ -182,6 +185,7 @@ beforeEach(() => {
   vi.mocked(api.changeProductStatusAPI)
     .mockReset()
     .mockImplementation(async (_id, { status }) => ok(product({ status, revision: 5 })));
+  vi.mocked(errorNotification).mockReset();
   vi.mocked(api.listProductCategoriesAPI)
     .mockReset()
     .mockResolvedValue(ok([{ _id: "c1", name: "Áo" }]));
@@ -249,6 +253,39 @@ describe("ProductEditor — new product", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/products/new-id"));
   }, 15_000); // many antd Select interactions; slow under the full parallel suite
 
+  it("reports a failed publish after create once the page moves to the new product", async () => {
+    vi.mocked(bannersApi.uploadImageAPI).mockResolvedValue(
+      ok({ path: "/images/a.jpg" }) as Awaited<ReturnType<typeof bannersApi.uploadImageAPI>>
+    );
+    vi.mocked(api.changeProductStatusAPI).mockRejectedValueOnce(
+      new ApiError("Chưa đủ điều kiện đăng bán", 400, {
+        code: PRODUCT_ERROR.PUBLISH_REQUIREMENTS,
+        missing: ["CATEGORY"]
+      })
+    );
+    const router = renderEditor("/products/new");
+    type(await screen.findByLabelText("Tên sản phẩm"), "Áo Mới");
+    await select("Danh mục", "Áo");
+    type(screen.getByRole("textbox", { name: "Mô tả" }), "<p>Mô tả</p>");
+    fireEvent.change(screen.getByLabelText("Chọn ảnh sản phẩm"), {
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] }
+    });
+    await screen.findByAltText("Ảnh 1");
+    type(number("Giá hàng loạt"), "100000");
+    type(number("Giá gốc hàng loạt"), "120000");
+    type(number("Tồn kho hàng loạt"), "5");
+    fireEvent.click(button("Áp dụng cho biến thể mới"));
+    fireEvent.click(button("Tạo SKU"));
+    await waitFor(() => expect(button("Lưu & Đăng bán").disabled).toBe(false));
+
+    fireEvent.click(button("Lưu & Đăng bán"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/products/new-id"));
+    expect(errorNotification).toHaveBeenCalledWith(
+      expect.stringContaining("Chưa đủ điều kiện đăng bán"),
+      expect.anything()
+    );
+  }, 30_000); // upload + selects + bulk fill; slower than the payload test under the full suite
+
   it("shows one default row for a product without options", async () => {
     renderEditor("/products/new");
     await screen.findByLabelText("Tên sản phẩm");
@@ -286,6 +323,61 @@ describe("ProductEditor — existing product", () => {
         attributeValues: ["red", "s"]
       }
     ]);
+  });
+
+  it("shows the server's SKU and stock on saved rows after a save", async () => {
+    vi.mocked(api.updateProductAPI).mockResolvedValue(
+      ok(
+        product({ revision: 4, variants: [{ ...savedVariant, sku: "AO-1-X", inventoryCount: 9 }] })
+      )
+    );
+    renderEditor();
+    await loaded();
+    type(input("SKU Đỏ / S"), " ao-1-x ");
+    fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(input("SKU Đỏ / S").value).toBe("AO-1-X"));
+    expect(screen.getByText("9")).toBeTruthy();
+  });
+
+  it("keeps an image removed while an upload is still running", async () => {
+    vi.mocked(api.getProductAPI).mockResolvedValue(
+      ok(product({ images: ["/images/a.jpg", "/images/b.jpg"] }))
+    );
+    let finish: (path: string) => void = () => undefined;
+    vi.mocked(bannersApi.uploadImageAPI).mockReturnValue(
+      new Promise(resolve => {
+        finish = path =>
+          resolve(ok({ path }) as Awaited<ReturnType<typeof bannersApi.uploadImageAPI>>);
+      })
+    );
+    renderEditor();
+    await loaded();
+    fireEvent.change(screen.getByLabelText("Chọn ảnh sản phẩm"), {
+      target: { files: [new File(["x"], "c.png", { type: "image/png" })] }
+    });
+    fireEvent.click(button("Xóa ảnh 2"));
+    finish("/images/c.jpg");
+    await waitFor(() =>
+      expect(screen.getByAltText("Ảnh 2").getAttribute("src")).toContain("c.jpg")
+    );
+    fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
+    expect(lastUpdate()[1].images).toEqual(["/images/a.jpg", "/images/c.jpg"]);
+  });
+
+  it("stops selling only after confirmation", async () => {
+    vi.mocked(api.getProductAPI).mockResolvedValue(ok(product({ ...complete, status: "PUBLISH" })));
+    renderEditor();
+    await loaded();
+    fireEvent.click(button("Ngừng bán"));
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Ngừng bán sản phẩm" }));
+    await waitFor(() =>
+      expect(api.changeProductStatusAPI).toHaveBeenCalledWith("p1", {
+        status: "UNPUBLISH",
+        expectedRevision: 3
+      })
+    );
   });
 
   it("sends a description keystroke typed just before Save", async () => {

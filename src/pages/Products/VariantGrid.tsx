@@ -192,6 +192,7 @@ export default function VariantGrid({
           <InputNumber
             aria-label={`${dimensionLabels[field]} ${comboLabel(labelsOf(row))}`}
             min={0}
+            precision={2}
             value={row.dimensions[field]}
             disabled={disabled}
             onChange={value =>

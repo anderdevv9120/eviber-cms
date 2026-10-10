@@ -11,6 +11,8 @@ interface Props {
   images: string[];
   disabled: boolean;
   onChange: (images: string[]) => void;
+  /** Appends to the latest list, so a remove/reorder made during the upload survives */
+  onAdd: (urls: string[]) => void;
   onRemove: (url: string) => void;
 }
 
@@ -19,7 +21,13 @@ const moveTo = (images: string[], from: number, to: number): string[] => {
   return [...next.slice(0, to), images[from], ...next.slice(to)];
 };
 
-export default function ProductImagesSection({ images, disabled, onChange, onRemove }: Props) {
+export default function ProductImagesSection({
+  images,
+  disabled,
+  onChange,
+  onAdd,
+  onRemove
+}: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +47,7 @@ export default function ProductImagesSection({ images, disabled, onChange, onRem
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
-      if (added.length) onChange([...images, ...added]);
+      if (added.length) onAdd(added);
     }
   };
 

@@ -39,6 +39,16 @@ describe("mapProductError", () => {
     ).toBeUndefined();
   });
 
+  it("marks the repeated row of a duplicate SKU by variantIndex", () => {
+    const duplicate = [
+      { key: "a", sku: "AO-1" },
+      { key: "b", sku: "ao-1" }
+    ];
+    expect(
+      mapProductError(bad(PRODUCT_ERROR.SKU_TAKEN, { sku: "AO-1", variantIndex: 1 }), duplicate)
+    ).toMatchObject({ variantKey: "b", variantField: "sku" });
+  });
+
   it("maps variantIndex codes to the sent row and cell", () => {
     expect(
       mapProductError(bad(PRODUCT_ERROR.VARIANT_PRICE_INVALID, { variantIndex: 1 }), sent)

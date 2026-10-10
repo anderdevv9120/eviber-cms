@@ -61,7 +61,10 @@ export function mapProductError(error: ApiError, sent: SentVariant[] = []): Prod
   if (typeof code !== "string") return { message };
   if (code in fieldByCode) return { message, field: fieldByCode[code] };
   if (code === PRODUCT_ERROR.SKU_TAKEN && typeof sku === "string") {
-    const row = sent.find(variant => normalizeSku(variant.sku) === normalizeSku(sku));
+    // variantIndex names the clashing row; a lost unique-index race only reports the SKU
+    const row =
+      (typeof variantIndex === "number" && sent[variantIndex]) ||
+      sent.find(variant => normalizeSku(variant.sku) === normalizeSku(sku));
     return row ? { message, variantKey: row.key, variantField: "sku" } : { message };
   }
   if (code in indexedVariantCodes && typeof variantIndex === "number" && sent[variantIndex]) {

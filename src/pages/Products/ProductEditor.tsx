@@ -18,7 +18,7 @@ import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
-import { successNotification } from "@/utils/notification";
+import { errorNotification, successNotification } from "@/utils/notification";
 import { buildGrid, clearImage, lockedValueIds, toSlug, toVariantPayload } from "./variant-grid";
 import type { GridRow } from "./variant-grid";
 import { mapProductError, type SentVariant } from "./product-errors";
@@ -124,7 +124,9 @@ function ProductEditorPage({ id }: { id?: string }) {
   const applyView = useCallback(
     (view: ProductEditorView, keep?: GridRow[]) => {
       const nextOptions = optionsOf(view);
-      const grid = buildGrid(selections(nextOptions), view.variants, keep ?? []);
+      // Saved rows take the server copy (normalized SKU, current stock); unsaved rows keep their edits
+      const unsaved = (keep ?? []).filter(row => !row.saved);
+      const grid = buildGrid(selections(nextOptions), view.variants, unsaved);
       setProduct(view);
       setOptions(nextOptions);
       setImages(view.images);
@@ -315,8 +317,13 @@ function ProductEditorPage({ id }: { id?: string }) {
           applyView(view, rows);
           published = true;
         } catch (cause) {
-          // The draft is saved; the checklist shows what the server still wants
-          showError(cause, []);
+          // The draft is saved; the checklist shows what the server still wants. A new product
+          // remounts on its detail URL, which would drop an inline error.
+          if (product) showError(cause, []);
+          else
+            errorNotification(`Đã lưu nháp nhưng chưa đăng bán được: ${getErrorMessage(cause)}`, {
+              duration: 0
+            });
         }
       }
       successNotification(published ? "Đã lưu và đăng bán sản phẩm" : "Đã lưu sản phẩm");
@@ -428,6 +435,10 @@ function ProductEditorPage({ id }: { id?: string }) {
                 setImages(next);
                 setDirty(true);
               }}
+              onAdd={added => {
+                setImages(previous => [...previous, ...added]);
+                setDirty(true);
+              }}
               onRemove={removeImage}
             />
             <ProductOptionsSection
@@ -480,12 +491,15 @@ function ProductEditorPage({ id }: { id?: string }) {
                 </Button>
               )}
               {product?.status === "PUBLISH" && (
-                <Button
-                  disabled={conflict || saving || dirty}
-                  onClick={() => void changeStatus("UNPUBLISH")}
+                <Popconfirm
+                  title='Ngừng bán sản phẩm này?'
+                  description='Sản phẩm bị ẩn khỏi cửa hàng; có thể đăng bán lại sau.'
+                  okText='Ngừng bán sản phẩm'
+                  cancelText='Hủy'
+                  onConfirm={() => changeStatus("UNPUBLISH")}
                 >
-                  Ngừng bán
-                </Button>
+                  <Button disabled={conflict || saving || dirty}>Ngừng bán</Button>
+                </Popconfirm>
               )}
               {product && (
                 <Popconfirm

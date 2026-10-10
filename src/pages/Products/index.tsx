@@ -264,9 +264,26 @@ function ProductsPage() {
           action(row, "DRAFT", "Khôi phục")
         ) : (
           <Flex gap={8} wrap>
-            {row.status === "PUBLISH"
-              ? action(row, "UNPUBLISH", "Ngừng bán")
-              : action(row, "PUBLISH", "Đăng bán")}
+            {row.status === "PUBLISH" ? (
+              <Popconfirm
+                title='Ngừng bán sản phẩm này?'
+                description='Sản phẩm bị ẩn khỏi cửa hàng; có thể đăng bán lại sau.'
+                okText='Ngừng bán sản phẩm'
+                cancelText='Hủy'
+                onConfirm={() => changeStatus(row, "UNPUBLISH")}
+              >
+                <Button
+                  size='small'
+                  aria-label={`Ngừng bán ${row.name}`}
+                  disabled={busyId !== null}
+                  loading={busyId === row._id}
+                >
+                  Ngừng bán
+                </Button>
+              </Popconfirm>
+            ) : (
+              action(row, "PUBLISH", "Đăng bán")
+            )}
             <Popconfirm
               title='Lưu trữ sản phẩm này?'
               description='Sản phẩm bị ẩn khỏi cửa hàng; khôi phục trong bộ lọc "Đã lưu trữ".'

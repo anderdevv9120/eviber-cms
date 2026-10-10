@@ -121,6 +121,20 @@ describe("Products list", () => {
     );
   });
 
+  it("stops selling only after confirmation", async () => {
+    vi.mocked(api.listProductsAPI).mockResolvedValue(page([{ ...row, status: "PUBLISH" }]));
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Ngừng bán Áo thun" }));
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Ngừng bán sản phẩm" }));
+    await waitFor(() =>
+      expect(api.changeProductStatusAPI).toHaveBeenCalledWith("p1", {
+        status: "UNPUBLISH",
+        expectedRevision: 4
+      })
+    );
+  });
+
   it("archives only after confirmation, sending the row revision", async () => {
     renderList();
     fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
