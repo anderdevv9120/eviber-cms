@@ -96,6 +96,9 @@ const skuPart = (label: string): string =>
     .replace(/[^a-z0-9]+/gi, "-")
     .replace(/^-+|-+$/g, "");
 
+/** Client preview of the backend slug (`slugify(name, { lower, strict, locale: "vi" })`). */
+export const toSlug = (text: string): string => skuPart(text).toLowerCase();
+
 export const suggestSku = (slug: string, labels: string[]): string =>
   [slug, ...labels].map(skuPart).filter(Boolean).join("-").toUpperCase();
 
