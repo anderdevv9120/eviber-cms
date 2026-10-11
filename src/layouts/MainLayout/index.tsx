@@ -4,6 +4,7 @@ import { Link, matchPath, Navigate, Outlet, useLocation, useNavigate } from "rea
 import { useAppStore } from "@/store/useAppStore";
 import { getProfileAPI } from "@/services/auth";
 import { clearSession, hasSession } from "@/utils/session";
+import { ApiError } from "@/utils/request";
 import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
@@ -96,8 +97,13 @@ const MainLayout = () => {
         if (!res?.data?._id) throw new Error("Invalid profile response");
         setProfile(res.data);
       })
-      .catch(() => {
-        if (!cancelled) setLoadFailed(true);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Server từ chối phiên (chưa đăng nhập / hết hạn / mất quyền) → về login thay vì màn lỗi
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          clearSession();
+        }
+        setLoadFailed(true);
       });
     return () => {
       cancelled = true;

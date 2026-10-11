@@ -504,4 +504,20 @@ describe("CMS data router", () => {
     await screen.findByText("Đăng nhập vào CMS");
     expect(router.state.location.pathname).toBe("/auth/login");
   });
+
+  it("profile bị từ chối (403) → dọn phiên và về login thay vì màn lỗi", async () => {
+    axiosRequest.defaults.adapter = async config => {
+      throw new AxiosError("forbidden", "403", config, null, {
+        config,
+        headers: {},
+        status: 403,
+        statusText: "Forbidden",
+        data: { message: "Forbidden" }
+      });
+    };
+    const router = renderRoute("/catalog/attributes");
+    await screen.findByText("Đăng nhập vào CMS");
+    expect(router.state.location.pathname).toBe("/auth/login");
+    expect(screen.queryByText("Không tải được thông tin tài khoản")).toBeNull();
+  });
 });
