@@ -9,7 +9,7 @@ Giao diện quản trị (CMS) cho hệ ecommerce, gọi **admin API** (`backend
 - Tailwind CSS 4 (`@tailwindcss/vite`, CSS-first — không có `tailwind.config`)
 - react-router 7 (data router) · Zustand 5 (+ immer) · Axios
 - Lexical 0.22 (pin) — RichEditor trong `src/components/RichEditor/`
-- ESLint 10 (flat, typescript-eslint, react-hooks 7, react-refresh) · Prettier · Husky + lint-staged · Vitest + Testing Library
+- oxlint (typescript, react, React Compiler rules) · Prettier · Husky + lint-staged · Vitest + Testing Library
 
 ## Yêu cầu
 
@@ -34,11 +34,11 @@ Tài khoản demo (seed của backend): `admin@demo.local` / `Demo@123`.
 | `npm run build`                     | `tsc -b` + `vite build` → `dist/`        |
 | `npm run preview`                   | xem thử bản build                        |
 | `npm run typecheck`                 | `tsc -b`                                 |
-| `npm run lint` / `lint:fix`         | ESLint `src` (`--max-warnings 0`)        |
+| `npm run lint` / `lint:fix`         | oxlint `src` (`--max-warnings 0`)        |
 | `npm run prettier` / `prettier:fix` | Prettier `src`                           |
 | `npm test` / `test:watch`           | Vitest (`src/**/*.test.{ts,tsx}`, jsdom) |
 
-Pre-commit (husky): `scripts/scan-malware.sh --staged` (chặn file config bị cấy mã) → lint-staged (prettier + eslint file staged). Pre-push / pre-merge-commit cũng quét malware.
+Pre-commit (husky): `scripts/scan-malware.sh --staged` (chặn file config bị cấy mã) → lint-staged (prettier + oxlint file staged). Pre-push / pre-merge-commit cũng quét malware.
 
 ## Cấu trúc
 
