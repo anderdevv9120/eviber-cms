@@ -395,7 +395,7 @@ describe("CMS data router", () => {
     expect(screen.getByText("size")).toBeTruthy();
     const menu = screen.getByRole("menuitem", { name: "Thuộc tính" });
     expect(menu.className).toContain("ant-menu-item-selected");
-    expect(screen.getByRole("menuitem", { name: /Danh mục/ }).getAttribute("aria-expanded")).toBe(
+    expect(screen.getByRole("menuitem", { name: /Danh mục$/ }).getAttribute("aria-expanded")).toBe(
       "true"
     );
     const crumbs = screen.getByRole("navigation");

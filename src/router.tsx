@@ -20,6 +20,7 @@ const Payments = lazy(() => import("./pages/Payments"));
 const Customers = lazy(() => import("./pages/Customers"));
 const RegisteredCustomerDetail = lazy(() => import("./pages/Customers/RegisteredCustomerDetail"));
 const GuestBuyerDetail = lazy(() => import("./pages/Customers/GuestBuyerDetail"));
+const Categories = lazy(() => import("./pages/Categories"));
 const Banners = lazy(() => import("./pages/Banners"));
 const Reviews = lazy(() => import("./pages/Reviews"));
 const Reports = lazy(() => import("./pages/Reports"));
@@ -62,6 +63,7 @@ export const routes: RouteObject[] = [
       { path: PATH.CUSTOMER_DETAIL, element: <RegisteredCustomerDetail /> },
       { path: PATH.GUEST_BUYER_DETAIL, element: <GuestBuyerDetail /> },
       { path: PATH.ORDER_DETAIL, element: <OrderDetail /> },
+      { path: PATH.CATEGORIES, element: <Categories /> },
       { path: PATH.ATTRIBUTES, element: <Attributes /> },
       { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> },
       { path: PATH.BANNERS, element: <Banners /> },
