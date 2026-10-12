@@ -17,6 +17,7 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import { successNotification } from "@/utils/notification";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import { CATEGORY_ERROR, toCategoryErrorView } from "./category-errors";
+import CategoryForm from "./CategoryForm";
 
 interface ActionError {
   message: string;
@@ -38,23 +39,25 @@ function CategoriesContent() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<ActionError | null>(null);
   const [busy, setBusy] = useState(false);
-  // ponytail: CategoryForm (Task 7) đọc `editing`; tới lúc đó chỉ set
-  const [, setEditing] = useState<Category | "new" | null>(null);
+  const [editing, setEditing] = useState<Category | "new" | null>(null);
   // ponytail: thứ tự không có revision — truyền 0; xung đột bắt bằng ORDER_STALE khi lưu
   const draft = useOrderDraft(categories?.map(c => c._id) ?? [], 0);
   useUnsavedOrderWarning(draft.dirty);
   const writesDisabled = busy || draft.dirty;
 
   // .then thay vì async/await: react-hooks/set-state-in-effect coi setState sau await là đồng bộ
+  // Trả các dòng mới (undefined khi lỗi) để CategoryForm điền lại sau xung đột revision
   const load = useCallback(
-    (signal?: AbortSignal) =>
+    (signal?: AbortSignal): Promise<Category[] | undefined> =>
       listCategoriesAPI(signal).then(
         res => {
           setCategories(res.data);
           setLoadError(null);
+          return res.data;
         },
         (cause: unknown) => {
           if (!signal?.aborted) setLoadError(getErrorMessage(cause));
+          return undefined;
         }
       ),
     []
@@ -213,6 +216,20 @@ function CategoriesContent() {
         emptyText='Chưa có danh mục'
         scrollX={800}
       />
+      {editing && (
+        <CategoryForm
+          key={editing === "new" ? "new" : editing._id}
+          open
+          category={editing === "new" ? undefined : editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            successNotification(editing === "new" ? "Đã thêm danh mục" : "Đã lưu danh mục");
+            setEditing(null);
+            await load();
+          }}
+          onReload={() => load()}
+        />
+      )}
     </Flex>
   );
 }

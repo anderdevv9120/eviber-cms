@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/categories";
+import * as banners from "@/services/banners";
 import { CATEGORY_ERROR } from "./category-errors";
 import Categories from "./index";
 
@@ -16,6 +17,7 @@ vi.mock("@/services/categories", () => ({
   deleteCategoryAPI: vi.fn(),
   reorderCategoriesAPI: vi.fn()
 }));
+vi.mock("@/services/banners", () => ({ uploadImageAPI: vi.fn() }));
 
 const category = (
   id: string,
@@ -181,6 +183,25 @@ describe("categories page", () => {
     expect(screen.getByRole("link", { name: "Xem voucher" }).getAttribute("href")).toBe(
       "/vouchers"
     );
+  });
+
+  it("adds a category from the form and reloads", async () => {
+    vi.mocked(api.createCategoryAPI).mockResolvedValue(ok(pants));
+    vi.mocked(banners.uploadImageAPI).mockResolvedValue(ok({ path: "/images/b.jpg" }));
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm danh mục" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Tên danh mục"), {
+      target: { value: "Quan Jean" }
+    });
+    fireEvent.change(dialog.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["x"], "b.png", { type: "image/png" })] }
+    });
+    await within(dialog).findByRole("img", { name: "Ảnh danh mục xem trước" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu danh mục" }));
+    await waitFor(() => expect(api.createCategoryAPI).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.listCategoriesAPI).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("asks before leaving with an unsaved order", async () => {
