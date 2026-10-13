@@ -200,6 +200,48 @@ describe("store content page", () => {
     expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toEqual(story);
   });
 
+  it("saves the optional title accent and second image", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(ok({ ...settings, brandStory: story }));
+    vi.mocked(uploadImageAPI).mockResolvedValue(ok({ path: "/images/story-2.jpg" }));
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    typeIn("Phần nhấn của tiêu đề", "  mặc thật lâu.  ");
+    fireEvent.change(storyCard().querySelectorAll<HTMLInputElement>('input[type="file"]')[1], {
+      target: { files: [new File(["x"], "story-2.png", { type: "image/png" })] }
+    });
+    await waitFor(() =>
+      expect(screen.getByAltText("Ảnh thứ 2 câu chuyện thương hiệu").getAttribute("src")).toContain(
+        "/images/story-2.jpg"
+      )
+    );
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toEqual({
+      ...story,
+      titleAccent: "mặc thật lâu.",
+      image2: "/images/story-2.jpg"
+    });
+  });
+
+  it("omits a blank title accent and a removed second image", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(
+      ok({
+        ...settings,
+        brandStory: { ...story, titleAccent: "nhấn", image2: "/images/story-2.jpg" }
+      })
+    );
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    typeIn("Phần nhấn của tiêu đề", "   ");
+    fireEvent.click(within(storyCard()).getByRole("button", { name: "Xoá ảnh thứ 2" }));
+    await waitFor(() =>
+      expect(screen.queryByAltText("Ảnh thứ 2 câu chuyện thương hiệu")).toBeNull()
+    );
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toEqual(story);
+  });
+
   it("blocks saving a brand story with only a CTA label", async () => {
     vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(
       ok({ ...settings, brandStory: { title: story.title, body: story.body, image: story.image } })

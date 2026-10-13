@@ -44,26 +44,37 @@ const CONFLICT_MESSAGE = "Nội dung đã thay đổi. Tải lại để bỏ b�
 const required = (message: string) => ({ required: true, whitespace: true, message });
 const isFilled = (value: unknown) => typeof value === "string" && value.trim() !== "";
 
-type ImagePath = ["promoTiles", number, "image"] | ["brandStory", "image"];
+type ImagePath =
+  ["promoTiles", number, "image"] | ["brandStory", "image"] | ["brandStory", "image2"];
 const STORY_IMAGE: ImagePath = ["brandStory", "image"];
+const STORY_IMAGE2: ImagePath = ["brandStory", "image2"];
 
 function ImageField({
   name,
   alt,
   uploading,
-  onUpload
+  onUpload,
+  label = "Ảnh",
+  optional = false
 }: {
   name: ImagePath;
   alt: string;
   uploading: boolean;
   onUpload: (file: File) => void;
+  label?: string;
+  /** Ảnh tuỳ chọn: không bắt buộc, có nút xoá */
+  optional?: boolean;
 }) {
   const form = Form.useFormInstance<StoreSettings>();
   const image = Form.useWatch(name, form) as string | undefined;
 
   return (
-    <Form.Item label='Ảnh' required>
-      <Form.Item name={name} noStyle rules={[{ required: true, message: "Vui lòng tải ảnh" }]}>
+    <Form.Item label={label} required={!optional}>
+      <Form.Item
+        name={name}
+        noStyle
+        rules={optional ? [] : [{ required: true, message: "Vui lòng tải ảnh" }]}
+      >
         <Input type='hidden' />
       </Form.Item>
       <Flex vertical gap={8}>
@@ -86,6 +97,11 @@ function ImageField({
             {image ? "Đổi ảnh" : "Tải ảnh lên"}
           </Button>
         </Upload>
+        {optional && image && (
+          <Button onClick={() => form.setFieldValue(name, undefined)}>
+            Xoá {label.toLowerCase()}
+          </Button>
+        )}
       </Flex>
     </Form.Item>
   );
@@ -149,8 +165,8 @@ function BrandStoryFields({
   uploading,
   onUpload
 }: {
-  uploading: boolean;
-  onUpload: (file: File) => void;
+  uploading: string | null;
+  onUpload: (name: ImagePath, file: File) => void;
 }) {
   const name = (field: keyof BrandStory) => ["brandStory", field];
 
@@ -159,14 +175,29 @@ function BrandStoryFields({
       <Form.Item name={name("title")} label='Tiêu đề' rules={[required("Vui lòng nhập tiêu đề")]}>
         <Input maxLength={80} />
       </Form.Item>
+      <Form.Item
+        name={name("titleAccent")}
+        label='Phần nhấn của tiêu đề'
+        extra='Tuỳ chọn — theme Rosier in nghiêng, màu nhấn, ngay sau tiêu đề.'
+      >
+        <Input maxLength={60} />
+      </Form.Item>
       <Form.Item name={name("body")} label='Nội dung' rules={[required("Vui lòng nhập nội dung")]}>
         <Input.TextArea maxLength={600} showCount autoSize={{ minRows: 4, maxRows: 10 }} />
       </Form.Item>
       <ImageField
         name={STORY_IMAGE}
         alt='Ảnh câu chuyện thương hiệu'
-        uploading={uploading}
-        onUpload={onUpload}
+        uploading={uploading === STORY_IMAGE.join(".")}
+        onUpload={file => onUpload(STORY_IMAGE, file)}
+      />
+      <ImageField
+        name={STORY_IMAGE2}
+        label='Ảnh thứ 2'
+        optional
+        alt='Ảnh thứ 2 câu chuyện thương hiệu'
+        uploading={uploading === STORY_IMAGE2.join(".")}
+        onUpload={file => onUpload(STORY_IMAGE2, file)}
       />
       {/* Nút là tuỳ chọn nhưng phải đủ cặp, khớp DTO backend */}
       <Form.Item
@@ -207,10 +238,13 @@ function BrandStoryFields({
 const toBrandStory = (story: BrandStory): BrandStory => {
   const ctaLabel = story.ctaLabel?.trim();
   const href = story.href?.trim();
+  const titleAccent = story.titleAccent?.trim();
   return {
     title: story.title.trim(),
+    ...(titleAccent ? { titleAccent } : {}),
     body: story.body.trim(),
     image: story.image,
+    ...(story.image2 ? { image2: story.image2 } : {}),
     ...(ctaLabel && href ? { ctaLabel, href } : {})
   };
 };
@@ -422,10 +456,7 @@ export default function StoreContent() {
             }
           >
             {storyOn ? (
-              <BrandStoryFields
-                uploading={uploading === STORY_IMAGE.join(".")}
-                onUpload={file => uploadImage(STORY_IMAGE, file)}
-              />
+              <BrandStoryFields uploading={uploading} onUpload={uploadImage} />
             ) : (
               <Typography.Text type='secondary'>Đang ẩn trên trang chủ.</Typography.Text>
             )}

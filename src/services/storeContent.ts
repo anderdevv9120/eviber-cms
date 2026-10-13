@@ -16,8 +16,10 @@ export interface HomePromise {
 }
 export interface BrandStory {
   title: string;
+  titleAccent?: string;
   body: string;
   image: string;
+  image2?: string;
   ctaLabel?: string;
   href?: string;
 }
