@@ -11,6 +11,7 @@ const ForgetPassword = lazy(() => import("./pages/auth/ForgetPassword"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
+const Inventory = lazy(() => import("./pages/Inventory"));
 const ProductEditor = lazy(() => import("./pages/Products/ProductEditor"));
 const Attributes = lazy(() => import("./pages/Attributes"));
 const AttributeDetail = lazy(() => import("./pages/Attributes/AttributeDetail"));
@@ -55,6 +56,7 @@ export const routes: RouteObject[] = [
       { path: PATH.HOME, element: <Navigate to={PATH.DASHBOARD} /> },
       { path: PATH.DASHBOARD, element: <Dashboard /> },
       { path: PATH.PRODUCTS, element: <Products /> },
+      { path: PATH.INVENTORY, element: <Inventory /> },
       { path: PATH.PRODUCT_NEW, element: <ProductEditor /> },
       { path: PATH.PRODUCT_DETAIL, element: <ProductEditor /> },
       { path: PATH.ORDER, element: <Orders /> },

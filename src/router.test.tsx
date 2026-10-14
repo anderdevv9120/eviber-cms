@@ -520,4 +520,36 @@ describe("CMS data router", () => {
     expect(router.state.location.pathname).toBe("/auth/login");
     expect(screen.queryByText("Không tải được thông tin tài khoản")).toBeNull();
   });
+
+  it("opens Tồn kho from the sidebar with its menu item selected and breadcrumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : {
+              data: [],
+              total: 0,
+              totalPage: 0,
+              page: 1,
+              pageSize: 10,
+              metadata: { lowStockThreshold: 5, stock: "all" }
+            }
+      );
+    const router = renderRoute("/inventory");
+    await screen.findByRole("heading", { name: "Tồn kho" });
+    expect((await screen.findByRole("menuitem", { name: /Tồn kho/ })).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(screen.getByRole("menuitem", { name: /Quản lý Sản phẩm/ }).className).not.toContain(
+      "ant-menu-item-selected"
+    );
+    const crumbs = within(screen.getByRole("navigation"));
+    expect(crumbs.getByText("Tồn kho")).toBeTruthy();
+    expect(crumbs.queryByText("Sản phẩm")).toBeNull();
+    await act(() => router.navigate("/dashboard"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Tồn kho/ }));
+    await screen.findByRole("heading", { name: "Tồn kho" });
+    expect(router.state.location.pathname).toBe("/inventory");
+  });
 });

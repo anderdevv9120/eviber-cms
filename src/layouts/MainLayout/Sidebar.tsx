@@ -11,7 +11,8 @@ import {
   PictureOutlined,
   StarOutlined,
   BarChartOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  InboxOutlined
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -68,13 +69,15 @@ const Sidebar = () => {
                     ? "attributes"
                     : productsSelected
                       ? "2"
-                      : paymentsSelected
-                        ? "payments"
-                        : pathname === PATH.ORDER || orderDetail
-                          ? "3"
-                          : pathname === PATH.VOUCHERS
-                            ? "vouchers"
-                            : "1";
+                      : pathname === PATH.INVENTORY
+                        ? "inventory"
+                        : paymentsSelected
+                          ? "payments"
+                          : pathname === PATH.ORDER || orderDetail
+                            ? "3"
+                            : pathname === PATH.VOUCHERS
+                              ? "vouchers"
+                              : "1";
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -93,6 +96,12 @@ const Sidebar = () => {
       icon: <DesktopOutlined />,
       label: "Quản lý Sản phẩm",
       onClick: () => navigate(PATH.PRODUCTS)
+    },
+    {
+      key: "inventory",
+      icon: <InboxOutlined />,
+      label: "Tồn kho",
+      onClick: () => navigate(PATH.INVENTORY)
     },
     {
       key: "3",

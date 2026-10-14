@@ -2,6 +2,7 @@ export const PATH = {
   HOME: "/",
   DASHBOARD: "/dashboard",
   PRODUCTS: "/products",
+  INVENTORY: "/inventory",
   CATEGORIES: "/categories",
   PRODUCT_NEW: "/products/new",
   PRODUCT_DETAIL: "/products/:id",
