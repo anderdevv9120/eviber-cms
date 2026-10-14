@@ -21,6 +21,8 @@ interface Props {
   onAdjusted: (result: AdjustStockResult) => void;
   /** The variant no longer exists; the caller closes and refetches. */
   onGone: () => void;
+  /** The request got no HTTP response, so the adjustment may have committed; the caller refetches the list. */
+  onUnknownResult: () => void;
 }
 
 const modes = [
@@ -34,7 +36,14 @@ const amountLabels: Record<AdjustMode, string> = {
   count: "Tồn kho thực tế (N)"
 };
 
-export default function AdjustStockModal({ row, open, onClose, onAdjusted, onGone }: Props) {
+export default function AdjustStockModal({
+  row,
+  open,
+  onClose,
+  onAdjusted,
+  onGone,
+  onUnknownResult
+}: Props) {
   const [mode, setMode] = useState<AdjustMode>("in");
   const [amount, setAmount] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -74,6 +83,14 @@ export default function AdjustStockModal({ row, open, onClose, onAdjusted, onGon
       } else if (details?.code === INVENTORY_ERROR.INSUFFICIENT_STOCK && latest !== null) {
         setCurrent(latest);
         setNotice({ type: "error", text: `Không đủ tồn kho: hiện còn ${latest}` });
+      } else if (cause instanceof ApiError && cause.status === undefined) {
+        // Network error or timeout (toApiError): the server transaction may have committed, and a
+        // retry of in/out has no expectedCurrent guard, so tell staff to check the history first.
+        setNotice({
+          type: "error",
+          text: "Không rõ kết quả — kiểm tra Lịch sử trước khi thử lại"
+        });
+        onUnknownResult();
       } else {
         setNotice({ type: "error", text: getErrorMessage(cause) });
       }

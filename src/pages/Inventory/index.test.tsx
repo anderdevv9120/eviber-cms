@@ -264,6 +264,20 @@ describe("Inventory adjust", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(api.getInventoryAPI).toHaveBeenCalledTimes(2));
   });
+
+  it("keeps the modal open and refetches the list after a network failure", async () => {
+    vi.mocked(api.adjustStockAPI).mockRejectedValue(
+      new ApiError("Không thể kết nối đến máy chủ, vui lòng thử lại")
+    );
+    renderPage();
+    await screen.findByText("SKU-3");
+    await adjust("SKU-3", 10);
+    expect(
+      await screen.findByText("Không rõ kết quả — kiểm tra Lịch sử trước khi thử lại")
+    ).toBeTruthy();
+    await waitFor(() => expect(api.getInventoryAPI).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
 });
 
 describe("Inventory history", () => {

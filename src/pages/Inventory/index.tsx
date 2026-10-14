@@ -363,6 +363,7 @@ export default function Inventory() {
             setAdjusting(null);
             retry();
           }}
+          onUnknownResult={retry}
         />
       )}
       {history && (

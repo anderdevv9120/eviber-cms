@@ -42,7 +42,12 @@ const result = (inventoryCount: number): api.AdjustStockResult => ({
 const ok = <T,>(data: T) => ({ data, message: "success" });
 
 const renderModal = (props: Partial<ComponentProps<typeof AdjustStockModal>> = {}) => {
-  const handlers = { onClose: vi.fn(), onAdjusted: vi.fn(), onGone: vi.fn() };
+  const handlers = {
+    onClose: vi.fn(),
+    onAdjusted: vi.fn(),
+    onGone: vi.fn(),
+    onUnknownResult: vi.fn()
+  };
   render(
     <StrictMode>
       <ConfigProvider theme={{ token: { motion: false } }}>
@@ -251,5 +256,32 @@ describe("AdjustStockModal", () => {
     expect(onClose).not.toHaveBeenCalled();
     submit();
     await waitFor(() => expect(calls()).toHaveLength(2));
+  });
+
+  it("flags an unknown result and asks the page to refetch after a network failure", async () => {
+    // toApiError gives network errors and timeouts no status
+    vi.mocked(api.adjustStockAPI).mockRejectedValueOnce(
+      new ApiError("Không thể kết nối đến máy chủ, vui lòng thử lại")
+    );
+    const { onClose, onAdjusted, onUnknownResult } = renderModal();
+    amount(50);
+    note("Ghi chú");
+    submit();
+    expect(
+      await screen.findByText("Không rõ kết quả — kiểm tra Lịch sử trước khi thử lại")
+    ).toBeTruthy();
+    expect(onUnknownResult).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onAdjusted).not.toHaveBeenCalled();
+  });
+
+  it("does not ask for a refetch after failures that carry an HTTP status", async () => {
+    vi.mocked(api.adjustStockAPI).mockRejectedValueOnce(new ApiError("Máy chủ lỗi", 500));
+    const { onUnknownResult } = renderModal();
+    amount(50);
+    note("Ghi chú");
+    submit();
+    await screen.findByText("Máy chủ lỗi");
+    expect(onUnknownResult).not.toHaveBeenCalled();
   });
 });
