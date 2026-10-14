@@ -1,5 +1,5 @@
 import "@/test/attribute-fixtures";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { ApiError } from "@/utils/request";
@@ -9,7 +9,8 @@ import Inventory from "./index";
 
 vi.mock("@/services/inventory", () => ({
   getInventoryAPI: vi.fn(),
-  adjustStockAPI: vi.fn()
+  adjustStockAPI: vi.fn(),
+  getInventoryMovementsAPI: vi.fn()
 }));
 vi.mock("@/utils/notification", () => ({
   errorNotification: vi.fn(),
@@ -66,9 +67,16 @@ const adjusted = (source: api.InventoryRow, inventoryCount: number): api.AdjustS
   }
 });
 const cellOf = (sku: string) => within(screen.getByText(sku).closest("tr")!);
+// The drawer and the modal can be open together.
+const dialogTitled = (title: string) =>
+  waitFor(() => {
+    const found = screen.getAllByRole("dialog").find(el => el.textContent?.includes(title));
+    if (!found) throw new Error(`No dialog titled ${title}`);
+    return found;
+  });
 const adjust = async (sku: string, amount: number) => {
   fireEvent.click(screen.getByRole("button", { name: `Điều chỉnh ${sku}` }));
-  const dialog = within(await screen.findByRole("dialog"));
+  const dialog = within(await dialogTitled("Điều chỉnh tồn kho"));
   fireEvent.change(dialog.getByRole("spinbutton"), { target: { value: String(amount) } });
   fireEvent.change(dialog.getByLabelText("Ghi chú"), { target: { value: "Nhập kho" } });
   fireEvent.click(dialog.getByRole("button", { name: "Lưu điều chỉnh" }));
@@ -79,6 +87,19 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async () => page(rows));
   vi.mocked(api.adjustStockAPI).mockReset();
+  vi.mocked(api.getInventoryMovementsAPI)
+    .mockReset()
+    .mockImplementation(async variantId => ({
+      data: {
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        totalPage: 1,
+        variant: rows.find(item => item.variantId === variantId)!
+      },
+      message: "success"
+    }));
 });
 
 describe("Inventory list", () => {
@@ -243,11 +264,51 @@ describe("Inventory adjust", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(api.getInventoryAPI).toHaveBeenCalledTimes(2));
   });
+});
 
-  it("leaves the history button without a modal", async () => {
+describe("Inventory history", () => {
+  // Closing the modal over an open drawer leaves antd's portal node in <body>; drop it between tests.
+  afterEach(() => document.querySelectorAll(".ant-modal-root").forEach(node => node.remove()));
+
+  it("opens the drawer for the clicked row", async () => {
     renderPage();
     await screen.findByText("SKU-3");
     fireEvent.click(screen.getByRole("button", { name: "Lịch sử SKU-3" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const drawer = within(await dialogTitled("Lịch sử tồn kho"));
+    await waitFor(() => expect(api.getInventoryMovementsAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.getInventoryMovementsAPI).mock.lastCall?.[0]).toBe("v3");
+    expect(await drawer.findByText("Lịch sử tồn kho")).toBeTruthy();
+    expect(await drawer.findByText("SKU-3")).toBeTruthy();
+  });
+
+  it("refetches page 1 after an adjustment of the variant whose drawer is open", async () => {
+    vi.mocked(api.adjustStockAPI).mockResolvedValue({
+      data: adjusted(rows[1], 13),
+      message: "success"
+    });
+    renderPage();
+    await screen.findByText("SKU-3");
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử SKU-3" }));
+    await waitFor(() => expect(api.getInventoryMovementsAPI).toHaveBeenCalledTimes(1));
+    await adjust("SKU-3", 10);
+    await waitFor(() => expect(api.getInventoryMovementsAPI).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.getInventoryMovementsAPI).mock.lastCall?.slice(0, 2)).toEqual([
+      "v3",
+      { page: 1, pageSize: 10 }
+    ]);
+  });
+
+  it("does not refetch the drawer after an adjustment of another variant", async () => {
+    vi.mocked(api.adjustStockAPI).mockResolvedValue({
+      data: adjusted(rows[2], 25),
+      message: "success"
+    });
+    renderPage();
+    await screen.findByText("SKU-3");
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử SKU-3" }));
+    await waitFor(() => expect(api.getInventoryMovementsAPI).toHaveBeenCalledTimes(1));
+    await adjust("SKU-20", 5);
+    await waitFor(() => expect(cellOf("SKU-20").getByText("25")).toBeTruthy());
+    expect(api.getInventoryMovementsAPI).toHaveBeenCalledTimes(1);
   });
 });
