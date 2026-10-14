@@ -4,10 +4,16 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/inventory";
+import { INVENTORY_ERROR } from "./inventory-errors";
 import Inventory from "./index";
 
 vi.mock("@/services/inventory", () => ({
-  getInventoryAPI: vi.fn()
+  getInventoryAPI: vi.fn(),
+  adjustStockAPI: vi.fn()
+}));
+vi.mock("@/utils/notification", () => ({
+  errorNotification: vi.fn(),
+  successNotification: vi.fn()
 }));
 
 const productId = "000000000000000000000001";
@@ -46,11 +52,33 @@ const renderPage = (path = "/inventory") => {
   return { router, ...render(<RouterProvider router={router} />) };
 };
 const lastQuery = () => vi.mocked(api.getInventoryAPI).mock.lastCall?.[0];
+const adjusted = (source: api.InventoryRow, inventoryCount: number): api.AdjustStockResult => ({
+  row: { ...source, inventoryCount },
+  movement: {
+    id: "m1",
+    createdAt: "2026-10-14T00:00:00.000Z",
+    reason: "manual_adjust",
+    delta: inventoryCount - source.inventoryCount,
+    stockAfter: inventoryCount,
+    note: "Nhập kho",
+    actor: null,
+    order: null
+  }
+});
+const cellOf = (sku: string) => within(screen.getByText(sku).closest("tr")!);
+const adjust = async (sku: string, amount: number) => {
+  fireEvent.click(screen.getByRole("button", { name: `Điều chỉnh ${sku}` }));
+  const dialog = within(await screen.findByRole("dialog"));
+  fireEvent.change(dialog.getByRole("spinbutton"), { target: { value: String(amount) } });
+  fireEvent.change(dialog.getByLabelText("Ghi chú"), { target: { value: "Nhập kho" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Lưu điều chỉnh" }));
+};
 
 beforeEach(() => {
   vi.mocked(api.getInventoryAPI)
     .mockReset()
     .mockImplementation(async () => page(rows));
+  vi.mocked(api.adjustStockAPI).mockReset();
 });
 
 describe("Inventory list", () => {
@@ -155,5 +183,71 @@ describe("Inventory list", () => {
     await screen.findByText("SKU-0");
     expect(router.state.location.search).toBe("?page=2");
     expect(lastQuery()?.page).toBe(2);
+  });
+});
+
+describe("Inventory adjust", () => {
+  it("opens the modal for the clicked row and replaces that row with the response row", async () => {
+    vi.mocked(api.adjustStockAPI).mockResolvedValue({
+      data: adjusted(rows[1], 13),
+      message: "success"
+    });
+    renderPage();
+    await screen.findByText("SKU-3");
+    await adjust("SKU-3", 10);
+    expect(within(screen.getByRole("dialog")).getByText(/SKU-3/)).toBeTruthy();
+    expect(within(screen.getByRole("dialog")).getByText("3 → 13")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.adjustStockAPI).toHaveBeenCalledWith("v3", { delta: 10, note: "Nhập kho" });
+    expect(cellOf("SKU-3").getByText("13")).toBeTruthy();
+    expect(api.getInventoryAPI).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a replaced row, showing the server row again, after the next list read", async () => {
+    vi.mocked(api.adjustStockAPI).mockResolvedValue({
+      data: adjusted(rows[1], 13),
+      message: "success"
+    });
+    renderPage();
+    await screen.findByText("SKU-3");
+    await adjust("SKU-3", 10);
+    await waitFor(() => expect(cellOf("SKU-3").getByText("13")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+    await waitFor(() => expect(api.getInventoryAPI).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(cellOf("SKU-3").getByText("3")).toBeTruthy());
+    expect(cellOf("SKU-3").queryByText("13")).toBeNull();
+  });
+
+  it("keeps two successive replacements made before the next read", async () => {
+    vi.mocked(api.adjustStockAPI)
+      .mockResolvedValueOnce({ data: adjusted(rows[1], 13), message: "success" })
+      .mockResolvedValueOnce({ data: adjusted(rows[2], 25), message: "success" });
+    renderPage();
+    await screen.findByText("SKU-3");
+    await adjust("SKU-3", 10);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await adjust("SKU-20", 5);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(cellOf("SKU-3").getByText("13")).toBeTruthy();
+    expect(cellOf("SKU-20").getByText("25")).toBeTruthy();
+    expect(api.getInventoryAPI).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the modal and refetches the list when the variant is gone", async () => {
+    vi.mocked(api.adjustStockAPI).mockRejectedValue(
+      new ApiError("Biến thể không tồn tại", 404, { code: INVENTORY_ERROR.VARIANT_NOT_FOUND })
+    );
+    renderPage();
+    await screen.findByText("SKU-3");
+    await adjust("SKU-3", 10);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(api.getInventoryAPI).toHaveBeenCalledTimes(2));
+  });
+
+  it("leaves the history button without a modal", async () => {
+    renderPage();
+    await screen.findByText("SKU-3");
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử SKU-3" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

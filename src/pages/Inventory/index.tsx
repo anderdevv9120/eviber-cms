@@ -34,6 +34,7 @@ import {
   toInventorySearch,
   type InventoryUrlQuery
 } from "./inventory-query";
+import AdjustStockModal from "./AdjustStockModal";
 
 const HINT = "Đếm trên mọi biến thể chưa xoá — khác số liệu Dashboard (chỉ sản phẩm đang bán).";
 const productStatusColors: Record<ProductStatus, string> = {
@@ -67,7 +68,7 @@ function recoverPage(key: string, list: InventoryList) {
 
 const productPath = (id: string) => PATH.PRODUCT_DETAIL.replace(":id", encodeURIComponent(id));
 // Replaced by the adjust modal and the history drawer.
-const noRowAction = (): void => undefined;
+const noRowAction: (row: InventoryRow) => void = () => undefined;
 
 /** Commits on blur or Enter, and only a valid value; the parent re-keys it on URL changes. */
 function ThresholdInput({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
@@ -130,7 +131,8 @@ export default function Inventory() {
   const rows = data?.data.map(
     row => (replaced.source === data && replaced.rows[row.variantId]) || row
   );
-  const rowActions = { onAdjust: noRowAction, onHistory: noRowAction, replaceRow };
+  const [adjusting, setAdjusting] = useState<InventoryRow | null>(null);
+  const rowActions = { onAdjust: setAdjusting, onHistory: noRowAction, replaceRow };
 
   const threshold = data?.metadata.lowStockThreshold ?? query.lowStockThreshold;
   const columns: TableColumnsType<InventoryRow> = [
@@ -203,14 +205,14 @@ export default function Inventory() {
           <Button
             size='small'
             aria-label={`Điều chỉnh ${row.sku}`}
-            onClick={() => rowActions.onAdjust()}
+            onClick={() => rowActions.onAdjust(row)}
           >
             Điều chỉnh
           </Button>
           <Button
             size='small'
             aria-label={`Lịch sử ${row.sku}`}
-            onClick={() => rowActions.onHistory()}
+            onClick={() => rowActions.onHistory(row)}
           >
             Lịch sử
           </Button>
@@ -345,6 +347,19 @@ export default function Inventory() {
             />
           </Flex>
         </>
+      )}
+      {adjusting && (
+        <AdjustStockModal
+          key={adjusting.variantId}
+          row={adjusting}
+          open
+          onClose={() => setAdjusting(null)}
+          onAdjusted={result => rowActions.replaceRow(result.row)}
+          onGone={() => {
+            setAdjusting(null);
+            retry();
+          }}
+        />
       )}
     </section>
   );
