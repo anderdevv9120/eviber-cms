@@ -46,9 +46,9 @@ describe("toAdjustRequest", () => {
     expect(toAdjustRequest("in", 100000, 0, "x")).toEqual({ delta: 100000, note: "x" });
   });
 
-  it("returns null for a blank or over-long note", () => {
-    expect(toAdjustRequest("in", 1, 37, "")).toBeNull();
-    expect(toAdjustRequest("in", 1, 37, "  \n ")).toBeNull();
+  it("omits a blank note and returns null for an over-long note", () => {
+    expect(toAdjustRequest("in", 1, 37, "")).toEqual({ delta: 1 });
+    expect(toAdjustRequest("count", 40, 37, "  \n ")).toEqual({ delta: 3, expectedCurrent: 37 });
     expect(toAdjustRequest("in", 1, 37, "a".repeat(501))).toBeNull();
     expect(toAdjustRequest("in", 1, 37, "a".repeat(500))).not.toBeNull();
   });

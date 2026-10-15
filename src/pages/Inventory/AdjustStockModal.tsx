@@ -152,8 +152,7 @@ export default function AdjustStockModal({
         </Typography.Text>
         <Input.TextArea
           aria-label='Ghi chú'
-          placeholder='Lý do điều chỉnh (bắt buộc)'
-          showCount
+          placeholder='Lý do điều chỉnh (không bắt buộc)'
           maxLength={MAX_NOTE}
           autoSize={{ minRows: 2, maxRows: 5 }}
           value={note}

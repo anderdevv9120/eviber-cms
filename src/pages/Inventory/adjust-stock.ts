@@ -2,7 +2,7 @@ import type { AdjustStockRequest } from "@/services/inventory";
 
 export type AdjustMode = "in" | "out" | "count";
 
-// Backend adjust rules: delta -100000..100000, note trimmed 1-500.
+// Backend adjust rules: delta -100000..100000, note optional, trimmed max 500.
 export const MAX_DELTA = 100000;
 export const MAX_NOTE = 500;
 
@@ -30,8 +30,10 @@ export function toAdjustRequest(
   const delta = deltaOf(mode, amount, current);
   const trimmed = note.trim();
   if (delta === null || delta === 0 || Math.abs(delta) > MAX_DELTA) return null;
-  if (current + delta < 0 || !trimmed || trimmed.length > MAX_NOTE) return null;
-  return mode === "count"
-    ? { delta, note: trimmed, expectedCurrent: current }
-    : { delta, note: trimmed };
+  if (current + delta < 0 || trimmed.length > MAX_NOTE) return null;
+  return {
+    delta,
+    ...(trimmed && { note: trimmed }),
+    ...(mode === "count" && { expectedCurrent: current })
+  };
 }

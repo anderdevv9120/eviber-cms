@@ -59,7 +59,7 @@ export interface InventoryQuery {
 }
 export interface AdjustStockRequest {
   delta: number;
-  note: string;
+  note?: string;
   expectedCurrent?: number;
 }
 

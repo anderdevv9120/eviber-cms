@@ -92,14 +92,12 @@ describe("AdjustStockModal", () => {
     expect(screen.getByText("37 → 12")).toBeTruthy();
   });
 
-  it("keeps submit disabled until amount and note make a valid request", () => {
+  it("keeps submit disabled until the amount makes a valid request", () => {
     renderModal();
     expect(submitDisabled()).toBe(true);
     amount(50);
-    expect(submitDisabled()).toBe(true); // note blank
+    expect(submitDisabled()).toBe(false); // note optional
     note("   ");
-    expect(submitDisabled()).toBe(true);
-    note("Nhập kho");
     expect(submitDisabled()).toBe(false);
     mode("Xuất bớt (−)");
     amount(38);
@@ -112,12 +110,19 @@ describe("AdjustStockModal", () => {
     expect(calls()).toHaveLength(0);
   });
 
-  it("counts the note up to a maximum of 500", () => {
+  it("caps the note at 500 without a counter", () => {
     renderModal();
-    expect(screen.getByText("0 / 500")).toBeTruthy();
-    note("abcde");
-    expect(screen.getByText("5 / 500")).toBeTruthy();
+    expect(screen.queryByText("0 / 500")).toBeNull();
     expect(screen.getByLabelText("Ghi chú").getAttribute("maxlength")).toBe("500");
+  });
+
+  it("sends no note when it is blank", async () => {
+    renderModal();
+    amount(5);
+    note("   ");
+    submit();
+    await waitFor(() => expect(calls()).toHaveLength(1));
+    expect(calls()[0]).toEqual(["v1", { delta: 5 }]);
   });
 
   it("sends in/out without expectedCurrent and count with it", async () => {
