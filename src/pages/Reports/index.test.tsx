@@ -6,6 +6,7 @@ import { deferred, response } from "@/test/order-fixtures";
 import type { SalesReport, SalesReportQuery } from "@/services/reports";
 import { formatOrderAmount } from "../Orders/order-display";
 import Reports from "./index";
+import { calendarLabel } from "./report-query";
 
 // Testing Library collapses the NBSP in Intl currency output when matching text.
 const money = (amount: number, currency: string) =>
@@ -97,6 +98,15 @@ const region = (name: string) => within(screen.getByRole("region", { name }));
 const search = (router: ReturnType<typeof setup>) => router.state.location.search;
 const radio = (name: string) => screen.getByRole("radio", { name }) as HTMLInputElement;
 const dateInput = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
+/** Types a DD/MM/YYYY day into a RangePicker input and commits it with Enter, then leaves the picker. */
+function typeDate(label: string, date: string) {
+  const input = dateInput(label);
+  act(() => input.focus());
+  fireEvent.change(input, { target: { value: calendarLabel(date) } });
+  fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+  act(() => (document.activeElement as HTMLElement | null)?.blur());
+}
+const clearDates = () => fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 const deliveredSwitch = () => screen.getByRole("switch", { name: "Chỉ đơn đã giao" });
 const apply = () => fireEvent.click(screen.getByRole("button", { name: "Áp dụng" }));
 const loaded = () => screen.findByRole("group", { name: "Đơn đã đặt" });
@@ -169,8 +179,8 @@ describe("Sales reports", () => {
     await loaded();
     expect(calls).toEqual([month]);
     expect(radio("Tháng này").checked).toBe(true);
-    expect(dateInput("Từ ngày").value).toBe("2026-10-01");
-    expect(dateInput("Đến ngày").value).toBe("2026-10-20");
+    expect(dateInput("Từ ngày").value).toBe("01/10/2026");
+    expect(dateInput("Đến ngày").value).toBe("20/10/2026");
     expect(deliveredSwitch().getAttribute("aria-checked")).toBe("false");
     expect(group("Đơn đã đặt").getByText("9")).toBeTruthy();
     expect(group("Đơn đã thanh toán").getByText("4")).toBeTruthy();
@@ -217,7 +227,7 @@ describe("Sales reports", () => {
     const router = setup();
     await loaded();
     fireEvent.click(radio("7 ngày gần nhất"));
-    expect(dateInput("Từ ngày").value).toBe("2026-10-14");
+    expect(dateInput("Từ ngày").value).toBe("14/10/2026");
     expect(search(router)).toBe("");
     apply();
     await waitFor(() => expect(search(router)).toBe("?from=2026-10-14&to=2026-10-20"));
@@ -229,21 +239,20 @@ describe("Sales reports", () => {
     await screen.findByText(/20\/10\/2026 – 20\/10\/2026/);
     expect(radio("Hôm nay").checked).toBe(true);
 
-    for (const [from, to, error] of [
-      ["2026-10-05", "", "Ngày kết thúc bị thiếu hoặc không hợp lệ"],
-      ["2026-10-09", "2026-10-05", "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc"],
-      ["2025-10-01", "2026-10-02", "Khoảng thời gian tối đa 366 ngày"]
-    ]) {
-      fireEvent.change(dateInput("Từ ngày"), { target: { value: from } });
-      fireEvent.change(dateInput("Đến ngày"), { target: { value: to } });
-      expect(radio("Tùy chọn").checked).toBe(true);
-      apply();
-      expect(screen.getByText(error)).toBeTruthy();
-    }
+    // The picker yields a full ordered range or none, so only a cleared or too long range is rejected.
+    clearDates();
+    expect(radio("Tùy chọn").checked).toBe(true);
+    apply();
+    expect(screen.getByText("Ngày bắt đầu bị thiếu hoặc không hợp lệ")).toBeTruthy();
+    expect(screen.getByText("Ngày kết thúc bị thiếu hoặc không hợp lệ")).toBeTruthy();
+    typeDate("Từ ngày", "2025-10-01");
+    typeDate("Đến ngày", "2026-10-02");
+    apply();
+    expect(screen.getByText("Khoảng thời gian tối đa 366 ngày")).toBeTruthy();
     expect(search(router)).toBe("?from=2026-10-20&to=2026-10-20");
     expect(calls).toHaveLength(3);
-    fireEvent.change(dateInput("Từ ngày"), { target: { value: "2025-10-20" } });
-    fireEvent.change(dateInput("Đến ngày"), { target: { value: "2026-10-20" } });
+    typeDate("Từ ngày", "2025-10-20");
+    typeDate("Đến ngày", "2026-10-20");
     apply();
     await waitFor(() => expect(search(router)).toBe("?from=2025-10-20&to=2026-10-20"));
     expect(calls[calls.length - 1]).toEqual({
@@ -258,8 +267,8 @@ describe("Sales reports", () => {
     setup("/reports?from=2026-09-05&to=2026-10-02");
     await loaded();
     expect(radio("Tùy chọn").checked).toBe(true);
-    expect(dateInput("Từ ngày").value).toBe("2026-09-05");
-    expect(dateInput("Đến ngày").value).toBe("2026-10-02");
+    expect(dateInput("Từ ngày").value).toBe("05/09/2026");
+    expect(dateInput("Đến ngày").value).toBe("02/10/2026");
     expect(calls).toEqual([{ from: "2026-09-05", to: "2026-10-02", deliveredOnly: false }]);
   });
 

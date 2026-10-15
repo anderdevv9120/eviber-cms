@@ -4,8 +4,8 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Flex,
-  Input,
   Radio,
   Row,
   Spin,
@@ -16,6 +16,7 @@ import {
 } from "antd";
 import type { TableColumnsType } from "antd";
 import { useSearchParams } from "react-router";
+import dayjs, { type Dayjs } from "dayjs";
 import {
   getSalesReportAPI,
   type BestSellingProduct,
@@ -72,6 +73,10 @@ const presetOf = ({ from, to }: SalesReportQuery, today: string) =>
     return range.from === from && range.to === to;
   }) ?? "custom";
 const unknownLabel = "Không xác định";
+const reportDateFormat = "DD/MM/YYYY";
+// The draft keeps YYYY-MM-DD calendar strings; dayjs exists only at the picker boundary.
+const pickerDay = (date: string) => (date ? dayjs(date) : null);
+const draftDay = (date?: Dayjs | null) => date?.format("YYYY-MM-DD") ?? "";
 
 /** A missing amount list is a real zero only when nothing was counted. */
 function Money({
@@ -189,9 +194,9 @@ function ReportFilters({
     setCustom(value === "custom");
     if (value !== "custom") setDraft({ ...draft, ...reportPresetRange(value, today) });
   };
-  const changeDate = (field: "from" | "to", value: string) => {
+  const changeDates = (dates: [Dayjs | null, Dayjs | null] | null) => {
     setCustom(true);
-    setDraft({ ...draft, [field]: value });
+    setDraft({ ...draft, from: draftDay(dates?.[0]), to: draftDay(dates?.[1]) });
   };
   // Dates are validated on submit only, so a half-entered custom range never reads.
   const submit = (event: FormEvent) => {
@@ -211,23 +216,20 @@ function ReportFilters({
           onChange={event => choosePreset(event.target.value)}
           options={Object.entries(presetLabels).map(([value, label]) => ({ value, label }))}
         />
-        <label htmlFor='report-from'>Từ ngày</label>
-        <Input
-          id='report-from'
-          type='date'
-          style={{ width: 160 }}
-          value={draft.from}
-          aria-invalid={errors.length > 0}
-          onChange={event => changeDate("from", event.target.value)}
-        />
-        <label htmlFor='report-to'>Đến ngày</label>
-        <Input
-          id='report-to'
-          type='date'
-          style={{ width: 160 }}
-          value={draft.to}
-          aria-invalid={errors.length > 0}
-          onChange={event => changeDate("to", event.target.value)}
+        <label htmlFor='report-from' className='sr-only'>
+          Từ ngày
+        </label>
+        <label htmlFor='report-to' className='sr-only'>
+          Đến ngày
+        </label>
+        <DatePicker.RangePicker
+          id={{ start: "report-from", end: "report-to" }}
+          format={reportDateFormat}
+          placeholder={["Từ ngày", "Đến ngày"]}
+          needConfirm={false}
+          value={[pickerDay(draft.from), pickerDay(draft.to)]}
+          status={errors.length > 0 ? "error" : undefined}
+          onChange={changeDates}
         />
         <Flex gap={8} align='center'>
           <Switch
