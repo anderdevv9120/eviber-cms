@@ -26,7 +26,6 @@ import {
   type StockRow,
   type StockStatus
 } from "@/services/reports";
-import { formatOrderDate } from "../Orders/order-display";
 import {
   parseDashboardQuery,
   serializeDashboardQuery,
@@ -63,8 +62,6 @@ const stockColumns: TableColumnsType<StockRow> = [
   { title: "SKU", dataIndex: "sku" },
   { title: "Tồn kho", dataIndex: "inventoryCount" }
 ];
-const appliedAt = ({ lowStockThreshold, generatedAt }: DashboardSummary["metadata"]) =>
-  `Ngưỡng đang áp dụng: ${lowStockThreshold} · Cập nhật lúc ${formatOrderDate(generatedAt)}`;
 
 export default function Dashboard() {
   const [params, setParams] = useSearchParams();
@@ -202,9 +199,6 @@ export default function Dashboard() {
         )}
         {stock.data && (
           <>
-            <Typography.Paragraph type='secondary'>
-              {appliedAt(stock.data.metadata)}
-            </Typography.Paragraph>
             <Table
               rowKey='variantId'
               columns={stockColumns}
@@ -289,9 +283,6 @@ function SummaryCards({
           </Col>
         ))}
       </Row>
-      <Typography.Paragraph type='secondary' className='mt-2'>
-        {appliedAt(summary.metadata)}
-      </Typography.Paragraph>
     </>
   );
 }
