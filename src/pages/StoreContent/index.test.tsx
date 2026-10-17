@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
@@ -45,7 +45,15 @@ const settings: api.Revisioned<api.StoreSettings> = {
   ],
   homePromises: [1, 2, 3, 4].map(n => ({ title: `Cam kết ${n}`, description: `Mô tả ${n}` })),
   productPromises: ["Giao nhanh", "Đổi size", "COD"],
+  brandStory: null,
   revision: 3
+};
+const story: api.BrandStory = {
+  title: "Câu chuyện của chúng tôi",
+  body: "Dòng một\nDòng hai",
+  image: "/images/story.jpg",
+  ctaLabel: "Xem thêm",
+  href: "/collection"
 };
 const ok = <T,>(data: T) => ({ data, message: "success" });
 const setup = () =>
@@ -58,6 +66,11 @@ const setup = () =>
     </StrictMode>
   );
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Lưu nội dung" }));
+const storyCard = () =>
+  screen.getByText("Câu chuyện thương hiệu").closest(".ant-card") as HTMLElement;
+const storySwitch = () => screen.getByRole("switch", { name: "Hiển thị trên trang chủ" });
+const typeIn = (label: string, value: string) =>
+  fireEvent.change(within(storyCard()).getByLabelText(label), { target: { value } });
 
 describe("store content page", () => {
   beforeEach(() => {
@@ -153,6 +166,103 @@ describe("store content page", () => {
     await waitFor(() => expect(saveButton.disabled).toBe(true));
     finishUpload(ok({ path: "/images/new.jpg" }));
     await waitFor(() => expect(saveButton.disabled).toBe(false));
+  });
+
+  it("loads with the brand story switched off when settings have none", async () => {
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    expect(storySwitch().getAttribute("aria-checked")).toBe("false");
+    expect(within(storyCard()).queryByLabelText("Tiêu đề")).toBeNull();
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toBeNull();
+  });
+
+  it("saves a filled brand story with an uploaded image", async () => {
+    vi.mocked(uploadImageAPI).mockResolvedValue(ok({ path: "/images/story.jpg" }));
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    fireEvent.click(storySwitch());
+    typeIn("Tiêu đề", "  Câu chuyện của chúng tôi  ");
+    typeIn("Nội dung", " Dòng một\nDòng hai ");
+    fireEvent.change(storyCard().querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["x"], "story.png", { type: "image/png" })] }
+    });
+    await waitFor(() =>
+      expect(screen.getByAltText("Ảnh câu chuyện thương hiệu").getAttribute("src")).toContain(
+        "/images/story.jpg"
+      )
+    );
+    typeIn("Nội dung nút", " Xem thêm ");
+    typeIn("Đường dẫn", "/collection");
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toEqual(story);
+  });
+
+  it("saves the optional title accent and second image", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(ok({ ...settings, brandStory: story }));
+    vi.mocked(uploadImageAPI).mockResolvedValue(ok({ path: "/images/story-2.jpg" }));
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    typeIn("Phần nhấn của tiêu đề", "  mặc thật lâu.  ");
+    fireEvent.change(storyCard().querySelectorAll<HTMLInputElement>('input[type="file"]')[1], {
+      target: { files: [new File(["x"], "story-2.png", { type: "image/png" })] }
+    });
+    await waitFor(() =>
+      expect(screen.getByAltText("Ảnh thứ 2 câu chuyện thương hiệu").getAttribute("src")).toContain(
+        "/images/story-2.jpg"
+      )
+    );
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toEqual({
+      ...story,
+      titleAccent: "mặc thật lâu.",
+      image2: "/images/story-2.jpg"
+    });
+  });
+
+  it("omits a blank title accent and a removed second image", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(
+      ok({
+        ...settings,
+        brandStory: { ...story, titleAccent: "nhấn", image2: "/images/story-2.jpg" }
+      })
+    );
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    typeIn("Phần nhấn của tiêu đề", "   ");
+    fireEvent.click(within(storyCard()).getByRole("button", { name: "Xoá ảnh thứ 2" }));
+    await waitFor(() =>
+      expect(screen.queryByAltText("Ảnh thứ 2 câu chuyện thương hiệu")).toBeNull()
+    );
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toEqual(story);
+  });
+
+  it("blocks saving a brand story with only a CTA label", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(
+      ok({ ...settings, brandStory: { title: story.title, body: story.body, image: story.image } })
+    );
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    typeIn("Nội dung nút", "Xem thêm");
+    save();
+    expect(await within(storyCard()).findByText("Vui lòng nhập đường dẫn cho nút")).toBeTruthy();
+    expect(api.saveStoreSettingsAPI).not.toHaveBeenCalled();
+  });
+
+  it("sends null after switching an existing story off", async () => {
+    vi.mocked(api.getStoreSettingsAPI).mockResolvedValue(ok({ ...settings, brandStory: story }));
+    setup();
+    await screen.findByLabelText("Số điện thoại");
+    expect(storySwitch().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(storySwitch());
+    save();
+    await waitFor(() => expect(api.saveStoreSettingsAPI).toHaveBeenCalled());
+    expect(vi.mocked(api.saveStoreSettingsAPI).mock.calls[0][0].brandStory).toBeNull();
   });
 
   it("shows a retryable load error", async () => {

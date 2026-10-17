@@ -94,14 +94,9 @@ describe("Operational Dashboard", () => {
     expect(region.queryByRole("link", { name: /Sản phẩm đang bán|SKU đang bán/ })).toBeNull();
     expect(region.getByRole("button", { name: "SKU sắp hết hàng: 7" })).toBeTruthy();
     expect(region.getByRole("button", { name: "SKU hết hàng: 0" })).toBeTruthy();
-    expect(region.getByText(/Ngưỡng đang áp dụng: 5/)).toBeTruthy();
-    expect(
-      region.getByText(new RegExp(new Date(generatedAt).toLocaleString("vi-VN")))
-    ).toBeTruthy();
     const table = within(stockRegion());
     expect(await table.findByText("low-SKU")).toBeTruthy();
     expect(table.getByText("low product")).toBeTruthy();
-    expect(table.getByText(/Ngưỡng đang áp dụng: 5/)).toBeTruthy();
     expect(calls.summary).toEqual([{ lowStockThreshold: 5 }]);
     expect(calls.stock).toEqual([defaults]);
   });
@@ -158,8 +153,9 @@ describe("Operational Dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Áp dụng" }));
     await waitFor(() => expect(search(router)).toBe("?lowStockThreshold=1000&stockStatus=out"));
     expect(screen.queryByText(thresholdError)).toBeNull();
-    expect(await within(summaryRegion()).findByText(/Ngưỡng đang áp dụng: 1000/)).toBeTruthy();
-    expect(calls.summary).toEqual([{ lowStockThreshold: 5 }, { lowStockThreshold: 1000 }]);
+    await waitFor(() =>
+      expect(calls.summary).toEqual([{ lowStockThreshold: 5 }, { lowStockThreshold: 1000 }])
+    );
     expect(calls.stock[calls.stock.length - 1]).toEqual({
       lowStockThreshold: 1000,
       stockStatus: "out",

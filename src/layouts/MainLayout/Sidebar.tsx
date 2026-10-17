@@ -11,7 +11,8 @@ import {
   PictureOutlined,
   StarOutlined,
   BarChartOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  InboxOutlined
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -41,7 +42,9 @@ const Sidebar = () => {
   const paymentsSelected =
     pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
   const catalogSelected =
-    pathname === PATH.ATTRIBUTES || !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
+    pathname === PATH.CATEGORIES ||
+    pathname === PATH.ATTRIBUTES ||
+    !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const customersSelected =
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
@@ -60,17 +63,21 @@ const Sidebar = () => {
               ? "banners"
               : customersSelected
                 ? "customers"
-                : catalogSelected
-                  ? "attributes"
-                  : productsSelected
-                    ? "2"
-                    : paymentsSelected
-                      ? "payments"
-                      : pathname === PATH.ORDER || orderDetail
-                        ? "3"
-                        : pathname === PATH.VOUCHERS
-                          ? "vouchers"
-                          : "1";
+                : pathname === PATH.CATEGORIES
+                  ? "categories"
+                  : catalogSelected
+                    ? "attributes"
+                    : productsSelected
+                      ? "2"
+                      : pathname === PATH.INVENTORY
+                        ? "inventory"
+                        : paymentsSelected
+                          ? "payments"
+                          : pathname === PATH.ORDER || orderDetail
+                            ? "3"
+                            : pathname === PATH.VOUCHERS
+                              ? "vouchers"
+                              : "1";
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -91,6 +98,12 @@ const Sidebar = () => {
       onClick: () => navigate(PATH.PRODUCTS)
     },
     {
+      key: "inventory",
+      icon: <InboxOutlined />,
+      label: "Tồn kho",
+      onClick: () => navigate(PATH.INVENTORY)
+    },
+    {
       key: "3",
       icon: <ContainerOutlined />,
       label: "Quản lý Đơn hàng",
@@ -107,6 +120,11 @@ const Sidebar = () => {
       label: "Danh mục",
       icon: <AppstoreOutlined />,
       children: [
+        {
+          key: "categories",
+          label: "Danh mục sản phẩm",
+          onClick: () => navigate(PATH.CATEGORIES)
+        },
         { key: "attributes", label: "Thuộc tính", onClick: () => navigate(PATH.ATTRIBUTES) }
       ]
     },

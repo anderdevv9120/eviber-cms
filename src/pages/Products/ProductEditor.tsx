@@ -458,6 +458,13 @@ function ProductEditorPage({ id }: { id?: string }) {
               disabled={busy}
               onChange={changeOptions}
             />
+            {product && (
+              <Flex justify='end'>
+                <Link to={`${PATH.INVENTORY}?productId=${encodeURIComponent(product._id)}`}>
+                  Xem tồn kho
+                </Link>
+              </Flex>
+            )}
             <VariantGrid
               rows={rows}
               labelsOf={labelsOf}

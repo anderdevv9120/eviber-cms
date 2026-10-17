@@ -14,12 +14,22 @@ export interface HomePromise {
   title: string;
   description: string;
 }
+export interface BrandStory {
+  title: string;
+  titleAccent?: string;
+  body: string;
+  image: string;
+  image2?: string;
+  ctaLabel?: string;
+  href?: string;
+}
 export interface StoreSettings {
   contact: { address: string; email: string; phone: string };
   socials: { facebook: string; instagram: string; twitter: string };
   promoTiles: PromoTile[];
   homePromises: HomePromise[];
   productPromises: string[];
+  brandStory: BrandStory | null;
 }
 export type Revisioned<T> = T & { revision: number };
 

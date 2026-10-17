@@ -80,11 +80,13 @@ const MainLayout = () => {
                   ? [{ title: "Đánh giá" }]
                   : pathname === PATH.REPORTS
                     ? [{ title: "Báo cáo bán hàng" }]
-                    : pathname === PATH.VOUCHERS
-                      ? [{ title: "Voucher" }]
-                      : pathname === PATH.DASHBOARD
-                        ? [{ title: "Trang chủ" }]
-                        : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
+                    : pathname === PATH.INVENTORY
+                      ? [{ title: "Tồn kho" }]
+                      : pathname === PATH.VOUCHERS
+                        ? [{ title: "Voucher" }]
+                        : pathname === PATH.DASHBOARD
+                          ? [{ title: "Trang chủ" }]
+                          : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 

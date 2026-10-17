@@ -11,6 +11,7 @@ const ForgetPassword = lazy(() => import("./pages/auth/ForgetPassword"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
+const Inventory = lazy(() => import("./pages/Inventory"));
 const ProductEditor = lazy(() => import("./pages/Products/ProductEditor"));
 const Attributes = lazy(() => import("./pages/Attributes"));
 const AttributeDetail = lazy(() => import("./pages/Attributes/AttributeDetail"));
@@ -20,6 +21,7 @@ const Payments = lazy(() => import("./pages/Payments"));
 const Customers = lazy(() => import("./pages/Customers"));
 const RegisteredCustomerDetail = lazy(() => import("./pages/Customers/RegisteredCustomerDetail"));
 const GuestBuyerDetail = lazy(() => import("./pages/Customers/GuestBuyerDetail"));
+const Categories = lazy(() => import("./pages/Categories"));
 const Banners = lazy(() => import("./pages/Banners"));
 const Reviews = lazy(() => import("./pages/Reviews"));
 const Reports = lazy(() => import("./pages/Reports"));
@@ -54,6 +56,7 @@ export const routes: RouteObject[] = [
       { path: PATH.HOME, element: <Navigate to={PATH.DASHBOARD} /> },
       { path: PATH.DASHBOARD, element: <Dashboard /> },
       { path: PATH.PRODUCTS, element: <Products /> },
+      { path: PATH.INVENTORY, element: <Inventory /> },
       { path: PATH.PRODUCT_NEW, element: <ProductEditor /> },
       { path: PATH.PRODUCT_DETAIL, element: <ProductEditor /> },
       { path: PATH.ORDER, element: <Orders /> },
@@ -62,6 +65,7 @@ export const routes: RouteObject[] = [
       { path: PATH.CUSTOMER_DETAIL, element: <RegisteredCustomerDetail /> },
       { path: PATH.GUEST_BUYER_DETAIL, element: <GuestBuyerDetail /> },
       { path: PATH.ORDER_DETAIL, element: <OrderDetail /> },
+      { path: PATH.CATEGORIES, element: <Categories /> },
       { path: PATH.ATTRIBUTES, element: <Attributes /> },
       { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> },
       { path: PATH.BANNERS, element: <Banners /> },

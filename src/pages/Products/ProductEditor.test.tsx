@@ -291,9 +291,23 @@ describe("ProductEditor — new product", () => {
     await screen.findByLabelText("Tên sản phẩm");
     expect(screen.getByRole("checkbox", { name: "Tạo Mặc định" })).toBeTruthy();
   });
+
+  it("shows no stock link before the product is saved", async () => {
+    renderEditor("/products/new");
+    await screen.findByLabelText("Tên sản phẩm");
+    expect(screen.queryByRole("link", { name: "Xem tồn kho" })).toBeNull();
+  });
 });
 
 describe("ProductEditor — existing product", () => {
+  it("links a saved product to its stock in the inventory list", async () => {
+    renderEditor();
+    await loaded();
+    expect(screen.getByRole("link", { name: "Xem tồn kho" }).getAttribute("href")).toBe(
+      "/inventory?productId=p1"
+    );
+  });
+
   it("keeps saved rows read-only, locks used values and sends a status toggle", async () => {
     renderEditor();
     await loaded();
