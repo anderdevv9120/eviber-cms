@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Layout, Flex } from "antd";
 import Notification from "./Notification";
 import UserHeader from "./UserHeader";
@@ -5,10 +6,15 @@ import ThemeToggle from "./ThemeToggle";
 
 const { Header } = Layout;
 
-const HeaderMain = () => {
+interface HeaderMainProps {
+  breadcrumb: ReactNode;
+}
+
+const HeaderMain = ({ breadcrumb }: HeaderMainProps) => {
   return (
-    <Header className='sticky top-0 z-10 flex bg-white shadow-md px-0'>
-      <Flex justify='end' className='w-full pr-6'>
+    <Header className='flex shrink-0 items-center gap-4 border-b border-(--ant-color-border-secondary)'>
+      <div className='min-w-0 flex-1'>{breadcrumb}</div>
+      <Flex align='center' gap={4}>
         <ThemeToggle />
         <Notification />
         <UserHeader />

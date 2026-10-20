@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
-import { Layout, Breadcrumb, Spin, Flex, Result, Button } from "antd";
+import { Layout, Breadcrumb, Spin, Flex, Result, Button, theme } from "antd";
 import { Link, matchPath, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { getProfileAPI } from "@/services/auth";
@@ -15,6 +15,7 @@ const { Content } = Layout;
 
 const MainLayout = () => {
   const { profile, setProfile } = useAppStore();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
@@ -129,7 +130,12 @@ const MainLayout = () => {
 
   if (!profile && loadFailed) {
     return (
-      <Flex justify='center' align='center' className='min-h-screen'>
+      <Flex
+        justify='center'
+        align='center'
+        className='min-h-screen'
+        style={{ background: token.colorBgLayout }}
+      >
         <Result
           status='error'
           title='Không tải được thông tin tài khoản'
@@ -149,28 +155,34 @@ const MainLayout = () => {
 
   if (!profile) {
     return (
-      <Flex justify='center' align='center' className='min-h-screen'>
+      <Flex
+        justify='center'
+        align='center'
+        className='min-h-screen'
+        style={{ background: token.colorBgLayout }}
+      >
         <Spin size='large' />
       </Flex>
     );
   }
 
   return (
-    <div className='min-h-screen flex'>
+    <div className='min-h-screen flex' style={{ background: token.colorBgLayout }}>
       <Sidebar />
-      <Layout className='min-w-0'>
-        <HeaderMain />
-        <Breadcrumb items={breadcrumbs} className='p-6 py-4' />
-        <Content className='min-w-0 m-5 p-5 mt-0 bg-white rounded-lg shadow-md'>
-          <Suspense
-            fallback={
-              <Flex justify='center' align='center' className='min-h-full'>
-                <Spin size='large' />
-              </Flex>
-            }
-          >
-            <Outlet />
-          </Suspense>
+      <Layout className='sticky top-2 my-2 mr-2 h-[calc(100vh-16px)] min-w-0 overflow-hidden rounded-[14px] shadow-[0_1px_3px_rgba(17,24,39,0.06),0_0_0_1px_var(--ant-color-border-secondary)]'>
+        <HeaderMain breadcrumb={<Breadcrumb items={breadcrumbs} />} />
+        <Content className='min-w-0 overflow-y-auto p-6'>
+          <div className='mx-auto max-w-7xl'>
+            <Suspense
+              fallback={
+                <Flex justify='center' align='center' className='min-h-full'>
+                  <Spin size='large' />
+                </Flex>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </div>
         </Content>
       </Layout>
     </div>

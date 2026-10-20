@@ -219,10 +219,11 @@ export default function DropDown({
       }
     };
 
-    document.addEventListener("scroll", handleButtonPositionUpdate);
+    // capture: vùng cuộn là Content của MainLayout, scroll của phần tử không bubble lên document
+    document.addEventListener("scroll", handleButtonPositionUpdate, true);
 
     return () => {
-      document.removeEventListener("scroll", handleButtonPositionUpdate);
+      document.removeEventListener("scroll", handleButtonPositionUpdate, true);
     };
   }, [buttonRef, dropDownRef, showDropDown]);
 

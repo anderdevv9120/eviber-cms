@@ -1,20 +1,24 @@
-import { useState } from "react";
-import { SunFilled, MoonFilled } from "@ant-design/icons";
-import { Flex } from "antd";
+import { SunOutlined, MoonOutlined } from "@ant-design/icons";
+import { Button, Tooltip } from "antd";
+import { useThemeStore } from "@/store/useThemeStore";
 
 const ThemeToggle = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  const mode = useThemeStore(state => state.mode);
+  const toggleMode = useThemeStore(state => state.toggleMode);
+  const label = mode === "dark" ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối";
 
   return (
-    <Flex className='mr-3'>
-      <button onClick={toggleTheme} className='text-2xl focus:outline-none'>
-        {isDarkMode ? <MoonFilled /> : <SunFilled />}
-      </button>
-    </Flex>
+    <Tooltip title={label}>
+      <Button
+        type='text'
+        shape='circle'
+        size='large'
+        aria-label={label}
+        icon={mode === "dark" ? <SunOutlined /> : <MoonOutlined />}
+        onClick={toggleMode}
+        className='text-(--ant-color-text-secondary)'
+      />
+    </Tooltip>
   );
 };
 

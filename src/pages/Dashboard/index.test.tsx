@@ -10,7 +10,7 @@ const generatedAt = "2026-10-07T03:00:00.000Z";
 const summary = (lowStockThreshold = 5, pending = 3): DashboardSummary => ({
   metadata: { lowStockThreshold, generatedAt },
   orders: { pending, awaitingShipment: 4, awaitingTransfer: 2, refundNeeded: 1 },
-  catalog: { publishedProducts: 12, activeSkus: 30, lowStockSkus: 7, outOfStockSkus: 0 }
+  catalog: { publishedProducts: 12, activeSkus: 12345, lowStockSkus: 7, outOfStockSkus: 0 }
 });
 type StockParams = Required<StockReportQuery>;
 const stock = (
@@ -91,6 +91,7 @@ describe("Operational Dashboard", () => {
       expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
     const region = within(summaryRegion());
     expect(region.getByText("Sản phẩm đang bán")).toBeTruthy();
+    expect(region.getByText("12.345")).toBeTruthy();
     expect(region.queryByRole("link", { name: /Sản phẩm đang bán|SKU đang bán/ })).toBeNull();
     expect(region.getByRole("button", { name: "SKU sắp hết hàng: 7" })).toBeTruthy();
     expect(region.getByRole("button", { name: "SKU hết hàng: 0" })).toBeTruthy();

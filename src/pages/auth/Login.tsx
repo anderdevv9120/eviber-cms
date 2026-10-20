@@ -1,6 +1,6 @@
 import AuthLayout from "@/layouts/AuthLayout";
-import { Form, Input, Button, Switch } from "antd";
-import { UserOutlined, LockOutlined } from "@ant-design/icons";
+import { Form, Input, Button, Checkbox } from "antd";
+import { MailOutlined, LockOutlined } from "@ant-design/icons";
 import { PASSWORD_REGEX } from "@/constants";
 import { Link } from "react-router";
 import {
@@ -51,63 +51,69 @@ const Login = () => {
 
   return (
     <AuthLayout>
-      <div className='text-center font-bold my-3 text-2xl'>Đăng nhập vào CMS</div>
+      <h1 className='m-0 text-[22px] leading-[30px] font-semibold'>Đăng nhập vào CMS</h1>
+      <p className='mt-1 mb-6 text-(--ant-color-text-tertiary)'>
+        Dùng tài khoản quản trị được cấp để vào bảng điều khiển.
+      </p>
 
       <Form
         form={form}
         name='login'
         layout='vertical'
+        size='large'
         onFinish={onFinish}
         requiredMark={false}
         disabled={isSubmitting}
       >
         <Form.Item
-          label={<label className='text-base'>Email</label>}
+          label='Email'
           name='email'
           rules={[
             { required: true, message: EMAIL_REQUIRED_MESSAGE },
             { type: "email", message: EMAIL_INVALID_MESSAGE }
           ]}
         >
-          <Input prefix={<UserOutlined />} placeholder='Email' className='text-base h-12' />
-        </Form.Item>
-
-        <Form.Item
-          label={<label className='text-base '>Mật khẩu</label>}
-          name='password'
-          rules={[
-            { required: true, message: PASSWORD_REQUIRED_MESSAGE },
-            {
-              pattern: PASSWORD_REGEX,
-              message: PASSWORD_RULE_MESSAGE
-            }
-          ]}
-        >
-          <Input.Password
-            prefix={<LockOutlined />}
-            placeholder='Mật khẩu'
-            className='text-base h-12'
+          <Input
+            prefix={<MailOutlined className='text-(--ant-color-text-tertiary)' />}
+            placeholder='admin@example.com'
           />
         </Form.Item>
 
-        <Form.Item name='remember' valuePropName='checked' className='mb-0'>
-          <div className='mb-4'>
-            <Switch className='mr-2' />
-            <span>Lưu tài khoản</span>
-          </div>
+        <div className='relative'>
+          <Form.Item
+            label='Mật khẩu'
+            name='password'
+            rules={[
+              { required: true, message: PASSWORD_REQUIRED_MESSAGE },
+              {
+                pattern: PASSWORD_REGEX,
+                message: PASSWORD_RULE_MESSAGE
+              }
+            ]}
+          >
+            <Input.Password
+              prefix={<LockOutlined className='text-(--ant-color-text-tertiary)' />}
+            />
+          </Form.Item>
+          {/* Ngoài <label>: nằm trong label thì tên đọc của ô mật khẩu dính chữ link, Tab vào link trước ô */}
+          <Link
+            to={PATH_AUTH.FORGET_PASSWORD}
+            className='absolute top-0 right-0 flex h-10 items-center text-sm text-(--ant-color-link) hover:underline'
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
+
+        <Form.Item name='remember' valuePropName='checked' className='mb-5'>
+          <Checkbox>Ghi nhớ đăng nhập</Checkbox>
         </Form.Item>
 
         <Form.Item className='mb-0'>
-          <Button type='primary' htmlType='submit' block size='large' loading={isSubmitting}>
+          <Button type='primary' htmlType='submit' block loading={isSubmitting}>
             {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
           </Button>
         </Form.Item>
       </Form>
-      <div className='text-center mt-3'>
-        <Link to={PATH_AUTH.FORGET_PASSWORD} className='text-blue-500 underline block mb-2'>
-          Quên mật khẩu?
-        </Link>
-      </div>
     </AuthLayout>
   );
 };

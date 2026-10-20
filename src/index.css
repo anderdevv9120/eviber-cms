@@ -7,3 +7,67 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Bảng đặt thẳng trên nền panel (không trong Card, không bordered) cần khung riêng để tách khỏi nền */
+@layer components {
+  .ant-table-wrapper:not(.ant-card .ant-table-wrapper)
+    .ant-table:not(.ant-table-bordered)
+    > .ant-table-container {
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: var(--ant-border-radius-lg);
+    overflow: hidden;
+  }
+
+  .ant-table-wrapper .ant-table-thead > tr > th {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .ant-card .ant-table-wrapper .ant-table,
+  .ant-card .ant-table-wrapper .ant-table-container,
+  .ant-card .ant-table-wrapper .ant-table-thead > tr > th {
+    border-radius: 0;
+  }
+
+  /* Thu gọn giữ nguyên chiều cao tiêu đề nhóm (chữ ẩn, thay bằng vạch) để các mục menu không nhảy dọc */
+  .cms-sider-menu.ant-menu {
+    border-inline-end: 0;
+  }
+
+  .cms-sider-menu .ant-menu-item-selected {
+    font-weight: 600;
+    box-shadow:
+      0 1px 3px rgba(17, 24, 39, 0.06),
+      0 0 0 1px var(--ant-color-border-secondary);
+  }
+
+  .cms-sider-menu .ant-menu-item-group-title {
+    position: relative;
+    overflow: hidden;
+    padding: 16px 26px 6px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 0.2s;
+  }
+
+  .cms-sider-menu.ant-menu-inline-collapsed .ant-menu-item-group-title {
+    color: transparent;
+  }
+
+  .cms-sider-menu .ant-menu-item-group-title::after {
+    content: "";
+    position: absolute;
+    right: 22px;
+    bottom: 13px;
+    left: 22px;
+    border-top: 1px solid var(--ant-color-border-secondary);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .cms-sider-menu.ant-menu-inline-collapsed .ant-menu-item-group-title::after {
+    opacity: 1;
+  }
+}

@@ -1,5 +1,5 @@
 import type { MenuProps } from "antd";
-import { Dropdown, Flex } from "antd";
+import { Avatar, Dropdown, Flex, theme } from "antd";
 import { UserOutlined, LogoutOutlined, LockOutlined } from "@ant-design/icons";
 import { useRef } from "react";
 import { useNavigate } from "react-router";
@@ -14,6 +14,7 @@ import { PATH_AUTH } from "@/constants/paths";
 const UserHeader = () => {
   const { profile } = useAppStore();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
   const isLoggingOutRef = useRef(false);
   const safeProfile = profile || {
     firstName: "",
@@ -45,7 +46,6 @@ const UserHeader = () => {
       label: "Thông tin cá nhân",
       icon: <UserOutlined />,
       onClick: () => {
-        // Navigate to profile page
         console.log("Navigate to profile");
       }
     },
@@ -54,7 +54,6 @@ const UserHeader = () => {
       label: "Đổi mật khẩu",
       icon: <LockOutlined />,
       onClick: () => {
-        // Navigate to change password page
         console.log("Navigate to change password");
       }
     },
@@ -79,15 +78,24 @@ const UserHeader = () => {
     <Dropdown menu={{ items: menuItems }} trigger={["hover"]} placement='bottomRight'>
       <Flex
         align='center'
-        gap={8}
-        className='h-full cursor-pointer px-2 hover:bg-gray-100 rounded-sm'
+        gap={10}
+        className='ml-1 h-10 cursor-pointer rounded-lg py-1 pr-2 pl-1 hover:bg-(--ant-color-fill-quaternary)'
       >
-        <div className='rounded-full border-[#001529] border-[2px] p-1'>
-          <div className='h-8 w-8 rounded-full bg-linear-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold'>
-            {displayName.charAt(0).toUpperCase()}
-          </div>
+        <Avatar
+          size={32}
+          className='shrink-0 font-semibold'
+          style={{ background: token.colorPrimaryBg, color: token.colorPrimaryText, fontSize: 14 }}
+        >
+          {displayName.charAt(0).toUpperCase()}
+        </Avatar>
+        <div className='min-w-0 leading-tight'>
+          <div className='max-w-40 truncate text-sm font-medium'>{displayName}</div>
+          {safeProfile.email && displayName !== safeProfile.email && (
+            <div className='max-w-40 truncate text-xs text-(--ant-color-text-tertiary)'>
+              {safeProfile.email}
+            </div>
+          )}
         </div>
-        <div className='text-base font-medium max-w-32 truncate'>{displayName}</div>
       </Flex>
     </Dropdown>
   );

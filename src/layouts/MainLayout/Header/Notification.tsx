@@ -1,5 +1,5 @@
-import { Badge, Dropdown, Flex } from "antd";
-import { BellFilled } from "@ant-design/icons";
+import { Badge, Button, Dropdown } from "antd";
+import { BellOutlined } from "@ant-design/icons";
 
 const Notification = () => {
   const notifications = [
@@ -14,12 +14,17 @@ const Notification = () => {
   }));
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={["hover"]} placement='bottom'>
-      <Flex align='center' className='mr-6'>
-        <Badge count={notifications.length} offset={[1, 0]} overflowCount={99}>
-          <BellFilled className='text-xl cursor-pointer' />
-        </Badge>
-      </Flex>
+    <Dropdown menu={{ items: menuItems }} trigger={["hover", "click"]} placement='bottomRight'>
+      <Badge count={notifications.length} size='small' offset={[-6, 6]} overflowCount={99}>
+        <Button
+          type='text'
+          shape='circle'
+          size='large'
+          aria-label='Thông báo'
+          icon={<BellOutlined />}
+          className='text-(--ant-color-text-secondary)'
+        />
+      </Badge>
     </Dropdown>
   );
 };
