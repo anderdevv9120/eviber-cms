@@ -94,38 +94,41 @@ function useComboList() {
     key
   });
   const request = useRef<{ controller: AbortController; key: string } | null>(null);
-  const fetchList = useCallback(async () => {
-    request.current?.controller.abort();
-    const current = { controller: new AbortController(), key };
-    request.current = current;
-    const fetchPage = async (pageQuery: ComboListQueryState) => {
-      const { data } = await listCombosAPI(
-        toComboListApiQuery(pageQuery),
-        current.controller.signal
-      );
-      if (current.controller.signal.aborted || request.current !== current)
-        throw new Error("Yêu cầu đã bị thay thế");
-      return checkComboPage(data);
-    };
-    try {
-      const currentQuery = parseComboListQuery(new URLSearchParams(key));
-      let data = await fetchPage(currentQuery);
-      const lastPage = Math.max(1, data.totalPage);
-      if (currentQuery.page > lastPage) {
-        const recoveredParams = serializeComboListQuery({ ...currentQuery, page: lastPage });
-        current.key = recoveredParams.toString();
-        setParams(recoveredParams, { replace: true });
-        data = await fetchPage({ ...currentQuery, page: lastPage });
+  const fetchList = useCallback(
+    async (queryKey: string) => {
+      request.current?.controller.abort();
+      const current = { controller: new AbortController(), key: queryKey };
+      request.current = current;
+      const fetchPage = async (pageQuery: ComboListQueryState) => {
+        const { data } = await listCombosAPI(
+          toComboListApiQuery(pageQuery),
+          current.controller.signal
+        );
+        if (current.controller.signal.aborted || request.current !== current)
+          throw new Error("Yêu cầu đã bị thay thế");
+        return checkComboPage(data);
+      };
+      try {
+        const currentQuery = parseComboListQuery(new URLSearchParams(queryKey));
+        let data = await fetchPage(currentQuery);
+        const lastPage = Math.max(1, data.totalPage);
+        if (currentQuery.page > lastPage) {
+          const recoveredParams = serializeComboListQuery({ ...currentQuery, page: lastPage });
+          current.key = recoveredParams.toString();
+          setParams(recoveredParams, { replace: true });
+          data = await fetchPage({ ...currentQuery, page: lastPage });
+        }
+        setView({ key: current.key, result: data });
+      } catch (cause) {
+        if (!current.controller.signal.aborted && request.current === current)
+          setView({ key: current.key, error: getErrorMessage(cause) });
       }
-      setView({ key: current.key, result: data });
-    } catch (cause) {
-      if (!current.controller.signal.aborted && request.current === current)
-        setView({ key: current.key, error: getErrorMessage(cause) });
-    }
-  }, [key, setParams]);
+    },
+    [setParams]
+  );
   useEffect(() => {
     if (request.current?.key !== key)
-      fetchList().catch(() => {
+      fetchList(key).catch(() => {
         /* Active errors are inline. */
       });
     return () => {
@@ -151,8 +154,11 @@ function useComboList() {
     [setParams]
   );
   const reload = () => {
-    setView({ key });
-    fetchList().catch(() => {
+    // A pending status action may finish after the URL has changed.
+    const currentKey = request.current?.key;
+    if (currentKey === undefined) return;
+    setView({ key: currentKey });
+    fetchList(currentKey).catch(() => {
       /* Active errors are inline. */
     });
   };

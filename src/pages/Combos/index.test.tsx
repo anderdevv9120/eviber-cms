@@ -1,11 +1,12 @@
 import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import { errorNotification } from "@/utils/notification";
 import * as api from "@/services/combos";
+import { deferred } from "@/test/attribute-fixtures";
 import Combos from "./index";
 
 vi.mock("@/services/combos", () => ({
@@ -226,6 +227,69 @@ describe("Combos list", () => {
     expect(await screen.findByText("Combo vừa được thay đổi, vui lòng tải lại")).toBeTruthy();
     expect(api.listCombosAPI).toHaveBeenCalledTimes(2);
   });
+
+  it.each(["success", 409, 404] as const)(
+    "refreshes the current filters and page after a deferred status action: %s",
+    async outcome => {
+      const mutation = deferred<Awaited<ReturnType<typeof api.changeComboStatusAPI>>>();
+      const pendingPage = deferred<ReturnType<typeof page>>();
+      vi.mocked(api.changeComboStatusAPI).mockReturnValue(mutation.promise);
+      vi.mocked(api.listCombosAPI).mockResolvedValue({
+        ...page([row]),
+        data: { ...page([row]).data, total: 40, totalPage: 2 }
+      });
+      const { router } = renderList();
+      fireEvent.click(await screen.findByRole("button", { name: "Đăng bán Combo dạo phố" }));
+      await waitFor(() => expect(api.changeComboStatusAPI).toHaveBeenCalledTimes(1));
+
+      await select("Lọc trạng thái", "Đang bán");
+      await screen.findByRole("link", { name: row.name });
+      fireEvent.click(screen.getByRole("checkbox", { name: "Lọc cần xử lý" }));
+      await screen.findByRole("link", { name: row.name });
+      vi.mocked(api.listCombosAPI).mockReturnValueOnce(pendingPage.promise);
+      fireEvent.click(screen.getByTitle("2"));
+      await waitFor(() =>
+        expect(lastListQuery()).toEqual({
+          status: "PUBLISH",
+          attention: "true",
+          page: 2,
+          pageSize: 20
+        })
+      );
+      expect(router.state.location.search).toBe("?status=PUBLISH&attention=1&page=2");
+      const pendingSignal = vi.mocked(api.listCombosAPI).mock.lastCall?.[1];
+      const refreshed = {
+        ...row,
+        name: "Combo vừa tải lại",
+        status: "PUBLISH" as const,
+        revision: 5
+      };
+      vi.mocked(api.listCombosAPI).mockResolvedValue({
+        ...page([refreshed]),
+        data: { ...page([refreshed]).data, page: 2, total: 40, totalPage: 2 }
+      });
+
+      await act(async () => {
+        if (outcome === "success")
+          mutation.resolve({ data: {} as api.ComboEditorView, message: "success" });
+        else mutation.reject(new ApiError("Combo không còn mới nhất", outcome));
+      });
+      await act(async () => pendingPage.resolve(page([row])));
+
+      expect(lastListQuery()).toEqual({
+        status: "PUBLISH",
+        attention: "true",
+        page: 2,
+        pageSize: 20
+      });
+      expect(pendingSignal?.aborted).toBe(true);
+      expect(await screen.findByRole("link", { name: refreshed.name })).toBeTruthy();
+      expect(screen.queryByLabelText("Đang tải combo")).toBeNull();
+      expect(router.state.location.search).toBe("?status=PUBLISH&attention=1&page=2");
+      if (outcome !== "success")
+        expect(screen.getByText("Combo vừa được thay đổi, vui lòng tải lại")).toBeTruthy();
+    }
+  );
 
   it("lists missing publish requirements in Vietnamese", async () => {
     vi.mocked(api.changeComboStatusAPI).mockRejectedValue(
