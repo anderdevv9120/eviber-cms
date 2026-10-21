@@ -66,6 +66,9 @@ describe("CMS data router", () => {
       "ant-menu-item-selected"
     );
     await screen.findByRole("heading", { name: "Combo" });
+    const breadcrumb = within(screen.getByRole("navigation"));
+    expect(breadcrumb.getByText("Combo")).toBeTruthy();
+    expect(breadcrumb.queryByText("Sản phẩm")).toBeNull();
     await act(() => router.navigate("/dashboard"));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Combo/ }));
     await screen.findByRole("heading", { name: "Combo" });

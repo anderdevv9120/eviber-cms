@@ -87,7 +87,9 @@ const MainLayout = () => {
                         ? [{ title: "Voucher" }]
                         : pathname === PATH.DASHBOARD
                           ? [{ title: "Trang chủ" }]
-                          : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
+                          : pathname === PATH.COMBOS
+                            ? [{ title: "Combo" }]
+                            : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
