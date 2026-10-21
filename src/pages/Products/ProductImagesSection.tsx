@@ -8,6 +8,7 @@ import { resolveImageUrl } from "@/utils/resolveImageUrl";
 const MAX_IMAGES = 20; // backend ProductAdminWriteDto bound
 
 interface Props {
+  title?: string;
   images: string[];
   disabled: boolean;
   onChange: (images: string[]) => void;
@@ -22,6 +23,7 @@ const moveTo = (images: string[], from: number, to: number): string[] => {
 };
 
 export default function ProductImagesSection({
+  title = "Ảnh sản phẩm",
   images,
   disabled,
   onChange,
@@ -53,7 +55,7 @@ export default function ProductImagesSection({
 
   return (
     <Card
-      title='Ảnh sản phẩm'
+      title={title}
       extra={
         <Button
           loading={uploading}
