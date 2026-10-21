@@ -1,3 +1,4 @@
+import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -49,6 +50,28 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens the combo list from Catalog and keeps its menu selected", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : { data: [], total: 0, totalPage: 0, page: 1, pageSize: 20 }
+      );
+    expect(
+      routes.flatMap(route => route.children ?? []).some(route => route.path === "/combos")
+    ).toBe(true);
+    const router = renderRoute("/combos");
+    expect((await screen.findByRole("menuitem", { name: /Combo/ })).className).toContain(
+      "ant-menu-item-selected"
+    );
+    await screen.findByRole("heading", { name: "Combo" });
+    await act(() => router.navigate("/dashboard"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Combo/ }));
+    await screen.findByRole("heading", { name: "Combo" });
+    expect(router.state.location.pathname).toBe("/combos");
+  });
+
   it("opens vouchers from the sidebar and selects its breadcrumb", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(

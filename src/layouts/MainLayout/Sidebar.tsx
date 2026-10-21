@@ -52,8 +52,10 @@ const Sidebar = () => {
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
   const productsSelected = pathname === PATH.PRODUCTS || pathname.startsWith(`${PATH.PRODUCTS}/`);
   const contentSelected = pathname === PATH.STORE_CONTENT || pathname === PATH.POLICIES;
-  const selectedKey =
-    pathname === PATH.STORE_CONTENT
+  const combosSelected = pathname === PATH.COMBOS || pathname.startsWith(`${PATH.COMBOS}/`);
+  const selectedKey = combosSelected
+    ? "combos"
+    : pathname === PATH.STORE_CONTENT
       ? "store-content"
       : pathname === PATH.POLICIES
         ? "policies"
@@ -129,6 +131,12 @@ const Sidebar = () => {
           icon: <ShoppingOutlined />,
           label: "Quản lý Sản phẩm",
           onClick: () => navigate(PATH.PRODUCTS)
+        },
+        {
+          key: "combos",
+          icon: <ShoppingOutlined />,
+          label: "Quản lý Combo",
+          onClick: () => navigate(PATH.COMBOS)
         },
         {
           key: "inventory",
