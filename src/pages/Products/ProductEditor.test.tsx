@@ -1,15 +1,16 @@
 import "@/test/attribute-fixtures";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/products";
+import * as combosApi from "@/services/combos";
 import * as attributesApi from "@/services/attributes";
 import * as bannersApi from "@/services/banners";
-import { errorNotification } from "@/utils/notification";
+import { errorNotification, warningNotification } from "@/utils/notification";
 import ProductEditor from "./ProductEditor";
 import { DESCRIPTION_IMAGE_INVALID } from "./product-publish";
 import { PRODUCT_ERROR } from "./product-errors";
@@ -21,6 +22,7 @@ vi.mock("@/services/products", () => ({
   changeProductStatusAPI: vi.fn(),
   listProductCategoriesAPI: vi.fn()
 }));
+vi.mock("@/services/combos", () => ({ listAffectedCombosAPI: vi.fn() }));
 vi.mock("@/services/attributes", () => ({
   listAttributesAPI: vi.fn(),
   getAttributeValuesAPI: vi.fn()
@@ -28,7 +30,8 @@ vi.mock("@/services/attributes", () => ({
 vi.mock("@/services/banners", () => ({ uploadImageAPI: vi.fn() }));
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
-  errorNotification: vi.fn()
+  errorNotification: vi.fn(),
+  warningNotification: vi.fn()
 }));
 // Mirrors the real editor's timing: HTML arrives 300 ms after a change, and once after mount
 // when initialHtml is non-empty
@@ -138,7 +141,8 @@ const renderEditor = (path = "/products/p1") => {
     [
       { path: "/products", element: <p>Danh sách</p> },
       { path: "/products/new", element: <ProductEditor /> },
-      { path: "/products/:id", element: <ProductEditor /> }
+      { path: "/products/:id", element: <ProductEditor /> },
+      { path: "/combos/:id", element: <p>Trang sửa combo</p> }
     ],
     { initialEntries: [path] }
   );
@@ -186,6 +190,10 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async (_id, { status }) => ok(product({ status, revision: 5 })));
   vi.mocked(errorNotification).mockReset();
+  vi.mocked(warningNotification).mockReset();
+  vi.mocked(combosApi.listAffectedCombosAPI)
+    .mockReset()
+    .mockResolvedValue(ok({ combos: [] }));
   vi.mocked(api.listProductCategoriesAPI)
     .mockReset()
     .mockResolvedValue(ok([{ _id: "c1", name: "Áo" }]));
@@ -321,6 +329,7 @@ describe("ProductEditor — existing product", () => {
 
     fireEvent.click(screen.getByRole("switch", { name: "Đang bán Đỏ / S" }));
     fireEvent.click(button("Lưu"));
+    fireEvent.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
     const [id, payload] = lastUpdate();
     expect(id).toBe("p1");
@@ -385,13 +394,71 @@ describe("ProductEditor — existing product", () => {
     await loaded();
     fireEvent.click(button("Ngừng bán"));
     expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: "Ngừng bán sản phẩm" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     await waitFor(() =>
       expect(api.changeProductStatusAPI).toHaveBeenCalledWith("p1", {
         status: "UNPUBLISH",
         expectedRevision: 3
       })
     );
+  });
+
+  it("lists an affected combo for price changes and cancel prevents PUT; OK saves without a toast", async () => {
+    vi.mocked(combosApi.listAffectedCombosAPI).mockResolvedValue(
+      ok({
+        combos: [{ _id: "combo1", name: "Combo áo quần", status: "PUBLISH" }]
+      })
+    );
+    renderEditor();
+    await loaded();
+    type(number("Giá Đỏ / S"), "90000");
+    fireEvent.click(button("Lưu"));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("Combo áo quần");
+    expect(within(dialog).getByRole("link", { name: "Combo áo quần" }).getAttribute("href")).toBe(
+      "/combos/combo1"
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    expect(api.updateProductAPI).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Tiếp tục" })
+    );
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
+    expect(warningNotification).not.toHaveBeenCalled();
+  });
+
+  it("deactivation saves then offers editing its affected combo", async () => {
+    vi.mocked(combosApi.listAffectedCombosAPI).mockResolvedValue(
+      ok({
+        combos: [{ _id: "combo1", name: "Combo áo", status: "PUBLISH" }]
+      })
+    );
+    const router = renderEditor();
+    await loaded();
+    fireEvent.click(screen.getByRole("switch", { name: "Đang bán Đỏ / S" }));
+    fireEvent.click(button("Lưu"));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Tiếp tục" })
+    );
+    await waitFor(() =>
+      expect(warningNotification).toHaveBeenCalledWith(
+        "1 combo bị ảnh hưởng",
+        expect.objectContaining({ actions: expect.anything() })
+      )
+    );
+    render(<>{vi.mocked(warningNotification).mock.calls[0][1]?.actions}</>);
+    fireEvent.click(screen.getByRole("button", { name: "Sửa combo" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/combos/combo1"));
+  });
+
+  it("skips the lookup when only inventory-free fields change", async () => {
+    renderEditor();
+    await loaded();
+    type(input("SKU Đỏ / S"), "AO-1-NEW");
+    fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledOnce());
+    expect(combosApi.listAffectedCombosAPI).not.toHaveBeenCalled();
   });
 
   it("sends a description keystroke typed just before Save", async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Flex, Input, Pagination, Popconfirm, Select, Spin, Table, Tag } from "antd";
+import { Alert, App, Button, Flex, Input, Pagination, Select, Spin, Table, Tag } from "antd";
 import { Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import viVN from "antd/locale/vi_VN";
@@ -21,6 +21,8 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import { formatOrderAmount, formatOrderDate } from "@/pages/Orders/order-display";
+import { useComboImpact } from "./useComboImpact";
+import type { ComboRef } from "@/services/combos";
 import {
   parseProductListQuery,
   productStatusLabels,
@@ -184,19 +186,33 @@ function useDebouncedSearch(q: string, commit: (q: string) => void) {
 
 function ProductsPage() {
   const navigate = useNavigate();
+  const comboImpact = useComboImpact();
   const { query, changeQuery, reload, result, error } = useProductList();
   const categories = useCategoryOptions();
   const commitSearch = useCallback((q: string) => changeQuery({ q }), [changeQuery]);
   const [search, setSearch] = useDebouncedSearch(query.q, commitSearch);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const changing = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const changeStatus = async (row: ProductListRow, status: ProductStatus) => {
+    if (changing.current) return;
+    changing.current = true;
     setBusyId(row._id);
     setActionError(null);
     try {
+      let affected: ComboRef[] = [];
+      if (status === "UNPUBLISH" || status === "DELETED") {
+        const confirmed = await comboImpact.confirm(
+          row._id,
+          status === "UNPUBLISH" ? "Ngừng bán sản phẩm này?" : "Lưu trữ sản phẩm này?"
+        );
+        if (confirmed === null) return;
+        affected = confirmed;
+      }
       await changeProductStatusAPI(row._id, { status, expectedRevision: row.revision });
       successNotification(statusActions[status]);
+      comboImpact.notify(affected);
       reload();
     } catch (cause) {
       if (cause instanceof ApiError && (cause.status === 409 || cause.status === 404)) {
@@ -204,6 +220,7 @@ function ProductsPage() {
         reload();
       } else errorNotification(statusErrorMessage(cause));
     } finally {
+      changing.current = false;
       setBusyId(null);
     }
   };
@@ -214,7 +231,7 @@ function ProductsPage() {
       aria-label={`${label} ${row.name}`}
       disabled={busyId !== null}
       loading={busyId === row._id}
-      onClick={() => void changeStatus(row, status)}
+      onClick={() => changeStatus(row, status)}
     >
       {label}
     </Button>
@@ -265,42 +282,27 @@ function ProductsPage() {
         ) : (
           <Flex gap={8} wrap>
             {row.status === "PUBLISH" ? (
-              <Popconfirm
-                title='Ngừng bán sản phẩm này?'
-                description='Sản phẩm bị ẩn khỏi cửa hàng; có thể đăng bán lại sau.'
-                okText='Ngừng bán sản phẩm'
-                cancelText='Hủy'
-                onConfirm={() => changeStatus(row, "UNPUBLISH")}
+              <Button
+                size='small'
+                aria-label={`Ngừng bán ${row.name}`}
+                disabled={busyId !== null}
+                loading={busyId === row._id}
+                onClick={() => changeStatus(row, "UNPUBLISH")}
               >
-                <Button
-                  size='small'
-                  aria-label={`Ngừng bán ${row.name}`}
-                  disabled={busyId !== null}
-                  loading={busyId === row._id}
-                >
-                  Ngừng bán
-                </Button>
-              </Popconfirm>
+                Ngừng bán
+              </Button>
             ) : (
               action(row, "PUBLISH", "Đăng bán")
             )}
-            <Popconfirm
-              title='Lưu trữ sản phẩm này?'
-              description='Sản phẩm bị ẩn khỏi cửa hàng; khôi phục trong bộ lọc "Đã lưu trữ".'
-              okText='Lưu trữ sản phẩm'
-              cancelText='Hủy'
-              okButtonProps={{ danger: true }}
-              onConfirm={() => changeStatus(row, "DELETED")}
+            <Button
+              size='small'
+              danger
+              aria-label={`Lưu trữ ${row.name}`}
+              disabled={busyId !== null}
+              onClick={() => changeStatus(row, "DELETED")}
             >
-              <Button
-                size='small'
-                danger
-                aria-label={`Lưu trữ ${row.name}`}
-                disabled={busyId !== null}
-              >
-                Lưu trữ
-              </Button>
-            </Popconfirm>
+              Lưu trữ
+            </Button>
           </Flex>
         )
     }
@@ -392,5 +394,9 @@ function ProductsPage() {
 
 export default function Products() {
   const accountId = useAppStore(state => state.profile?._id);
-  return accountId ? <ProductsPage key={accountId} /> : null;
+  return accountId ? (
+    <App component={false}>
+      <ProductsPage key={accountId} />
+    </App>
+  ) : null;
 }

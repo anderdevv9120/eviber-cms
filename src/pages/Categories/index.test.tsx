@@ -24,7 +24,8 @@ const category = (
   name: string,
   sortOrder: number,
   productCount = 0,
-  couponCount = 0
+  couponCount = 0,
+  comboCount = 0
 ): api.Category => ({
   _id: id,
   name,
@@ -34,9 +35,10 @@ const category = (
   sortOrder,
   revision: 0,
   productCount,
-  couponCount
+  couponCount,
+  comboCount
 });
-const shirts = category("a", "Ao So Mi", 0, 3, 2);
+const shirts = category("a", "Ao So Mi", 0, 3, 2, 4);
 const pants = category("b", "Quan Jean", 1);
 const ok = <T,>(data: T) => ({ data, message: "success" });
 
@@ -104,6 +106,8 @@ describe("categories page", () => {
     expect(within(rows()[0]).getByText("ao-so-mi")).toBeTruthy();
     expect(within(rows()[0]).getByText("3")).toBeTruthy();
     expect(within(rows()[0]).getByText("2")).toBeTruthy();
+    expect(within(rows()[0]).getByText("4")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Combo" })).toBeTruthy();
   });
 
   it("saves a dragged order and reloads", async () => {
@@ -166,7 +170,8 @@ describe("categories page", () => {
       new ApiError("in use", 409, {
         code: CATEGORY_ERROR.IN_USE,
         productCount: 3,
-        couponCount: 2
+        couponCount: 2,
+        comboCount: 4
       })
     );
     setup();
@@ -174,7 +179,7 @@ describe("categories page", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Xóa danh mục" }));
     expect(
       await screen.findByText(
-        "Không thể xóa: đang dùng bởi 3 sản phẩm (kể cả đã lưu trữ) và 2 voucher"
+        "Không thể xóa: đang dùng bởi 3 sản phẩm (kể cả đã lưu trữ) và 2 voucher và 4 combo"
       )
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: "Xem sản phẩm" }).getAttribute("href")).toBe(
@@ -183,6 +188,7 @@ describe("categories page", () => {
     expect(screen.getByRole("link", { name: "Xem voucher" }).getAttribute("href")).toBe(
       "/vouchers"
     );
+    expect(screen.getByRole("link", { name: "Xem combo" }).getAttribute("href")).toBe("/combos");
   });
 
   it("adds a category from the form and reloads", async () => {

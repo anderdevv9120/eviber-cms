@@ -16,7 +16,7 @@ export interface CategoryErrorView {
   field?: "name" | "slug";
   message: string;
   stale?: boolean;
-  inUse?: { productCount: number; couponCount: number };
+  inUse?: { productCount: number; couponCount: number; comboCount: number };
 }
 
 const count = (value: unknown) => (typeof value === "number" ? value : 0);
@@ -35,9 +35,10 @@ export function toCategoryErrorView(error: unknown): CategoryErrorView {
     case CATEGORY_ERROR.IN_USE: {
       const productCount = count(details?.productCount);
       const couponCount = count(details?.couponCount);
+      const comboCount = count(details?.comboCount);
       return {
-        inUse: { productCount, couponCount },
-        message: `Không thể xóa: đang dùng bởi ${productCount} sản phẩm (kể cả đã lưu trữ) và ${couponCount} voucher`
+        inUse: { productCount, couponCount, comboCount },
+        message: `Không thể xóa: đang dùng bởi ${productCount} sản phẩm (kể cả đã lưu trữ) và ${couponCount} voucher và ${comboCount} combo`
       };
     }
     default:
