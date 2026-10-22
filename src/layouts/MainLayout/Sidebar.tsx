@@ -13,7 +13,9 @@ import {
   PictureOutlined,
   StarOutlined,
   FileTextOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  ApartmentOutlined,
+  LayoutOutlined
 } from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -43,15 +45,11 @@ const Sidebar = () => {
   );
   const paymentsSelected =
     pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
-  const catalogSelected =
-    pathname === PATH.CATEGORIES ||
-    pathname === PATH.ATTRIBUTES ||
-    !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
-  const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const attributesSelected =
+    pathname === PATH.ATTRIBUTES || !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const customersSelected =
     pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
   const productsSelected = pathname === PATH.PRODUCTS || pathname.startsWith(`${PATH.PRODUCTS}/`);
-  const contentSelected = pathname === PATH.STORE_CONTENT || pathname === PATH.POLICIES;
   const selectedKey =
     pathname === PATH.STORE_CONTENT
       ? "store-content"
@@ -67,7 +65,7 @@ const Sidebar = () => {
                 ? "customers"
                 : pathname === PATH.CATEGORIES
                   ? "categories"
-                  : catalogSelected
+                  : attributesSelected
                     ? "attributes"
                     : productsSelected
                       ? "2"
@@ -91,11 +89,18 @@ const Sidebar = () => {
     }
   };
 
+  // Cài đặt chưa render: mục chưa có màn thì không để link chết
   const sections: { title: string | null; items: NonNullable<MenuProps["items"]> }[] = [
     {
       title: null,
       items: [
-        { key: "1", icon: <HomeOutlined />, label: "Trang chủ", onClick: () => navigate("/") }
+        { key: "1", icon: <HomeOutlined />, label: "Trang chủ", onClick: () => navigate("/") },
+        {
+          key: "reports",
+          icon: <BarChartOutlined />,
+          label: "Báo cáo bán hàng",
+          onClick: () => navigate(PATH.REPORTS)
+        }
       ]
     },
     {
@@ -104,13 +109,13 @@ const Sidebar = () => {
         {
           key: "3",
           icon: <ShoppingCartOutlined />,
-          label: "Quản lý Đơn hàng",
-          onClick: () => navigate("/orders")
+          label: "Đơn hàng",
+          onClick: () => navigate(PATH.ORDER)
         },
         {
           key: "payments",
           icon: <CreditCardOutlined />,
-          label: "Quản lý Thanh toán",
+          label: "Thanh toán",
           onClick: () => navigate(PATH.PAYMENTS)
         },
         {
@@ -118,6 +123,18 @@ const Sidebar = () => {
           icon: <TeamOutlined />,
           label: "Khách hàng",
           onClick: () => navigate(PATH.CUSTOMERS)
+        },
+        {
+          key: "reviews",
+          icon: <StarOutlined />,
+          label: "Đánh giá",
+          onClick: () => navigate(PATH.REVIEWS)
+        },
+        {
+          key: "vouchers",
+          icon: <TagOutlined />,
+          label: "Voucher",
+          onClick: () => navigate(PATH.VOUCHERS)
         }
       ]
     },
@@ -127,7 +144,7 @@ const Sidebar = () => {
         {
           key: "2",
           icon: <ShoppingOutlined />,
-          label: "Quản lý Sản phẩm",
+          label: "Sản phẩm",
           onClick: () => navigate(PATH.PRODUCTS)
         },
         {
@@ -137,40 +154,16 @@ const Sidebar = () => {
           onClick: () => navigate(PATH.INVENTORY)
         },
         {
-          key: "catalog",
-          label: "Danh mục",
+          key: "categories",
           icon: <AppstoreOutlined />,
-          children: [
-            {
-              key: "categories",
-              label: "Danh mục sản phẩm",
-              onClick: () => navigate(PATH.CATEGORIES)
-            },
-            { key: "attributes", label: "Thuộc tính", onClick: () => navigate(PATH.ATTRIBUTES) }
-          ]
-        }
-      ]
-    },
-    {
-      title: "Marketing",
-      items: [
-        {
-          key: "vouchers",
-          icon: <TagOutlined />,
-          label: "Voucher",
-          onClick: () => navigate(PATH.VOUCHERS)
+          label: "Danh mục sản phẩm",
+          onClick: () => navigate(PATH.CATEGORIES)
         },
         {
-          key: "banners",
-          icon: <PictureOutlined />,
-          label: "Banner",
-          onClick: () => navigate(PATH.BANNERS)
-        },
-        {
-          key: "reviews",
-          icon: <StarOutlined />,
-          label: "Đánh giá",
-          onClick: () => navigate(PATH.REVIEWS)
+          key: "attributes",
+          icon: <ApartmentOutlined />,
+          label: "Thuộc tính",
+          onClick: () => navigate(PATH.ATTRIBUTES)
         }
       ]
     },
@@ -178,28 +171,22 @@ const Sidebar = () => {
       title: "Nội dung",
       items: [
         {
-          key: "content",
-          label: "Nội dung",
-          icon: <FileTextOutlined />,
-          children: [
-            {
-              key: "store-content",
-              label: "Nội dung cửa hàng",
-              onClick: () => navigate(PATH.STORE_CONTENT)
-            },
-            { key: "policies", label: "Trang chính sách", onClick: () => navigate(PATH.POLICIES) }
-          ]
-        }
-      ]
-    },
-    {
-      title: "Báo cáo",
-      items: [
+          key: "banners",
+          icon: <PictureOutlined />,
+          label: "Banner",
+          onClick: () => navigate(PATH.BANNERS)
+        },
         {
-          key: "reports",
-          icon: <BarChartOutlined />,
-          label: "Báo cáo bán hàng",
-          onClick: () => navigate(PATH.REPORTS)
+          key: "store-content",
+          icon: <LayoutOutlined />,
+          label: "Nội dung cửa hàng",
+          onClick: () => navigate(PATH.STORE_CONTENT)
+        },
+        {
+          key: "policies",
+          icon: <FileTextOutlined />,
+          label: "Trang chính sách",
+          onClick: () => navigate(PATH.POLICIES)
         }
       ]
     }
@@ -251,18 +238,6 @@ const Sidebar = () => {
           mode='inline'
           inlineIndent={14}
           selectedKeys={[selectedKey]}
-          openKeys={
-            collapsed
-              ? openKeys
-              : Array.from(
-                  new Set([
-                    ...openKeys,
-                    ...(catalogSelected ? ["catalog"] : []),
-                    ...(contentSelected ? ["content"] : [])
-                  ])
-                )
-          }
-          onOpenChange={setOpenKeys}
           items={items}
           className='cms-sider-menu'
         />

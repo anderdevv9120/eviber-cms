@@ -213,18 +213,18 @@ describe("CMS data router", () => {
   });
 
   it.each([
-    ["/orders", "Quản lý Đơn hàng"],
-    ["/payments", "Quản lý Thanh toán"],
-    ["/orders", "Quản lý Đơn hàng", "not_required"],
-    ["/payments", "Quản lý Thanh toán", "not_required"]
+    ["/orders", "Quản lý Đơn hàng", "Đơn hàng"],
+    ["/payments", "Quản lý Thanh toán", "Thanh toán"],
+    ["/orders", "Quản lý Đơn hàng", "Đơn hàng", "not_required"],
+    ["/payments", "Quản lý Thanh toán", "Thanh toán", "not_required"]
   ])(
     "preserves %s query through detail/back, browser Back and a direct reload",
-    async (path, label, paymentStatus = "unpaid") => {
+    async (path, label, menuLabel, paymentStatus = "unpaid") => {
       const query = `?page=3&pageSize=20&search=An&status=pending&paymentStatus=${paymentStatus}`;
       const router = renderRoute(`${path}${query}`);
       const link = await screen.findByRole("link", { name: "Chi tiết" });
       expect(screen.getByRole("heading", { name: label })).toBeTruthy();
-      expect(screen.getByRole("menuitem", { name: new RegExp(label) }).className).toContain(
+      expect(screen.getByRole("menuitem", { name: new RegExp(menuLabel) }).className).toContain(
         "ant-menu-item-selected"
       );
       expect(within(screen.getByRole("navigation")).getByText(label)).toBeTruthy();
@@ -265,12 +265,12 @@ describe("CMS data router", () => {
   });
 
   it.each([
-    ["", "/orders", "Quản lý Đơn hàng"],
-    ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Quản lý Đơn hàng"],
+    ["", "/orders", "Đơn hàng"],
+    ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Đơn hàng"],
     [
       "?returnTo=%2Fpayments%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
       "/payments?page=3&search=An&paymentStatus=paid",
-      "Quản lý Thanh toán"
+      "Thanh toán"
     ]
   ])(
     "loads direct order detail with origin selection and breadcrumbs (%s)",
@@ -388,16 +388,13 @@ describe("CMS data router", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
   }, 20000);
 
-  it("supports direct detail, selected/open catalog menu, scoped breadcrumbs, list and back navigation", async () => {
+  it("supports direct detail, selected catalog menu, scoped breadcrumbs, list and back navigation", async () => {
     const router = renderRoute("/catalog/attributes/size-id");
     await screen.findByRole("link", { name: "Về danh sách thuộc tính" });
     expect(await screen.findByText("S")).toBeTruthy();
     expect(screen.getByText("size")).toBeTruthy();
-    const menu = screen.getByRole("menuitem", { name: "Thuộc tính" });
+    const menu = screen.getByRole("menuitem", { name: /Thuộc tính/ });
     expect(menu.className).toContain("ant-menu-item-selected");
-    expect(screen.getByRole("menuitem", { name: /Danh mục$/ }).getAttribute("aria-expanded")).toBe(
-      "true"
-    );
     const crumbs = screen.getByRole("navigation");
     expect(within(crumbs).getByText("Chi tiết thuộc tính")).toBeTruthy();
     expect(within(crumbs).queryByText("Sản phẩm")).toBeNull();
@@ -541,7 +538,7 @@ describe("CMS data router", () => {
     expect((await screen.findByRole("menuitem", { name: /Tồn kho/ })).className).toContain(
       "ant-menu-item-selected"
     );
-    expect(screen.getByRole("menuitem", { name: /Quản lý Sản phẩm/ }).className).not.toContain(
+    expect(screen.getByRole("menuitem", { name: /Sản phẩm/ }).className).not.toContain(
       "ant-menu-item-selected"
     );
     const crumbs = within(screen.getByRole("navigation"));
