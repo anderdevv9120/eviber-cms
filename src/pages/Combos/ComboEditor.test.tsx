@@ -1,6 +1,7 @@
 import "@/test/attribute-fixtures";
+import { deferred } from "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
@@ -8,6 +9,8 @@ import { ApiError } from "@/utils/request";
 import type { ComboEditorView, ComboProductOption } from "@/services/combos";
 import * as combos from "@/services/combos";
 import * as products from "@/services/products";
+import { uploadImageAPI } from "@/services/banners";
+import { successNotification } from "@/utils/notification";
 import ComboEditor from "./ComboEditor";
 import { comboPublishMissing, validateComboPieces } from "./combo-publish";
 
@@ -98,6 +101,17 @@ function renderEditor(path = "/combos/combo-1") {
 }
 
 beforeEach(() => {
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static createObjectURL = vi.fn((file: File) => `blob:http://localhost/${file.name}`);
+      static revokeObjectURL = vi.fn();
+    }
+  );
+  vi.mocked(uploadImageAPI)
+    .mockReset()
+    .mockResolvedValue(ok({ path: "/images/combo.png" }));
+  vi.mocked(successNotification).mockClear();
   useAppStore.getState().setProfile({
     _id: "admin",
     email: "admin@example.test",
@@ -140,11 +154,16 @@ describe("ComboEditor", () => {
       );
       fireEvent.click(screen.getByRole("button", { name: "Thêm món" }));
     }
+    fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+      target: { files: [new File(["image"], "combo.png", { type: "image/png" })] }
+    });
+    expect(uploadImageAPI).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() => expect(combos.createComboAPI).toHaveBeenCalledTimes(1));
     const payload = vi.mocked(combos.createComboAPI).mock.calls[0][0];
     expect(payload.name).toBe("Combo mới");
     expect(payload.pricing).toEqual({ mode: "PERCENT", value: 10 });
+    expect(payload.images).toEqual(["/images/combo.png"]);
     expect(payload.items.map(item => item.productId)).toEqual(["p1", "p2"]);
     expect(JSON.stringify(payload)).not.toMatch(/"(price|originalPrice)":/);
     await waitFor(() => expect(router.state.location.pathname).toBe("/combos/created"));
@@ -182,9 +201,122 @@ describe("ComboEditor", () => {
   it("does not call create when the required name is missing", async () => {
     renderEditor("/combos/new");
     await screen.findByRole("textbox", { name: "Tên combo" });
+    fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+      target: { files: [new File(["image"], "combo.png", { type: "image/png" })] }
+    });
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     expect(await screen.findByText("Kiểm tra lại thông tin combo.")).toBeTruthy();
     expect(combos.createComboAPI).not.toHaveBeenCalled();
+    expect(uploadImageAPI).not.toHaveBeenCalled();
+  });
+
+  it.each(["Lưu", "Lưu & Đăng bán"])(
+    "previews locally and waits for uploads and the combo write before completing %s",
+    async button => {
+      const upload = deferred<Awaited<ReturnType<typeof uploadImageAPI>>>();
+      const save = deferred<Awaited<ReturnType<typeof combos.updateComboAPI>>>();
+      vi.mocked(uploadImageAPI).mockReturnValue(upload.promise);
+      vi.mocked(combos.updateComboAPI).mockReturnValue(save.promise);
+      renderEditor();
+      await screen.findByDisplayValue("Combo mùa hè");
+      const file = new File(["image"], "combo.png", { type: "image/png" });
+      fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+        target: { files: [file] }
+      });
+      expect(screen.getByAltText("Ảnh 1").getAttribute("src")).toBe(
+        "blob:http://localhost/combo.png"
+      );
+      expect(uploadImageAPI).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      await waitFor(() => expect(uploadImageAPI).toHaveBeenCalledWith(file));
+      expect(combos.updateComboAPI).not.toHaveBeenCalled();
+      expect(combos.changeComboStatusAPI).not.toHaveBeenCalled();
+      expect(successNotification).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/).hasAttribute("disabled")).toBe(
+        true
+      );
+      expect(screen.getByRole("button", { name: "Xóa ảnh 1" }).hasAttribute("disabled")).toBe(true);
+      upload.resolve(ok({ path: "/images/combo.png" }));
+      await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].images).toEqual([
+        "/images/combo.png"
+      ]);
+      expect(successNotification).not.toHaveBeenCalled();
+      save.resolve(ok(combo({ images: ["/images/combo.png"], revision: 4 })));
+      await waitFor(() => expect(successNotification).toHaveBeenCalledTimes(1));
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/combo.png");
+    }
+  );
+
+  it("keeps image order and retries only unfinished uploads after a partial failure", async () => {
+    vi.mocked(combos.getComboAPI).mockResolvedValue(ok(combo({ images: ["/images/old.png"] })));
+    vi.mocked(uploadImageAPI)
+      .mockResolvedValueOnce(ok({ path: "/images/b.png" }))
+      .mockRejectedValueOnce(new Error("Upload failed"))
+      .mockResolvedValueOnce(ok({ path: "/images/a.png" }));
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    const a = new File(["a"], "a.png", { type: "image/png" });
+    const b = new File(["b"], "b.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+      target: { files: [a, b] }
+    });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Sắp xếp ảnh 3" }), { key: "ArrowUp" });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(await screen.findByText("Upload failed")).toBeTruthy();
+    expect(combos.updateComboAPI).not.toHaveBeenCalled();
+    expect(successNotification).not.toHaveBeenCalled();
+    expect(screen.getByAltText("Ảnh 3").getAttribute("src")).toBe("blob:http://localhost/a.png");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(uploadImageAPI).mock.calls.map(([file]) => file)).toEqual([b, a, a]);
+    expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].images).toEqual([
+      "/images/old.png",
+      "/images/b.png",
+      "/images/a.png"
+    ]);
+  });
+
+  it("reuses uploaded images when retrying a failed combo save", async () => {
+    vi.mocked(combos.updateComboAPI).mockRejectedValueOnce(new Error("Save failed"));
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+      target: { files: [new File(["image"], "combo.png", { type: "image/png" })] }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(await screen.findByText("Save failed")).toBeTruthy();
+    expect(successNotification).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(successNotification).toHaveBeenCalledTimes(1));
+    expect(uploadImageAPI).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(combos.updateComboAPI).mock.calls[1][1].images).toEqual(["/images/combo.png"]);
+  });
+
+  it("discards removed files and releases previews when the editor unmounts", async () => {
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+      target: {
+        files: [
+          new File(["a"], "a.png", { type: "image/png" }),
+          new File(["b"], "b.png", { type: "image/png" })
+        ]
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Xóa ảnh 1" }));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/a.png");
+    fireEvent.click(screen.getByRole("button", { name: "Xóa ảnh 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    expect(uploadImageAPI).not.toHaveBeenCalled();
+    await waitFor(() => expect(successNotification).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
+      target: { files: [new File(["c"], "c.png", { type: "image/png" })] }
+    });
+    cleanup();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/c.png");
+    expect(uploadImageAPI).not.toHaveBeenCalled();
   });
 
   it("blocks duplicate products and a locked piece without a valid variant", async () => {
@@ -224,30 +356,121 @@ describe("ComboEditor", () => {
     expect(combos.updateComboAPI).not.toHaveBeenCalled();
   });
 
-  it("rejects a 100 percent discount before sending it", async () => {
+  it("uses the pricing defaults when creating and switching modes", async () => {
+    renderEditor("/combos/new");
+    const percent = await screen.findByRole("spinbutton", { name: "Phần trăm giảm" });
+    expect(percent.getAttribute("aria-valuenow")).toBe("10");
+    expect(percent.getAttribute("aria-valuemin")).toBe("0");
+    expect(percent.getAttribute("aria-valuemax")).toBe("100");
+    fireEvent.click(screen.getByRole("radio", { name: "Giá cố định" }));
+    const fixed = screen.getByRole("spinbutton", { name: "Giá cố định (VND)" });
+    expect(fixed.getAttribute("aria-valuenow")).toBe("0");
+    expect(fixed.getAttribute("aria-valuemin")).toBe("0");
+    expect(fixed.getAttribute("aria-valuemax")).toBe("0");
+    fireEvent.click(screen.getByRole("radio", { name: "Giảm theo %" }));
+    expect(
+      screen.getByRole("spinbutton", { name: "Phần trăm giảm" }).getAttribute("aria-valuenow")
+    ).toBe("10");
+  });
+
+  it.each([0, 100])("saves a %i percent discount", async value => {
     renderEditor();
     await screen.findByDisplayValue("Combo mùa hè");
     fireEvent.change(screen.getByRole("spinbutton", { name: "Phần trăm giảm" }), {
-      target: { value: "100" }
+      target: { value: String(value) }
     });
+    expect(screen.getByRole("button", { name: "Lưu & Đăng bán" }).hasAttribute("disabled")).toBe(
+      false
+    );
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
-    expect(await screen.findByText("Phần trăm giảm phải là số nguyên từ 1 đến 99.")).toBeTruthy();
-    expect(combos.updateComboAPI).not.toHaveBeenCalled();
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].pricing).toEqual({
+      mode: "PERCENT",
+      value
+    });
   });
 
-  it("warns when fixed price exceeds cheapest normal sum but still saves", async () => {
+  it("saves the fixed price default of zero", async () => {
     renderEditor();
     await screen.findByDisplayValue("Combo mùa hè");
     fireEvent.click(screen.getByRole("radio", { name: "Giá cố định" }));
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Giá cố định (VND)" }), {
-      target: { value: "999999" }
-    });
-    expect(await screen.findByText(/Giá cố định cao hơn tổng giá thường rẻ nhất/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
     expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].pricing).toEqual({
       mode: "FIXED",
-      value: 999999
+      value: 0
+    });
+  });
+
+  it.each([
+    [159000, 318000],
+    [100.9, 200]
+  ])("caps fixed prices for unit price %s at %s", async (price, total) => {
+    const view = combo();
+    view.items = view.items.map(item => ({
+      ...item,
+      product: {
+        ...options[0],
+        _id: item.productId,
+        variants: options[0].variants.map(variant => ({ ...variant, price }))
+      }
+    }));
+    vi.mocked(combos.getComboAPI).mockResolvedValue(ok(view));
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    fireEvent.click(screen.getByRole("radio", { name: "Giá cố định" }));
+    const fixed = screen.getByRole("spinbutton", { name: "Giá cố định (VND)" });
+    expect(fixed.getAttribute("aria-valuemax")).toBe(String(total));
+    expect(
+      screen.getByText(`Giá: ${new Intl.NumberFormat("vi-VN").format(total)} ₫ → 0 ₫`)
+    ).toBeTruthy();
+    expect(screen.queryByText(/^Rẻ nhất:/)).toBeNull();
+    expect(screen.queryByText(/^Đắt nhất:/)).toBeNull();
+    fireEvent.change(fixed, { target: { value: "999999" } });
+    fireEvent.blur(fixed);
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].pricing).toEqual({
+      mode: "FIXED",
+      value: total
+    });
+  });
+
+  it("preserves fixed pricing when saving a draft with an unavailable total", async () => {
+    const view = combo({ pricing: { mode: "FIXED", value: 200000 } });
+    view.items[0] = { ...view.items[0], mode: "LOCKED", variantId: "p1-b" };
+    vi.mocked(combos.getComboAPI).mockResolvedValue(ok(view));
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    fireEvent.change(screen.getByRole("textbox", { name: "Tên combo" }), {
+      target: { value: "Combo sửa tên" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].pricing).toEqual(view.pricing);
+  });
+
+  it("warns when fixed price exceeds cheapest normal sum but still saves", async () => {
+    const view = combo();
+    view.items[0].product = {
+      ...options[0],
+      variants: options[0].variants.map(variant => ({ ...variant, status: "ACTIVE" }))
+    };
+    vi.mocked(combos.getComboAPI).mockResolvedValue(ok(view));
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    fireEvent.click(screen.getByRole("radio", { name: "Giá cố định" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Giá cố định (VND)" }), {
+      target: { value: "340000" }
+    });
+    expect(await screen.findByText(/Giá cố định cao hơn tổng giá thường rẻ nhất/)).toBeTruthy();
+    expect(screen.getByText(/^Rẻ nhất:/)).toBeTruthy();
+    expect(screen.getByText(/^Đắt nhất:/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1].pricing).toEqual({
+      mode: "FIXED",
+      value: 340000
     });
   });
 

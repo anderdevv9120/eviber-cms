@@ -14,6 +14,7 @@ interface Props {
   onChange: (images: string[]) => void;
   /** Appends to the latest list, so a remove/reorder made during the upload survives */
   onAdd: (urls: string[]) => void;
+  onSelectFiles?: (files: File[]) => void;
   onRemove: (url: string) => void;
 }
 
@@ -28,6 +29,7 @@ export default function ProductImagesSection({
   disabled,
   onChange,
   onAdd,
+  onSelectFiles,
   onRemove
 }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -37,8 +39,14 @@ export default function ProductImagesSection({
   const position = (url: string) => images.indexOf(url) + 1;
 
   const upload = async (files: FileList | null) => {
+    if (disabled || uploading) return;
     const picked = Array.from(files ?? []).slice(0, MAX_IMAGES - images.length);
     if (!picked.length) return;
+    if (onSelectFiles) {
+      onSelectFiles(picked);
+      if (fileInput.current) fileInput.current.value = "";
+      return;
+    }
     setUploading(true);
     setError(null);
     const added: string[] = [];
@@ -62,7 +70,7 @@ export default function ProductImagesSection({
           disabled={disabled || images.length >= MAX_IMAGES}
           onClick={() => fileInput.current?.click()}
         >
-          Tải ảnh lên
+          {onSelectFiles ? "Chọn ảnh" : "Tải ảnh lên"}
         </Button>
       }
     >
@@ -72,8 +80,11 @@ export default function ProductImagesSection({
         accept='image/*'
         multiple
         hidden
-        aria-label='Chọn ảnh sản phẩm'
-        onChange={event => void upload(event.target.files)}
+        aria-label={`Chọn ${title.toLowerCase()}`}
+        disabled={disabled}
+        onChange={event => {
+          upload(event.target.files).catch(cause => setError(getErrorMessage(cause)));
+        }}
       />
       {error && <Alert type='error' showIcon title={error} className='mb-4' />}
       <SortableTable

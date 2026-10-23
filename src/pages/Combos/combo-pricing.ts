@@ -17,13 +17,13 @@ export function comboTotals(
   pricing: ComboPricing,
   pieces: Array<{ price: number; quantity: number }>
 ): Totals {
-  const normal = pieces.reduce((sum, { price, quantity }) => sum + price * quantity, 0);
+  const normal = pieces.reduce((sum, { price, quantity }) => sum + Math.floor(price) * quantity, 0);
   const combo =
     pricing.mode === "FIXED"
       ? Math.min(pricing.value, normal)
       : pieces.reduce(
           (sum, { price, quantity }) =>
-            sum + Math.floor((price * (100 - pricing.value)) / 100) * quantity,
+            sum + Math.floor((Math.floor(price) * (100 - pricing.value)) / 100) * quantity,
           0
         );
   return { normal, combo };

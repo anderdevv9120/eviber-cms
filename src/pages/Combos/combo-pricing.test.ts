@@ -20,6 +20,15 @@ const product = (id: string, prices: number[]): ComboProductOption => ({
 });
 
 describe("comboTotals", () => {
+  it("floors decimal unit prices before computing totals and discounts", () => {
+    const pieces = [{ price: 100.9, quantity: 2 }];
+    expect(comboTotals({ mode: "FIXED", value: 201 }, pieces)).toEqual({ normal: 200, combo: 200 });
+    expect(comboTotals({ mode: "PERCENT", value: 10 }, pieces)).toEqual({
+      normal: 200,
+      combo: 180
+    });
+  });
+
   it("floors each discounted unit before multiplying quantity", () => {
     expect(
       comboTotals({ mode: "PERCENT", value: 15 }, [

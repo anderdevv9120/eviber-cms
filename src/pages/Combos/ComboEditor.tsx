@@ -33,6 +33,7 @@ import {
   type ComboWriteInput
 } from "@/services/combos";
 import { useAppStore } from "@/store/useAppStore";
+import { uploadImageAPI } from "@/services/banners";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
 import { ApiError } from "@/utils/request";
@@ -104,6 +105,7 @@ function ComboEditorPage({ id }: { id?: string }) {
   const [serverMissing, setServerMissing] = useState<ComboPublishRequirement[]>([]);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const html = useRef("");
+  const pendingImages = useRef(new Map<string, File>());
   const awaitingMountEmission = useRef(false);
   const baselineHtml = useRef<string | null>(null);
   const categoryIds = (Form.useWatch("categoryIds", form) as string[] | undefined) ?? [];
@@ -114,6 +116,8 @@ function ComboEditorPage({ id }: { id?: string }) {
       setCombo(view);
       setPieces(rowsOf(view));
       setPricing(view.pricing);
+      for (const preview of pendingImages.current.keys()) URL.revokeObjectURL(preview);
+      pendingImages.current.clear();
       setImages(view.images);
       form.setFieldsValue({
         name: view.name,
@@ -133,6 +137,14 @@ function ComboEditorPage({ id }: { id?: string }) {
     },
     [form]
   );
+
+  useEffect(() => {
+    const pending = pendingImages.current;
+    return () => {
+      for (const preview of pending.keys()) URL.revokeObjectURL(preview);
+      pending.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -174,10 +186,12 @@ function ComboEditorPage({ id }: { id?: string }) {
   const products = pieces.flatMap(row => (row.product ? [row.product] : []));
   const missing = comboPublishMissing({ categoryIds, items: pieces, products });
   const preview = comboPreview(pricing, pieces, products);
+  const fixedPriceMax = pieces.length === 0 ? 0 : preview.priciest?.normal;
+  const maxPrice = pricing.mode === "PERCENT" ? 100 : fixedPriceMax;
   const invalidPrice =
     !Number.isSafeInteger(pricing.value) ||
-    pricing.value <= 0 ||
-    (pricing.mode === "PERCENT" && pricing.value > 99);
+    pricing.value < 0 ||
+    (maxPrice !== undefined && pricing.value > maxPrice);
   const canPublish =
     missing.length === 0 &&
     Object.keys(validateComboPieces(pieces)).length === 0 &&
@@ -254,13 +268,34 @@ function ComboEditorPage({ id }: { id?: string }) {
       if (invalidPrice)
         return setError(
           pricing.mode === "PERCENT"
-            ? "Phần trăm giảm phải là số nguyên từ 1 đến 99."
-            : "Giá cố định phải là số nguyên dương an toàn."
+            ? "Phần trăm giảm phải là số nguyên từ 0 đến 100."
+            : "Giá cố định phải là số nguyên từ 0 đến tổng giá combo."
         );
       if (hasInvalidDescriptionImage(html.current))
         return setDescriptionError(DESCRIPTION_IMAGE_INVALID);
       if (publish && !canPublish) return setError("Chưa đủ điều kiện đăng bán combo.");
       const input = buildInput(values);
+      const selectedImages = input.images.map(url => ({
+        url,
+        file: pendingImages.current.get(url)
+      }));
+      const uploadedImages: string[] = [];
+      try {
+        for (const { url, file } of selectedImages) {
+          if (!file) {
+            uploadedImages.push(url);
+            continue;
+          }
+          const path = (await uploadImageAPI(file)).data.path;
+          uploadedImages.push(path);
+          setImages(previous => previous.map(image => (image === url ? path : image)));
+          pendingImages.current.delete(url);
+          URL.revokeObjectURL(url);
+        }
+      } catch (cause) {
+        return setError(getErrorMessage(cause));
+      }
+      input.images = uploadedImages;
       let view: ComboEditorView;
       try {
         view = combo
@@ -440,7 +475,17 @@ function ComboEditorPage({ id }: { id?: string }) {
                 setImages(previous => [...previous, ...urls]);
                 setDirty(true);
               }}
+              onSelectFiles={files => {
+                const previews = files.map(file => {
+                  const preview = URL.createObjectURL(file);
+                  pendingImages.current.set(preview, file);
+                  return preview;
+                });
+                setImages(previous => [...previous, ...previews]);
+                setDirty(true);
+              }}
               onRemove={url => {
+                if (pendingImages.current.delete(url)) URL.revokeObjectURL(url);
                 setImages(previous => previous.filter(image => image !== url));
                 setDirty(true);
               }}
@@ -462,6 +507,7 @@ function ComboEditorPage({ id }: { id?: string }) {
             />
             <ComboPriceSection
               pricing={pricing}
+              maxPrice={maxPrice}
               {...preview}
               disabled={busy}
               onChange={next => {

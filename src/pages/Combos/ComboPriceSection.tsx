@@ -6,6 +6,7 @@ const vnd = (value: number) => `${new Intl.NumberFormat("vi-VN").format(value)} 
 
 export default function ComboPriceSection({
   pricing,
+  maxPrice,
   cheapest,
   priciest,
   fixedAboveCheapest,
@@ -13,6 +14,7 @@ export default function ComboPriceSection({
   onChange
 }: {
   pricing: ComboPricing;
+  maxPrice: number | undefined;
   cheapest: Totals | null;
   priciest: Totals | null;
   fixedAboveCheapest: boolean;
@@ -27,7 +29,10 @@ export default function ComboPriceSection({
           value={pricing.mode}
           disabled={disabled}
           onChange={event =>
-            onChange({ mode: event.target.value as ComboPricing["mode"], value: pricing.value })
+            onChange({
+              mode: event.target.value as ComboPricing["mode"],
+              value: event.target.value === "PERCENT" ? 10 : 0
+            })
           }
           options={[
             { label: "Giảm theo %", value: "PERCENT" },
@@ -37,8 +42,8 @@ export default function ComboPriceSection({
         <InputNumber
           aria-label={pricing.mode === "PERCENT" ? "Phần trăm giảm" : "Giá cố định (VND)"}
           value={pricing.value}
-          min={1}
-          max={pricing.mode === "PERCENT" ? undefined : Number.MAX_SAFE_INTEGER}
+          min={0}
+          max={maxPrice}
           precision={0}
           disabled={disabled}
           className='w-full'
@@ -50,12 +55,20 @@ export default function ComboPriceSection({
         </Typography.Text>
         {cheapest && priciest ? (
           <Flex vertical gap={4}>
-            <span>
-              Rẻ nhất: {vnd(cheapest.normal)} → {vnd(cheapest.combo)}
-            </span>
-            <span>
-              Đắt nhất: {vnd(priciest.normal)} → {vnd(priciest.combo)}
-            </span>
+            {cheapest.normal === priciest.normal && cheapest.combo === priciest.combo ? (
+              <span>
+                Giá: {vnd(cheapest.normal)} → {vnd(cheapest.combo)}
+              </span>
+            ) : (
+              <>
+                <span>
+                  Rẻ nhất: {vnd(cheapest.normal)} → {vnd(cheapest.combo)}
+                </span>
+                <span>
+                  Đắt nhất: {vnd(priciest.normal)} → {vnd(priciest.combo)}
+                </span>
+              </>
+            )}
           </Flex>
         ) : (
           <Typography.Text type='secondary'>
