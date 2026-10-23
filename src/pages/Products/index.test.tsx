@@ -4,9 +4,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
-import { errorNotification } from "@/utils/notification";
+import { errorNotification, warningNotification } from "@/utils/notification";
 import * as api from "@/services/products";
 import * as categoriesApi from "@/services/categories";
+import * as combosApi from "@/services/combos";
 import Products from "./index";
 
 vi.mock("@/services/categories", () => ({ listCategoriesAPI: vi.fn() }));
@@ -14,9 +15,11 @@ vi.mock("@/services/products", () => ({
   listProductsAPI: vi.fn(),
   changeProductStatusAPI: vi.fn()
 }));
+vi.mock("@/services/combos", () => ({ listAffectedCombosAPI: vi.fn() }));
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
-  errorNotification: vi.fn()
+  errorNotification: vi.fn(),
+  warningNotification: vi.fn()
 }));
 
 const categoryId = "000000000000000000000002";
@@ -48,9 +51,15 @@ const profile = {
   status: "ACTIVE"
 };
 const renderList = (path = "/products") => {
-  const router = createMemoryRouter([{ path: "/products", element: <Products /> }], {
-    initialEntries: [path]
-  });
+  const router = createMemoryRouter(
+    [
+      { path: "/products", element: <Products /> },
+      { path: "/catalog/combos", element: <p>Combo cần xử lý</p> }
+    ],
+    {
+      initialEntries: [path]
+    }
+  );
   return { router, ...render(<RouterProvider router={router} />) };
 };
 const select = async (label: string, text: string) => {
@@ -76,6 +85,10 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ data: {} as api.ProductEditorView, message: "success" });
   vi.mocked(errorNotification).mockReset();
+  vi.mocked(warningNotification).mockReset();
+  vi.mocked(combosApi.listAffectedCombosAPI)
+    .mockReset()
+    .mockResolvedValue({ data: { combos: [] }, message: "success" });
 });
 
 describe("Products list", () => {
@@ -130,7 +143,7 @@ describe("Products list", () => {
     renderList();
     fireEvent.click(await screen.findByRole("button", { name: "Ngừng bán Áo thun" }));
     expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: "Ngừng bán sản phẩm" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     await waitFor(() =>
       expect(api.changeProductStatusAPI).toHaveBeenCalledWith("p1", {
         status: "UNPUBLISH",
@@ -143,7 +156,7 @@ describe("Products list", () => {
     renderList();
     fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
     expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ sản phẩm" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     await waitFor(() =>
       expect(api.changeProductStatusAPI).toHaveBeenCalledWith("p1", {
         status: "DELETED",
@@ -151,6 +164,61 @@ describe("Products list", () => {
       })
     );
     await waitFor(() => expect(api.listProductsAPI).toHaveBeenCalledTimes(2));
+  });
+
+  it("archives with two affected combos once and offers the attention list", async () => {
+    vi.mocked(combosApi.listAffectedCombosAPI).mockResolvedValue({
+      data: {
+        combos: [
+          { _id: "c1", name: "Combo 1", status: "PUBLISH" },
+          { _id: "c2", name: "Combo 2", status: "DRAFT" }
+        ]
+      },
+      message: "success"
+    });
+    const { router } = renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("Combo 1");
+    expect(dialog.textContent).toContain("Combo 2");
+    const okButton = within(dialog).getByRole("button", { name: "Tiếp tục" });
+    fireEvent.click(okButton);
+    fireEvent.click(okButton);
+    await waitFor(() => expect(api.changeProductStatusAPI).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(warningNotification).toHaveBeenCalledWith(
+        "2 combo bị ảnh hưởng",
+        expect.objectContaining({ actions: expect.anything() })
+      )
+    );
+    render(<>{vi.mocked(warningNotification).mock.calls[0][1]?.actions}</>);
+    fireEvent.click(screen.getByRole("button", { name: "Sửa combo" }));
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(
+        "/catalog/combos?attention=1"
+      )
+    );
+  });
+
+  it("shows a warning in the dialog when combo lookup fails, then archives", async () => {
+    vi.mocked(combosApi.listAffectedCombosAPI).mockRejectedValue(new Error("offline"));
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
+    expect((await screen.findByRole("dialog")).textContent).toContain(
+      "Không kiểm tra được combo bị ảnh hưởng"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    await waitFor(() => expect(api.changeProductStatusAPI).toHaveBeenCalledTimes(1));
+  });
+
+  it("uses the previous plain question when no combos are affected", async () => {
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("Lưu trữ sản phẩm này?");
+    expect(dialog.textContent).not.toContain("Combo bị ảnh hưởng");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
   });
 
   it("refetches the list and explains a 409 from a row action", async () => {

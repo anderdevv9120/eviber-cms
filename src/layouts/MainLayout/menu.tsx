@@ -14,7 +14,8 @@ import {
   ApartmentOutlined,
   LayoutOutlined,
   SettingOutlined,
-  ShopOutlined
+  ShopOutlined,
+  GiftOutlined
 } from "@ant-design/icons";
 import { PATH } from "@/constants/paths";
 
@@ -42,6 +43,7 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
     title: "Catalog",
     items: [
       { key: PATH.PRODUCTS, icon: <ShoppingOutlined />, label: "Sản phẩm" },
+      { key: PATH.COMBOS, icon: <GiftOutlined />, label: "Combo" },
       { key: PATH.INVENTORY, icon: <InboxOutlined />, label: "Tồn kho" },
       { key: PATH.CATEGORIES, icon: <AppstoreOutlined />, label: "Danh mục sản phẩm" },
       { key: PATH.ATTRIBUTES, icon: <ApartmentOutlined />, label: "Thuộc tính" }

@@ -31,6 +31,7 @@ export interface PaymentHistoryEntry {
   reference?: string;
 }
 export interface OrderProduct {
+  comboGroupId?: string;
   productId: string;
   variantId: string;
   quantity: number;
@@ -41,6 +42,17 @@ export interface OrderProduct {
   attributeValuesAtOrder?: { name: string; value: string }[];
   priceAtOrder: number;
   originalPriceAtOrder: number;
+}
+export interface OrderCombo {
+  comboGroupId: string;
+  comboId: string;
+  nameAtOrder: string;
+  slugAtOrder?: string;
+  imageAtOrder?: string;
+  quantity: number;
+  pricingModeAtOrder: "PERCENT" | "FIXED";
+  pricingValueAtOrder: number;
+  totalAtOrder: number;
 }
 export interface AdminOrderSummary {
   _id: string;
@@ -107,6 +119,7 @@ export interface OrderActionEligibility {
   returnDeadline: string | null;
 }
 export interface AdminOrderDetail extends Omit<AdminOrderSummary, "revision"> {
+  combos?: OrderCombo[];
   revision: number;
   actions: OrderActionEligibility;
 }

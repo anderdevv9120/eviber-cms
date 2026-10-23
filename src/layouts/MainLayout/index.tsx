@@ -17,6 +17,7 @@ const { Content } = Layout;
 // Tra theo mục menu đang sáng nên route con dùng crumb của mục cha; màn chưa khai thì không hiện crumb
 const STATIC_BREADCRUMBS: Record<string, string[]> = {
   [PATH.PRODUCTS]: ["Catalog", "Sản phẩm"],
+  [PATH.COMBOS]: ["Catalog", "Combo"],
   [PATH.CATEGORIES]: ["Catalog", "Danh mục sản phẩm"],
   [PATH.CONTENT_HOME]: ["Nội dung", "Trang chủ"],
   [PATH.CONTENT_INFO]: ["Nội dung", "Thông tin cửa hàng"],

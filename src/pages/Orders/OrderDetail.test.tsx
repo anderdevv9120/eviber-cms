@@ -1,3 +1,4 @@
+import "@/test/attribute-fixtures";
 import { describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -15,6 +16,66 @@ const renderDetail = (path = "/orders/order-id") => {
 };
 
 describe("shared order detail", () => {
+  it("expands a combo snapshot into merged pieces with exact totals and no split unit price", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        combos: [
+          {
+            comboGroupId: "group-a",
+            comboId: "combo-id",
+            nameAtOrder: "Combo tại thời điểm mua",
+            quantity: 1,
+            pricingModeAtOrder: "FIXED",
+            pricingValueAtOrder: 400000,
+            totalAtOrder: 400000
+          }
+        ],
+        productInfo: [
+          {
+            ...order.productInfo[0],
+            comboGroupId: "group-a",
+            quantity: 1,
+            priceAtOrder: 123018,
+            originalPriceAtOrder: 159000
+          },
+          {
+            ...order.productInfo[0],
+            comboGroupId: "group-a",
+            quantity: 1,
+            priceAtOrder: 123017,
+            originalPriceAtOrder: 159000
+          },
+          {
+            ...order.productInfo[0],
+            comboGroupId: "group-a",
+            variantId: "bag",
+            productNameAtOrder: "Túi lúc mua",
+            variantSkuAtOrder: "BAG",
+            quantity: 1,
+            priceAtOrder: 153965,
+            originalPriceAtOrder: 199000
+          }
+        ]
+      });
+    renderDetail();
+    const products = within(await screen.findByRole("region", { name: "Sản phẩm đã mua" }));
+    const comboRow = within(products.getByRole("row", { name: /Combo tại thời điểm mua/ }));
+    expect(comboRow.getByText("400.000 ₫")).toBeTruthy();
+    expect(comboRow.getByText("1")).toBeTruthy();
+    expect(products.queryByText("Áo tại thời điểm mua")).toBeNull();
+    fireEvent.click(comboRow.getByRole("button", { name: /expand/i }));
+    const pieceRow = within(products.getByRole("row", { name: /SKU-S/ }));
+    const headers = products.getAllByRole("columnheader").map(header => header.textContent);
+    expect(pieceRow.getAllByRole("cell")[headers.indexOf("Đơn giá lúc mua")].textContent).toBe("—");
+    for (const text of ["2", "246.035 ₫", "Kích thước: S", "159.000 ₫"])
+      expect(pieceRow.getByText(text)).toBeTruthy();
+    expect(
+      within(products.getByRole("row", { name: /BAG/ })).getAllByText("153.965 ₫")
+    ).toHaveLength(2);
+    expect(products.getAllByRole("row", { name: /SKU-S/ })).toHaveLength(1);
+  });
+
   it("displays the free-payment state and only enabled fulfillment actions", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(config, {

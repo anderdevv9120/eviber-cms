@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Descriptions, Flex, Result, Spin, Table, Tag, Typography } from "antd";
 import { Link, useLocation, useParams } from "react-router";
-import { getOrderAPI, type AdminOrderDetail, type OrderProduct } from "@/services/orders";
+import { getOrderAPI, type AdminOrderDetail } from "@/services/orders";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { PATH } from "@/constants/paths";
 import { readOrderReturnTo } from "./order-list-query";
+import { groupOrderLines, type OrderLineRow } from "./order-lines";
 import {
   displayOrderText,
   formatOrderAmount,
@@ -218,9 +219,9 @@ function OrderDetailRead({
           </section>
           <section aria-label='Sản phẩm đã mua' className='mt-6'>
             <Typography.Title level={3}>Sản phẩm đã mua</Typography.Title>
-            <Table<OrderProduct>
+            <Table<OrderLineRow>
               pagination={false}
-              dataSource={order.productInfo.map((item, key) => ({ ...item, key }))}
+              dataSource={groupOrderLines(order.productInfo, order.combos)}
               locale={{ emptyText: "Chưa có dữ liệu" }}
               columns={[
                 {
@@ -228,31 +229,31 @@ function OrderDetailRead({
                   key: "product",
                   render: (_, item) => (
                     <>
-                      {item.variantImageAtOrder?.trim() ? (
+                      {item.image?.trim() ? (
                         <img
-                          src={item.variantImageAtOrder}
-                          alt={displayOrderText(item.productNameAtOrder)}
+                          src={item.image}
+                          alt={displayOrderText(item.name)}
                           width={64}
                           height={64}
                         />
                       ) : (
                         <p>Chưa có hình ảnh</p>
                       )}
-                      <div>{displayOrderText(item.productNameAtOrder)}</div>
+                      <div>{displayOrderText(item.name)}</div>
                     </>
                   )
                 },
                 {
                   title: "SKU",
                   key: "sku",
-                  render: (_, item) => displayOrderText(item.variantSkuAtOrder)
+                  render: (_, item) => displayOrderText(item.sku)
                 },
                 {
                   title: "Thuộc tính lúc mua",
                   key: "attributes",
                   render: (_, item) =>
-                    item.attributeValuesAtOrder?.length
-                      ? item.attributeValuesAtOrder.map((attribute, index) => (
+                    item.attributes?.length
+                      ? item.attributes.map((attribute, index) => (
                           <div key={index}>
                             {attribute.name}: {attribute.value}
                           </div>
@@ -263,17 +264,17 @@ function OrderDetailRead({
                 {
                   title: "Giá gốc lúc mua",
                   key: "originalPrice",
-                  render: (_, item) => amount(item.originalPriceAtOrder)
+                  render: (_, item) => amount(item.originalUnitPrice)
                 },
                 {
                   title: "Đơn giá lúc mua",
                   key: "price",
-                  render: (_, item) => amount(item.priceAtOrder)
+                  render: (_, item) => (item.unitPrice === null ? "—" : amount(item.unitPrice))
                 },
                 {
                   title: "Thành tiền",
                   key: "total",
-                  render: (_, item) => amount(item.priceAtOrder * item.quantity)
+                  render: (_, item) => amount(item.lineTotal)
                 }
               ]}
             />

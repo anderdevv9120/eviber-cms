@@ -25,7 +25,8 @@ const shirts: api.Category = {
   sortOrder: 0,
   revision: 3,
   productCount: 0,
-  couponCount: 0
+  couponCount: 0,
+  comboCount: 0
 };
 const ok = <T,>(data: T) => ({ data, message: "success" });
 

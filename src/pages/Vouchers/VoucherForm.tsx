@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import {
   Alert,
   Button,
@@ -8,20 +8,18 @@ import {
   Form,
   Input,
   InputNumber,
-  Pagination,
   Select,
   Typography
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import RemoteSelect, { type RemoteSelectQuery } from "@/components/RemoteSelect";
 import {
   listVoucherCategoryTargetsAPI,
   listVoucherProductTargetsAPI,
   type AdminCouponDetail,
   type CouponInput,
   type CouponScope,
-  type CouponTarget,
-  type SelectedCouponTarget,
-  type VoucherPage
+  type CouponTarget
 } from "@/services/vouchers";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import {
@@ -62,106 +60,10 @@ const moneyInput = {
   }
 };
 
-function TargetPicker({
-  scope,
-  selected,
-  value = [],
-  onChange
-}: {
-  scope: "products" | "categories";
-  selected: SelectedCouponTarget[];
-  value?: string[];
-  onChange?: (value: string[]) => void;
-}) {
-  const [query, setQuery] = useState({ search: "", page: 1, pageSize: 10 });
-  const [attempt, setAttempt] = useState(0);
-  const [view, setView] = useState<{ result?: VoucherPage<CouponTarget>; error?: string }>({});
-  const [retained, setRetained] = useState(selected);
-  const label = scope === "products" ? "Sản phẩm áp dụng" : "Danh mục áp dụng";
-  useEffect(() => {
-    const controller = new AbortController();
-    const read =
-      scope === "products" ? listVoucherProductTargetsAPI : listVoucherCategoryTargetsAPI;
-    read(query, controller.signal)
-      .then(({ data }) => {
-        if (!controller.signal.aborted) setView({ result: checkVoucherPage(data, query) });
-      })
-      .catch(cause => {
-        if (!controller.signal.aborted) setView({ error: getErrorMessage(cause) });
-      });
-    return () => controller.abort();
-  }, [scope, query, attempt]);
-  const targets = new Map(retained.map(target => [target._id, target]));
-  for (const target of view.result?.data ?? [])
-    targets.set(target._id, { ...target, unavailable: false });
-  for (const id of value)
-    if (!targets.has(id)) targets.set(id, { _id: id, name: null, unavailable: true });
-  const options = [...targets.values()].map(target => ({
-    value: target._id,
-    label: target.unavailable ? `Không còn khả dụng (${target._id})` : (target.name ?? target._id)
-  }));
-  const changeQuery = (search: string, page = 1) => {
-    setView({});
-    setQuery({ ...query, search, page });
-  };
-  return (
-    <Flex vertical gap={8}>
-      {view.error && (
-        <Alert
-          type='error'
-          title={view.error}
-          action={
-            <Button
-              onClick={() => {
-                setView({});
-                setAttempt(n => n + 1);
-              }}
-            >
-              Thử lại mục áp dụng
-            </Button>
-          }
-        />
-      )}
-      <Select
-        aria-label={label}
-        mode='multiple'
-        placeholder={scope === "products" ? "Tìm và chọn sản phẩm" : "Tìm và chọn danh mục"}
-        // Server-side search: the API pages targets, so the Select must not filter locally.
-        showSearch={{
-          searchValue: query.search,
-          onSearch: search => changeQuery(search.slice(0, 255)),
-          filterOption: false,
-          autoClearSearchValue: false
-        }}
-        loading={!view.result && !view.error}
-        value={value}
-        options={options}
-        onChange={ids => {
-          setRetained(ids.map((id: string) => targets.get(id)!).filter(Boolean));
-          onChange?.(ids);
-        }}
-        popupRender={menu => (
-          <>
-            {menu}
-            {view.result && view.result.total > query.pageSize && (
-              // Keep focus in the Select so paging does not close the popup.
-              <div className='px-2 pt-2' onMouseDown={event => event.preventDefault()}>
-                <Pagination
-                  size='small'
-                  current={query.page}
-                  pageSize={query.pageSize}
-                  total={view.result.total}
-                  showSizeChanger={false}
-                  onChange={page => changeQuery(query.search, page)}
-                />
-              </div>
-            )}
-          </>
-        )}
-      />
-    </Flex>
-  );
-}
+const loadVoucherProducts = async (query: RemoteSelectQuery, signal: AbortSignal) =>
+  checkVoucherPage((await listVoucherProductTargetsAPI(query, signal)).data, query);
+const loadVoucherCategories = async (query: RemoteSelectQuery, signal: AbortSignal) =>
+  checkVoucherPage((await listVoucherCategoryTargetsAPI(query, signal)).data, query);
 
 export default function VoucherForm({
   voucher,
@@ -345,14 +247,23 @@ export default function VoucherForm({
             }
           ]}
         >
-          <TargetPicker
+          <RemoteSelect<CouponTarget>
             key={scope}
-            scope={scope}
-            selected={
-              scope === "products"
-                ? (voucher?.selectedProducts ?? [])
-                : (voucher?.selectedCategories ?? [])
-            }
+            load={scope === "products" ? loadVoucherProducts : loadVoucherCategories}
+            label={target => target.name}
+            mode='multiple'
+            ariaLabel={scope === "products" ? "Sản phẩm áp dụng" : "Danh mục áp dụng"}
+            placeholder={scope === "products" ? "Tìm và chọn sản phẩm" : "Tìm và chọn danh mục"}
+            retryLabel='Thử lại mục áp dụng'
+            selected={(scope === "products"
+              ? (voucher?.selectedProducts ?? [])
+              : (voucher?.selectedCategories ?? [])
+            ).map(target => ({
+              _id: target._id,
+              label: target.unavailable
+                ? `Không còn khả dụng (${target._id})`
+                : (target.name ?? target._id)
+            }))}
           />
         </Form.Item>
       )}

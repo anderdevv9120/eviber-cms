@@ -11,6 +11,7 @@ export interface Category {
   revision: number;
   productCount: number;
   couponCount: number;
+  comboCount: number;
   updated_at?: string;
 }
 export interface CategoryInput {

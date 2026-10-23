@@ -30,14 +30,16 @@ describe("toCategoryErrorView", () => {
 
   it("reports in-use counts, defaulting missing ones to 0", () => {
     expect(
-      toCategoryErrorView(fail(CATEGORY_ERROR.IN_USE, 409, { productCount: 2, couponCount: 1 }))
+      toCategoryErrorView(
+        fail(CATEGORY_ERROR.IN_USE, 409, { productCount: 2, couponCount: 1, comboCount: 3 })
+      )
     ).toEqual({
-      inUse: { productCount: 2, couponCount: 1 },
-      message: "Không thể xóa: đang dùng bởi 2 sản phẩm (kể cả đã lưu trữ) và 1 voucher"
+      inUse: { productCount: 2, couponCount: 1, comboCount: 3 },
+      message: "Không thể xóa: đang dùng bởi 2 sản phẩm (kể cả đã lưu trữ) và 1 voucher và 3 combo"
     });
     expect(toCategoryErrorView(fail(CATEGORY_ERROR.IN_USE, 409, { productCount: "3" }))).toEqual({
-      inUse: { productCount: 0, couponCount: 0 },
-      message: "Không thể xóa: đang dùng bởi 0 sản phẩm (kể cả đã lưu trữ) và 0 voucher"
+      inUse: { productCount: 0, couponCount: 0, comboCount: 0 },
+      message: "Không thể xóa: đang dùng bởi 0 sản phẩm (kể cả đã lưu trữ) và 0 voucher và 0 combo"
     });
   });
 

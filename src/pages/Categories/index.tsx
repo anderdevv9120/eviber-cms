@@ -21,7 +21,7 @@ import CategoryForm from "./CategoryForm";
 
 interface ActionError {
   message: string;
-  /** Danh mục đang được dùng → hiện link sang sản phẩm/voucher */
+  /** Danh mục đang được dùng → hiện link sang sản phẩm/voucher/combo */
   inUseId?: string;
 }
 
@@ -113,6 +113,7 @@ function CategoriesContent() {
     { title: "Slug", render: (_, row) => <Typography.Text code>{row.slug}</Typography.Text> },
     { title: "Sản phẩm", width: 100, align: "right", dataIndex: "productCount" },
     { title: "Voucher", width: 100, align: "right", dataIndex: "couponCount" },
+    { title: "Combo", width: 100, align: "right", dataIndex: "comboCount" },
     {
       title: "Thao tác",
       width: 160,
@@ -134,7 +135,7 @@ function CategoriesContent() {
           >
             <Tooltip
               title={
-                row.productCount || row.couponCount
+                row.productCount || row.couponCount || row.comboCount
                   ? "Danh mục đang được dùng, sẽ không xóa được"
                   : undefined
               }
@@ -200,6 +201,7 @@ function CategoriesContent() {
                   Xem sản phẩm
                 </Link>
                 <Link to={PATH.VOUCHERS}>Xem voucher</Link>
+                <Link to={PATH.COMBOS}>Xem combo</Link>
               </Flex>
             )
           }

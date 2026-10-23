@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Flex, Form, Popconfirm, Spin, Tag, Typography } from "antd";
+import { Alert, App, Button, Flex, Form, Spin, Tag, Typography } from "antd";
 import { Link, useNavigate, useParams } from "react-router";
 import {
   changeProductStatusAPI,
@@ -23,6 +23,9 @@ import { buildGrid, clearImage, lockedValueIds, toSlug, toVariantPayload } from 
 import type { GridRow } from "./variant-grid";
 import { mapProductError, type SentVariant } from "./product-errors";
 import { productStatusLabels } from "./product-list-query";
+import { impactOf } from "./combo-impact";
+import { useComboImpact } from "./useComboImpact";
+import type { ComboRef } from "@/services/combos";
 import ProductInfoSection from "./ProductInfoSection";
 import ProductImagesSection from "./ProductImagesSection";
 import ProductOptionsSection, { type OptionState } from "./ProductOptionsSection";
@@ -90,6 +93,7 @@ function validateRows(rows: GridRow[]): CellErrors {
 
 function ProductEditorPage({ id }: { id?: string }) {
   const navigate = useNavigate();
+  const comboImpact = useComboImpact();
   const { modal } = App.useApp();
   const [form] = Form.useForm<FormValues>();
   const [product, setProduct] = useState<ProductEditorView | null>(null);
@@ -295,6 +299,16 @@ function ProductEditorPage({ id }: { id?: string }) {
         return setDescriptionError(DESCRIPTION_IMAGE_INVALID);
       }
       const input = buildInput(values);
+      const changes = impactOf(savedVariants, rows);
+      let affected: ComboRef[] = [];
+      if (product && (changes.priceChanged || changes.deactivated)) {
+        const confirmed = await comboImpact.confirm(
+          product._id,
+          changes.deactivated ? "Ngừng bán biến thể sản phẩm này?" : "Thay đổi giá sản phẩm này?"
+        );
+        if (confirmed === null) return;
+        affected = confirmed;
+      }
       let view: ProductEditorView;
       try {
         view = product
@@ -327,6 +341,7 @@ function ProductEditorPage({ id }: { id?: string }) {
         }
       }
       successNotification(published ? "Đã lưu và đăng bán sản phẩm" : "Đã lưu sản phẩm");
+      if (changes.deactivated) comboImpact.notify(affected);
       if (!product) setCreatedId(view._id);
     } finally {
       setSaving(false);
@@ -338,12 +353,22 @@ function ProductEditorPage({ id }: { id?: string }) {
     setSaving(true);
     setError(null);
     try {
+      let affected: ComboRef[] = [];
+      if (status === "UNPUBLISH" || status === "DELETED") {
+        const confirmed = await comboImpact.confirm(
+          product._id,
+          status === "UNPUBLISH" ? "Ngừng bán sản phẩm này?" : "Lưu trữ sản phẩm này?"
+        );
+        if (confirmed === null) return;
+        affected = confirmed;
+      }
       const { data } = await changeProductStatusAPI(product._id, {
         status,
         expectedRevision: product.revision
       });
       applyView(data);
       successNotification(statusMessages[status] ?? "Đã cập nhật trạng thái");
+      comboImpact.notify(affected);
     } catch (cause) {
       showError(cause, []);
     } finally {
@@ -498,29 +523,21 @@ function ProductEditorPage({ id }: { id?: string }) {
                 </Button>
               )}
               {product?.status === "PUBLISH" && (
-                <Popconfirm
-                  title='Ngừng bán sản phẩm này?'
-                  description='Sản phẩm bị ẩn khỏi cửa hàng; có thể đăng bán lại sau.'
-                  okText='Ngừng bán sản phẩm'
-                  cancelText='Hủy'
-                  onConfirm={() => changeStatus("UNPUBLISH")}
+                <Button
+                  disabled={conflict || saving || dirty}
+                  onClick={() => changeStatus("UNPUBLISH")}
                 >
-                  <Button disabled={conflict || saving || dirty}>Ngừng bán</Button>
-                </Popconfirm>
+                  Ngừng bán
+                </Button>
               )}
               {product && (
-                <Popconfirm
-                  title='Lưu trữ sản phẩm này?'
-                  description='Sản phẩm bị ẩn khỏi cửa hàng; có thể khôi phục sau.'
-                  okText='Lưu trữ sản phẩm'
-                  cancelText='Hủy'
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => changeStatus("DELETED")}
+                <Button
+                  danger
+                  disabled={conflict || saving || dirty}
+                  onClick={() => changeStatus("DELETED")}
                 >
-                  <Button danger disabled={conflict || saving || dirty}>
-                    Lưu trữ
-                  </Button>
-                </Popconfirm>
+                  Lưu trữ
+                </Button>
               )}
               {dirty && product && (
                 <Typography.Text type='secondary'>

@@ -1,9 +1,11 @@
 import { notification } from "antd";
 import type { NotificationPlacement } from "antd/es/notification/interface";
+import type { ReactNode } from "react";
 
 interface NotificationOptions {
   placement?: NotificationPlacement;
   duration?: number;
+  actions?: ReactNode;
 }
 
 const defaultOptions: NotificationOptions = {
