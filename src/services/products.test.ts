@@ -41,7 +41,6 @@ describe("product backend transport", () => {
     };
     expect(await api.listProductsAPI(query, signal)).toEqual({ data: {}, message: "success" });
     await api.getProductAPI("id/1", signal);
-    await api.listProductCategoriesAPI(signal);
     expect(calls.map(c => [c.method, c.url, c.params, c.signal, c.toastError])).toEqual([
       [
         "get",
@@ -50,14 +49,13 @@ describe("product backend transport", () => {
         signal,
         false
       ],
-      ["get", "/products/id%2F1", undefined, signal, false],
-      ["get", "/categories", undefined, signal, false]
+      ["get", "/products/id%2F1", undefined, signal, false]
     ]);
 
     await api.createProductAPI(input);
     await api.updateProductAPI("id/1", { ...input, expectedRevision: 3 });
     await api.changeProductStatusAPI("id/1", { status: "PUBLISH", expectedRevision: 4 });
-    expect(calls.slice(3).map(c => [c.method, c.url, JSON.parse(c.data), c.toastError])).toEqual([
+    expect(calls.slice(2).map(c => [c.method, c.url, JSON.parse(c.data), c.toastError])).toEqual([
       ["post", "/products", input, false],
       ["put", "/products/id%2F1", { ...input, expectedRevision: 3 }, false],
       ["patch", "/products/id%2F1/status", { status: "PUBLISH", expectedRevision: 4 }, false]

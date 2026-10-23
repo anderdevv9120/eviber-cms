@@ -31,6 +31,8 @@ export interface StoreSettings {
   productPromises: string[];
   brandStory: BrandStory | null;
 }
+export type StoreHomeSettings = Pick<StoreSettings, "promoTiles" | "homePromises" | "brandStory">;
+export type StoreInfoSettings = Pick<StoreSettings, "contact" | "socials" | "productPromises">;
 export type Revisioned<T> = T & { revision: number };
 
 export type PolicySlug = "dieu-khoan" | "doi-tra" | "ho-tro" | "bao-mat";
@@ -54,14 +56,23 @@ export interface PolicyPageInput {
 const inlineErrors = { toastError: false };
 const policyPath = (slug: PolicySlug) => `/policies/${encodeURIComponent(slug)}`;
 
-export const getStoreSettingsAPI = (
+// Mỗi màn lưu một nhóm với revision riêng: lưu nhóm này không làm nhóm kia báo 409
+export const getStoreHomeAPI = (
   signal?: AbortSignal
-): Promise<ApiResponse<Revisioned<StoreSettings>>> =>
-  axiosRequest.get("/store-settings", { ...inlineErrors, signal });
-export const saveStoreSettingsAPI = (
-  input: Revisioned<StoreSettings>
-): Promise<ApiResponse<Revisioned<StoreSettings>>> =>
-  axiosRequest.put("/store-settings", input, inlineErrors);
+): Promise<ApiResponse<Revisioned<StoreHomeSettings>>> =>
+  axiosRequest.get("/store-settings/home", { ...inlineErrors, signal });
+export const saveStoreHomeAPI = (
+  input: Revisioned<StoreHomeSettings>
+): Promise<ApiResponse<Revisioned<StoreHomeSettings>>> =>
+  axiosRequest.put("/store-settings/home", input, inlineErrors);
+export const getStoreInfoAPI = (
+  signal?: AbortSignal
+): Promise<ApiResponse<Revisioned<StoreInfoSettings>>> =>
+  axiosRequest.get("/store-settings/info", { ...inlineErrors, signal });
+export const saveStoreInfoAPI = (
+  input: Revisioned<StoreInfoSettings>
+): Promise<ApiResponse<Revisioned<StoreInfoSettings>>> =>
+  axiosRequest.put("/store-settings/info", input, inlineErrors);
 export const listPoliciesAPI = (signal?: AbortSignal): Promise<ApiResponse<PolicyPageSummary[]>> =>
   axiosRequest.get("/policies", { ...inlineErrors, signal });
 export const getPolicyAPI = (

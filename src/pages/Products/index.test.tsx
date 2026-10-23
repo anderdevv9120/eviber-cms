@@ -6,11 +6,12 @@ import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import { errorNotification } from "@/utils/notification";
 import * as api from "@/services/products";
+import * as categoriesApi from "@/services/categories";
 import Products from "./index";
 
+vi.mock("@/services/categories", () => ({ listCategoriesAPI: vi.fn() }));
 vi.mock("@/services/products", () => ({
   listProductsAPI: vi.fn(),
-  listProductCategoriesAPI: vi.fn(),
   changeProductStatusAPI: vi.fn()
 }));
 vi.mock("@/utils/notification", () => ({
@@ -65,9 +66,12 @@ beforeEach(() => {
     .mockImplementation(async query =>
       page(query.status === "DELETED" ? [{ ...row, status: "DELETED" }] : [row])
     );
-  vi.mocked(api.listProductCategoriesAPI)
+  vi.mocked(categoriesApi.listCategoriesAPI)
     .mockReset()
-    .mockResolvedValue({ data: [{ _id: categoryId, name: "Áo" }], message: "success" });
+    .mockResolvedValue({
+      data: [{ _id: categoryId, name: "Áo" }] as categoriesApi.Category[],
+      message: "success"
+    });
   vi.mocked(api.changeProductStatusAPI)
     .mockReset()
     .mockResolvedValue({ data: {} as api.ProductEditorView, message: "success" });

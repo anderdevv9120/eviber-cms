@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Alert, Button, Card, Flex, Tag } from "antd";
 import SortableTable from "@/components/SortableTable";
-import { uploadImageAPI } from "@/services/banners";
+import { uploadImageAPI } from "@/services/images";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 

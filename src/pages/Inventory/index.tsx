@@ -23,8 +23,8 @@ import {
   type InventoryStockFilter
 } from "@/services/inventory";
 import type { ProductStatus, ProductVariantStatus } from "@/services/products";
-import { thresholdError, validThreshold } from "@/pages/Dashboard/dashboard-query";
-import { useKeyedRead } from "@/pages/Dashboard/useKeyedRead";
+import { thresholdError, validThreshold } from "./inventory-query";
+import { useKeyedRead } from "@/hooks/useKeyedRead";
 import { productStatusLabels } from "@/pages/Products/product-list-query";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import {

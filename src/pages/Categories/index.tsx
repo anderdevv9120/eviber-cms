@@ -163,7 +163,7 @@ function CategoriesContent() {
   return (
     <Flex vertical gap={16}>
       <Flex justify='space-between' align='center' wrap gap={12}>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} className='m-0!'>
           Danh mục sản phẩm
         </Typography.Title>
         <Flex gap={8}>

@@ -3,23 +3,23 @@ export const PATH = {
   DASHBOARD: "/dashboard",
   PRODUCTS: "/products",
   INVENTORY: "/inventory",
-  CATEGORIES: "/categories",
+  CATEGORIES: "/catalog/categories",
   PRODUCT_NEW: "/products/new",
   PRODUCT_DETAIL: "/products/:id",
   ORDER: "/orders",
   ORDER_DETAIL: "/orders/:orderId",
-  PAYMENTS: "/payments",
   CUSTOMERS: "/customers",
   CUSTOMER_DETAIL: "/customers/registered/:customerId",
   GUEST_BUYER_DETAIL: "/customers/guests/detail",
   ATTRIBUTES: "/catalog/attributes",
   ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId",
-  BANNERS: "/banners",
   REVIEWS: "/reviews",
   VOUCHERS: "/vouchers",
-  STORE_CONTENT: "/store-content",
+  CONTENT_HOME: "/content/home",
+  CONTENT_INFO: "/content/store-info",
   POLICIES: "/policies",
-  REPORTS: "/reports"
+  REPORTS: "/reports",
+  SETTINGS_CHECKOUT: "/settings/checkout"
 };
 
 export const PATH_AUTH = {

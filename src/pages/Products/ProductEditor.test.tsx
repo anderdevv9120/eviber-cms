@@ -7,25 +7,26 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/products";
+import * as categoriesApi from "@/services/categories";
 import * as attributesApi from "@/services/attributes";
-import * as bannersApi from "@/services/banners";
+import * as imagesApi from "@/services/images";
 import { errorNotification } from "@/utils/notification";
 import ProductEditor from "./ProductEditor";
 import { DESCRIPTION_IMAGE_INVALID } from "./product-publish";
 import { PRODUCT_ERROR } from "./product-errors";
 
+vi.mock("@/services/categories", () => ({ listCategoriesAPI: vi.fn() }));
 vi.mock("@/services/products", () => ({
   getProductAPI: vi.fn(),
   createProductAPI: vi.fn(),
   updateProductAPI: vi.fn(),
-  changeProductStatusAPI: vi.fn(),
-  listProductCategoriesAPI: vi.fn()
+  changeProductStatusAPI: vi.fn()
 }));
 vi.mock("@/services/attributes", () => ({
   listAttributesAPI: vi.fn(),
   getAttributeValuesAPI: vi.fn()
 }));
-vi.mock("@/services/banners", () => ({ uploadImageAPI: vi.fn() }));
+vi.mock("@/services/images", () => ({ uploadImageAPI: vi.fn() }));
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
   errorNotification: vi.fn()
@@ -186,9 +187,9 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async (_id, { status }) => ok(product({ status, revision: 5 })));
   vi.mocked(errorNotification).mockReset();
-  vi.mocked(api.listProductCategoriesAPI)
+  vi.mocked(categoriesApi.listCategoriesAPI)
     .mockReset()
-    .mockResolvedValue(ok([{ _id: "c1", name: "Áo" }]));
+    .mockResolvedValue(ok([{ _id: "c1", name: "Áo" }] as categoriesApi.Category[]));
   vi.mocked(attributesApi.listAttributesAPI)
     .mockReset()
     .mockResolvedValue(ok({ data: attributes, total: 2, page: 1, pageSize: 100, totalPage: 1 }));
@@ -254,8 +255,8 @@ describe("ProductEditor — new product", () => {
   }, 15_000); // many antd Select interactions; slow under the full parallel suite
 
   it("reports a failed publish after create once the page moves to the new product", async () => {
-    vi.mocked(bannersApi.uploadImageAPI).mockResolvedValue(
-      ok({ path: "/images/a.jpg" }) as Awaited<ReturnType<typeof bannersApi.uploadImageAPI>>
+    vi.mocked(imagesApi.uploadImageAPI).mockResolvedValue(
+      ok({ path: "/images/a.jpg" }) as Awaited<ReturnType<typeof imagesApi.uploadImageAPI>>
     );
     vi.mocked(api.changeProductStatusAPI).mockRejectedValueOnce(
       new ApiError("Chưa đủ điều kiện đăng bán", 400, {
@@ -358,10 +359,10 @@ describe("ProductEditor — existing product", () => {
       ok(product({ images: ["/images/a.jpg", "/images/b.jpg"] }))
     );
     let finish: (path: string) => void = () => undefined;
-    vi.mocked(bannersApi.uploadImageAPI).mockReturnValue(
+    vi.mocked(imagesApi.uploadImageAPI).mockReturnValue(
       new Promise(resolve => {
         finish = path =>
-          resolve(ok({ path }) as Awaited<ReturnType<typeof bannersApi.uploadImageAPI>>);
+          resolve(ok({ path }) as Awaited<ReturnType<typeof imagesApi.uploadImageAPI>>);
       })
     );
     renderEditor();

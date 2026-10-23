@@ -81,7 +81,7 @@ export default function GuestCheckoutSwitch() {
   };
 
   return (
-    <section aria-label='Cài đặt mua hàng' className='mb-4'>
+    <section aria-label='Cài đặt mua hàng'>
       <Flex align='center' gap={12} wrap>
         <Typography.Text id='guest-checkout-label'>
           Cho phép mua hàng không cần đăng nhập

@@ -78,7 +78,7 @@ describe("URL-driven order reads", () => {
       requests.push(config.params);
       return response(config, orderList([order], config.params.page, 100, config.params.pageSize));
     };
-    const { result } = setup("/payments?page=3&status=pending&attention=awaiting-transfer");
+    const { result } = setup("/orders?page=3&status=pending&attention=awaiting-transfer");
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(requests).toEqual([
       { page: 3, pageSize: 10, status: "pending", attention: "awaiting-transfer" }

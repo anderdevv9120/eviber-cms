@@ -1,24 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createMemoryRouter, RouterProvider } from "react-router";
 import { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { deferred, response } from "@/test/attribute-fixtures";
 import axiosRequest from "@/utils/request";
 import { errorNotification, successNotification } from "@/utils/notification";
 import * as settings from "@/services/checkout-settings";
-import * as customers from "@/services/customers";
 import GuestCheckoutSwitch from "./GuestCheckoutSwitch";
-import Customers from "./index";
 
 vi.mock("@/services/checkout-settings", () => ({
   getCheckoutSettingsAPI: vi.fn(),
   updateCheckoutSettingsAPI: vi.fn()
-}));
-vi.mock("@/services/customers", () => ({
-  listCustomersAPI: vi.fn(),
-  listGuestBuyersAPI: vi.fn(),
-  createCustomerAPI: vi.fn()
 }));
 vi.mock("@/utils/notification", () => ({
   errorNotification: vi.fn(),
@@ -37,13 +29,6 @@ const disabled = () => (control() as HTMLButtonElement).disabled;
 beforeEach(() => {
   vi.mocked(settings.getCheckoutSettingsAPI).mockReset().mockResolvedValue(confirmed(true));
   vi.mocked(settings.updateCheckoutSettingsAPI).mockReset().mockResolvedValue(confirmed(false));
-  vi.mocked(customers.listCustomersAPI).mockReset().mockRejectedValue(new Error("List failed"));
-  vi.mocked(customers.listGuestBuyersAPI)
-    .mockReset()
-    .mockResolvedValue({
-      data: { data: [], page: 1, pageSize: 10, total: 0, totalPage: 0 },
-      message: "success"
-    });
   vi.mocked(successNotification).mockClear();
   vi.mocked(errorNotification).mockClear();
 });
@@ -156,36 +141,6 @@ describe("Guest checkout switch", () => {
     expect(checked()).toBe(false);
     expect(successNotification).not.toHaveBeenCalled();
     expect(settings.updateCheckoutSettingsAPI).toHaveBeenCalledTimes(1);
-  });
-
-  it("survives a failed list and tab changes without reloading or clearing the setting", async () => {
-    const router = createMemoryRouter([{ path: "/customers", element: <Customers /> }], {
-      initialEntries: ["/customers"]
-    });
-    render(<RouterProvider router={router} />);
-    await screen.findByText("List failed");
-    await waitFor(() => expect(disabled()).toBe(false));
-    fireEvent.click(control());
-    await waitFor(() => expect(checked()).toBe(false));
-    expect(screen.getByText("List failed")).toBeTruthy();
-    expect(customers.listCustomersAPI).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("tab", { name: "Khách vãng lai" }));
-    await screen.findByText("Không có khách hàng");
-    expect(checked()).toBe(false);
-    expect(settings.getCheckoutSettingsAPI).toHaveBeenCalledTimes(1);
-    expect(settings.updateCheckoutSettingsAPI).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the list usable after a settings read failure", async () => {
-    vi.mocked(settings.getCheckoutSettingsAPI).mockRejectedValueOnce(new Error("Settings failed"));
-    const router = createMemoryRouter([{ path: "/customers", element: <Customers /> }], {
-      initialEntries: ["/customers?tab=guests"]
-    });
-    render(<RouterProvider router={router} />);
-    await screen.findByText("Không có khách hàng");
-    expect(await screen.findByText("Settings failed")).toBeTruthy();
-    expect(disabled()).toBe(true);
-    expect(customers.listGuestBuyersAPI).toHaveBeenCalledTimes(1);
   });
 
   it("aborts a late initial read on unmount and cannot overwrite a new instance", async () => {

@@ -1,4 +1,4 @@
-const DEV_ADMIN_API_URL = "http://localhost:8001/admin/v1";
+const DEV_ADMIN_API_URL = "http://localhost:8005/admin/v1";
 
 // Thiếu biến mà không có fallback thì axios gọi URL tương đối → dev server trả index.html 200,
 // không lỗi nào nổ ra và màn treo spinner. Dev có mặc định; build production thiếu biến → rỗng,

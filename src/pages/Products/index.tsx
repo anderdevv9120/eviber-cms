@@ -6,7 +6,6 @@ import viVN from "antd/locale/vi_VN";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   changeProductStatusAPI,
-  listProductCategoriesAPI,
   listProductsAPI,
   type CategoryOption,
   type ProductListResult,
@@ -15,6 +14,7 @@ import {
   type PublishRequirement
 } from "@/services/products";
 import { PATH } from "@/constants/paths";
+import { listCategoriesAPI } from "@/services/categories";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
@@ -155,7 +155,7 @@ function useCategoryOptions() {
   });
   useEffect(() => {
     const controller = new AbortController();
-    listProductCategoriesAPI(controller.signal).then(
+    listCategoriesAPI(controller.signal).then(
       ({ data }) => setState({ options: Array.isArray(data) ? data : [] }),
       (cause: unknown) => {
         if (!controller.signal.aborted) setState({ options: [], error: getErrorMessage(cause) });

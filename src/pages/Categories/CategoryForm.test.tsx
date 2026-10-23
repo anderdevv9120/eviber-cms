@@ -5,7 +5,7 @@ import { ConfigProvider } from "antd";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/categories";
-import * as banners from "@/services/banners";
+import * as imagesApi from "@/services/images";
 import { CATEGORY_ERROR } from "./category-errors";
 import CategoryForm from "./CategoryForm";
 
@@ -14,7 +14,7 @@ vi.mock("@/services/categories", () => ({
   createCategoryAPI: vi.fn(),
   updateCategoryAPI: vi.fn()
 }));
-vi.mock("@/services/banners", () => ({ uploadImageAPI: vi.fn() }));
+vi.mock("@/services/images", () => ({ uploadImageAPI: vi.fn() }));
 
 const shirts: api.Category = {
   _id: "a",
@@ -63,7 +63,7 @@ describe("category form", () => {
   beforeEach(() => {
     vi.mocked(api.createCategoryAPI).mockReset().mockResolvedValue(ok(shirts));
     vi.mocked(api.updateCategoryAPI).mockReset().mockResolvedValue(ok(shirts));
-    vi.mocked(banners.uploadImageAPI)
+    vi.mocked(imagesApi.uploadImageAPI)
       .mockReset()
       .mockResolvedValue(ok({ path: "/images/new.jpg" }));
   });
@@ -168,7 +168,7 @@ describe("category form", () => {
   });
 
   it("shows an upload failure and keeps the previous image", async () => {
-    vi.mocked(banners.uploadImageAPI).mockRejectedValue(new ApiError("File too large", 413));
+    vi.mocked(imagesApi.uploadImageAPI).mockRejectedValue(new ApiError("File too large", 413));
     renderForm({ category: shirts });
     upload();
     expect(await screen.findByText("File too large")).toBeTruthy();

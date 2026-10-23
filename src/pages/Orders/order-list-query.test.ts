@@ -24,8 +24,8 @@ describe("order list URLs", () => {
       paymentStatus: "not_required"
     });
     expect(serializeOrderListQuery(parseOrderListQuery(params)).toString()).toBe(params.toString());
-    expect(safeOrderReturnTo("/payments?paymentStatus=not_required")).toBe(
-      "/payments?paymentStatus=not_required"
+    expect(safeOrderReturnTo("/orders?paymentStatus=not_required")).toBe(
+      "/orders?paymentStatus=not_required"
     );
   });
   it("serializes submitted search and combined filters, with page reset", () => {
@@ -131,27 +131,31 @@ describe("order list URLs", () => {
     "/orders/id",
     "/products",
     "\\\\evil.test",
-    "/payments#evil",
-    "/payments/../orders",
-    " /payments",
-    "/%70ayments"
+    "/payments",
+    "/orders#evil",
+    "/orders/../customers",
+    " /orders",
+    "/%6Frders",
+    "/customers?page=2",
+    "/customers/registered/a/b",
+    "/customers/registered/a#x"
   ])("rejects unsafe or unrelated return destination %s", value => {
     expect(safeOrderReturnTo(value)).toBe("/orders");
   });
-  it("preserves Payments context and cleans invalid queries", () => {
+  it("preserves list context and cleans invalid queries", () => {
     expect(
       safeOrderReturnTo(
-        "/payments?page=3&pageSize=50&search=An+%26+B%C3%ACnh&status=cancelled&paymentStatus=paid"
+        "/orders?page=3&pageSize=50&search=An+%26+B%C3%ACnh&status=cancelled&paymentStatus=paid"
       )
     ).toBe(
-      "/payments?page=3&pageSize=50&search=An+%26+B%C3%ACnh&status=cancelled&paymentStatus=paid"
+      "/orders?page=3&pageSize=50&search=An+%26+B%C3%ACnh&status=cancelled&paymentStatus=paid"
     );
     expect(
-      safeOrderReturnTo("/payments?page=-1&pageSize=30&status=bad&redirect=https://evil.test")
-    ).toBe("/payments");
+      safeOrderReturnTo("/orders?page=-1&pageSize=30&status=bad&redirect=https://evil.test")
+    ).toBe("/orders");
     expect(safeOrderReturnTo("/orders?page=2&page=3&search=%FF")).toBe("/orders");
-    expect(safeOrderReturnTo("/payments?page=2&attention=refund-needed&evil=1")).toBe(
-      "/payments?page=2&attention=refund-needed"
+    expect(safeOrderReturnTo("/orders?page=2&attention=refund-needed&evil=1")).toBe(
+      "/orders?page=2&attention=refund-needed"
     );
     expect(safeOrderReturnTo("/orders?attention=refund-needed&attention=awaiting-transfer")).toBe(
       "/orders"
@@ -199,5 +203,13 @@ describe("snapshot display", () => {
     expect(formatOrderDate(undefined)).toBe(missingOrderData);
     expect(formatOrderDate("bad timestamp")).toBe(missingOrderData);
     expect(formatOrderDate("2026-10-04T00:00:00.000Z")).not.toBe(missingOrderData);
+  });
+  it("passes customer detail origins through for the customer page to validate", () => {
+    expect(safeOrderReturnTo("/customers/registered/c1?returnTo=%2Fcustomers%3Fpage%3D2")).toBe(
+      "/customers/registered/c1?returnTo=%2Fcustomers%3Fpage%3D2"
+    );
+    expect(safeOrderReturnTo("/customers/guests/detail?email=a%40b.vn")).toBe(
+      "/customers/guests/detail?email=a%40b.vn"
+    );
   });
 });

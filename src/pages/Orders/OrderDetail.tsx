@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Descriptions, Flex, Result, Spin, Table, Tag, Typography } from "antd";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { getOrderAPI, type AdminOrderDetail, type OrderProduct } from "@/services/orders";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
-import { safeOrderReturnTo } from "./order-list-query";
+import { PATH } from "@/constants/paths";
+import { readOrderReturnTo } from "./order-list-query";
 import {
   displayOrderText,
   formatOrderAmount,
@@ -34,14 +35,27 @@ const couponDiscount = (
 
 export default function OrderDetail() {
   const { orderId = "" } = useParams();
-  const [params] = useSearchParams();
-  const returnTo = safeOrderReturnTo(
-    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
+  const { search } = useLocation();
+  const { returnTo, fromCustomer } = readOrderReturnTo(search);
+  return (
+    <OrderDetailRead
+      key={orderId}
+      orderId={orderId}
+      returnTo={returnTo}
+      fromCustomer={fromCustomer}
+    />
   );
-  return <OrderDetailRead key={orderId} orderId={orderId} returnTo={returnTo} />;
 }
 
-function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: string }) {
+function OrderDetailRead({
+  orderId,
+  returnTo,
+  fromCustomer
+}: {
+  orderId: string;
+  returnTo: string;
+  fromCustomer: boolean;
+}) {
   const [attempt, setAttempt] = useState(0);
   const [intent, setIntent] = useState<OrderActionIntent | null>(null);
   const [view, setView] = useState<{
@@ -85,7 +99,7 @@ function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: str
   return (
     <section className='min-w-0'>
       <Flex justify='space-between' align='center'>
-        <Link to={returnTo}>Về danh sách</Link>
+        <Link to={returnTo}>{fromCustomer ? "Về khách hàng" : "Về danh sách"}</Link>
         <Button onClick={reload} disabled={view.loading}>
           Tải lại
         </Button>
@@ -157,7 +171,7 @@ function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: str
                 {
                   key: "customer",
                   label: "Loại khách hàng",
-                  children: order.userId ? "Khách hàng đăng ký" : "Khách vãng lai"
+                  children: <CustomerLink order={order} />
                 },
                 {
                   key: "name",
@@ -389,5 +403,19 @@ function OrderDetailRead({ orderId, returnTo }: { orderId: string; returnTo: str
         />
       )}
     </section>
+  );
+}
+
+function CustomerLink({ order }: { order: AdminOrderDetail }) {
+  if (order.userId)
+    return (
+      <Link to={PATH.CUSTOMER_DETAIL.replace(":customerId", encodeURIComponent(order.userId))}>
+        Khách hàng đăng ký
+      </Link>
+    );
+  const email = order.shippingInfo.email?.trim();
+  if (!email) return "Khách vãng lai";
+  return (
+    <Link to={`${PATH.GUEST_BUYER_DETAIL}?${new URLSearchParams({ email })}`}>Khách vãng lai</Link>
   );
 }

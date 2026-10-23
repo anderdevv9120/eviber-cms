@@ -61,38 +61,12 @@ export interface DashboardSummary {
     outOfStockSkus: number;
   };
 }
-export type StockStatus = "low" | "out";
-export interface StockRow {
-  variantId: string;
-  productId: string;
-  productName: string;
-  sku: string;
-  inventoryCount: number;
-}
-export interface StockReport {
-  metadata: { lowStockThreshold: number; stockStatus: StockStatus; generatedAt: string };
-  data: StockRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPage: number;
-}
-
 /** Vietnam calendar dates (YYYY-MM-DD), both inclusive. */
 export interface SalesReportQuery {
   from: string;
   to: string;
   deliveredOnly: boolean;
 }
-export interface DashboardQuery {
-  lowStockThreshold?: number;
-}
-export interface StockReportQuery extends DashboardQuery {
-  stockStatus?: StockStatus;
-  page?: number;
-  pageSize?: number;
-}
-
 const inlineErrors = { toastError: false };
 
 export const getSalesReportAPI = (
@@ -100,13 +74,6 @@ export const getSalesReportAPI = (
   signal?: AbortSignal
 ): Promise<ApiResponse<SalesReport>> =>
   axiosRequest.get("/reports/sales", { ...inlineErrors, params: query, signal });
-export const getDashboardAPI = (
-  query: DashboardQuery,
-  signal?: AbortSignal
-): Promise<ApiResponse<DashboardSummary>> =>
-  axiosRequest.get("/reports/dashboard", { ...inlineErrors, params: query, signal });
-export const getStockReportAPI = (
-  query: StockReportQuery,
-  signal?: AbortSignal
-): Promise<ApiResponse<StockReport>> =>
-  axiosRequest.get("/reports/stock", { ...inlineErrors, params: query, signal });
+// Ngưỡng sắp hết hàng dùng mặc định của BE (5), trùng mặc định màn Tồn kho mà các số đếm link sang
+export const getDashboardAPI = (signal?: AbortSignal): Promise<ApiResponse<DashboardSummary>> =>
+  axiosRequest.get("/reports/dashboard", { ...inlineErrors, signal });

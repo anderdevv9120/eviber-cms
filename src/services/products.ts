@@ -1,4 +1,5 @@
 import type { ApiResponse } from "./auth";
+import type { Category } from "./categories";
 import axiosRequest from "@/utils/request";
 
 export type ProductStatus = "PUBLISH" | "UNPUBLISH" | "DRAFT" | "DELETED";
@@ -73,10 +74,7 @@ export interface ProductEditorView {
   revision: number;
   updated_at: string;
 }
-export interface CategoryOption {
-  _id: string;
-  name: string;
-}
+export type CategoryOption = Pick<Category, "_id" | "name">;
 export interface ProductVariantInput {
   _id?: string;
   sku: string;
@@ -135,7 +133,3 @@ export const changeProductStatusAPI = (
   input: ProductStatusInput
 ): Promise<ApiResponse<ProductEditorView>> =>
   axiosRequest.patch(`${productPath(id)}/status`, input, inlineErrors);
-export const listProductCategoriesAPI = (
-  signal?: AbortSignal
-): Promise<ApiResponse<CategoryOption[]>> =>
-  axiosRequest.get("/categories", { ...inlineErrors, signal });

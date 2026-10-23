@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Switch, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import { uploadImageAPI, type Banner, type BannerInput } from "@/services/banners";
+import type { Banner, BannerInput } from "@/services/banners";
+import { uploadImageAPI } from "@/services/images";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
-
-// Khớp backend: path nội bộ (không `//` hay `/\`) hoặc https — chặn javascript:/protocol-relative
-const HREF_PATTERN = /^(\/(?![/\\])\S*|https:\/\/\S+)$/;
+import { HREF_MESSAGE, HREF_PATTERN } from "@/constants/validate";
 
 interface Values {
   image?: string;
@@ -145,7 +144,7 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
           label='Đường dẫn nút'
           dependencies={["ctaLabel"]}
           rules={[
-            { pattern: HREF_PATTERN, message: "Đường dẫn phải bắt đầu bằng / hoặc https://" },
+            { pattern: HREF_PATTERN, message: HREF_MESSAGE },
             ({ getFieldValue }) => ({
               validator(_, value?: string) {
                 const label = (getFieldValue("ctaLabel") as string | undefined)?.trim();

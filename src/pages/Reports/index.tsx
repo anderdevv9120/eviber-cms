@@ -31,7 +31,7 @@ import {
   orderStatusLabels,
   paymentStatusLabels
 } from "../Orders/order-display";
-import { useKeyedRead } from "../Dashboard/useKeyedRead";
+import { useKeyedRead } from "@/hooks/useKeyedRead";
 import DailySalesChart from "./DailySalesChart";
 import {
   calendarLabel,

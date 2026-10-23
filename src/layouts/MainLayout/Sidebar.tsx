@@ -1,26 +1,10 @@
 import { useState } from "react";
 import { Layout, Menu, Button, Flex, Tooltip } from "antd";
-import type { MenuProps } from "antd";
-import {
-  HomeOutlined,
-  ShoppingCartOutlined,
-  CreditCardOutlined,
-  TeamOutlined,
-  ShoppingOutlined,
-  InboxOutlined,
-  AppstoreOutlined,
-  TagOutlined,
-  PictureOutlined,
-  StarOutlined,
-  FileTextOutlined,
-  BarChartOutlined,
-  ApartmentOutlined,
-  LayoutOutlined
-} from "@ant-design/icons";
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
-import { safeOrderReturnTo } from "@/pages/Orders/order-list-query";
+import { readOrderReturnTo } from "@/pages/Orders/order-list-query";
 import Brand from "../Brand";
+import { MENU_ITEMS, menuKeyOf } from "./menu";
 
 const { Sider } = Layout;
 const COLLAPSED_KEY = "cms.sidebarCollapsed";
@@ -38,46 +22,9 @@ const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const params = new URLSearchParams(search);
-  const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
-  const returnTo = safeOrderReturnTo(
-    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
-  );
-  const paymentsSelected =
-    pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
-  const attributesSelected =
-    pathname === PATH.ATTRIBUTES || !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
-  const customersSelected =
-    pathname === PATH.CUSTOMERS || pathname.startsWith(`${PATH.CUSTOMERS}/`);
-  const productsSelected = pathname === PATH.PRODUCTS || pathname.startsWith(`${PATH.PRODUCTS}/`);
-  const selectedKey =
-    pathname === PATH.STORE_CONTENT
-      ? "store-content"
-      : pathname === PATH.POLICIES
-        ? "policies"
-        : pathname === PATH.REPORTS
-          ? "reports"
-          : pathname === PATH.REVIEWS
-            ? "reviews"
-            : pathname === PATH.BANNERS
-              ? "banners"
-              : customersSelected
-                ? "customers"
-                : pathname === PATH.CATEGORIES
-                  ? "categories"
-                  : attributesSelected
-                    ? "attributes"
-                    : productsSelected
-                      ? "2"
-                      : pathname === PATH.INVENTORY
-                        ? "inventory"
-                        : paymentsSelected
-                          ? "payments"
-                          : pathname === PATH.ORDER || orderDetail
-                            ? "3"
-                            : pathname === PATH.VOUCHERS
-                              ? "vouchers"
-                              : "1";
+  const fromCustomer =
+    !!matchPath(PATH.ORDER_DETAIL, pathname) && readOrderReturnTo(search).fromCustomer;
+  const selectedKey = menuKeyOf(fromCustomer ? PATH.CUSTOMERS : pathname) ?? PATH.DASHBOARD;
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -88,115 +35,6 @@ const Sidebar = () => {
       // bỏ qua: chỉ mất phần nhớ trạng thái
     }
   };
-
-  // Cài đặt chưa render: mục chưa có màn thì không để link chết
-  const sections: { title: string | null; items: NonNullable<MenuProps["items"]> }[] = [
-    {
-      title: null,
-      items: [
-        { key: "1", icon: <HomeOutlined />, label: "Trang chủ", onClick: () => navigate("/") },
-        {
-          key: "reports",
-          icon: <BarChartOutlined />,
-          label: "Báo cáo bán hàng",
-          onClick: () => navigate(PATH.REPORTS)
-        }
-      ]
-    },
-    {
-      title: "Bán hàng",
-      items: [
-        {
-          key: "3",
-          icon: <ShoppingCartOutlined />,
-          label: "Đơn hàng",
-          onClick: () => navigate(PATH.ORDER)
-        },
-        {
-          key: "payments",
-          icon: <CreditCardOutlined />,
-          label: "Thanh toán",
-          onClick: () => navigate(PATH.PAYMENTS)
-        },
-        {
-          key: "customers",
-          icon: <TeamOutlined />,
-          label: "Khách hàng",
-          onClick: () => navigate(PATH.CUSTOMERS)
-        },
-        {
-          key: "reviews",
-          icon: <StarOutlined />,
-          label: "Đánh giá",
-          onClick: () => navigate(PATH.REVIEWS)
-        },
-        {
-          key: "vouchers",
-          icon: <TagOutlined />,
-          label: "Voucher",
-          onClick: () => navigate(PATH.VOUCHERS)
-        }
-      ]
-    },
-    {
-      title: "Catalog",
-      items: [
-        {
-          key: "2",
-          icon: <ShoppingOutlined />,
-          label: "Sản phẩm",
-          onClick: () => navigate(PATH.PRODUCTS)
-        },
-        {
-          key: "inventory",
-          icon: <InboxOutlined />,
-          label: "Tồn kho",
-          onClick: () => navigate(PATH.INVENTORY)
-        },
-        {
-          key: "categories",
-          icon: <AppstoreOutlined />,
-          label: "Danh mục sản phẩm",
-          onClick: () => navigate(PATH.CATEGORIES)
-        },
-        {
-          key: "attributes",
-          icon: <ApartmentOutlined />,
-          label: "Thuộc tính",
-          onClick: () => navigate(PATH.ATTRIBUTES)
-        }
-      ]
-    },
-    {
-      title: "Nội dung",
-      items: [
-        {
-          key: "banners",
-          icon: <PictureOutlined />,
-          label: "Banner",
-          onClick: () => navigate(PATH.BANNERS)
-        },
-        {
-          key: "store-content",
-          icon: <LayoutOutlined />,
-          label: "Nội dung cửa hàng",
-          onClick: () => navigate(PATH.STORE_CONTENT)
-        },
-        {
-          key: "policies",
-          icon: <FileTextOutlined />,
-          label: "Trang chính sách",
-          onClick: () => navigate(PATH.POLICIES)
-        }
-      ]
-    }
-  ];
-
-  const items: MenuProps["items"] = sections.flatMap(({ title, items: groupItems }, index) =>
-    title
-      ? [{ type: "group" as const, key: `group-${index}`, label: title, children: groupItems }]
-      : groupItems
-  );
 
   return (
     <Sider
@@ -238,7 +76,8 @@ const Sidebar = () => {
           mode='inline'
           inlineIndent={14}
           selectedKeys={[selectedKey]}
-          items={items}
+          onClick={({ key }) => navigate(key)}
+          items={MENU_ITEMS}
           className='cms-sider-menu'
         />
       </div>

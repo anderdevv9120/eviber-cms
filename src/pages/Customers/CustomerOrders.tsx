@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Flex, Pagination, Spin, Table, Tag, Typography } from "antd";
 import viVN from "antd/locale/vi_VN";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { PATH } from "@/constants/paths";
 import {
   getCustomerOrdersAPI,
   getGuestBuyerOrdersAPI,
@@ -22,6 +23,8 @@ export default function CustomerOrders({ buyer }: { buyer: Buyer }) {
   return <OrderHistory key={`${buyer.kind}:${identity}`} kind={buyer.kind} identity={identity} />;
 }
 function OrderHistory({ kind, identity }: { kind: Buyer["kind"]; identity: string }) {
+  const location = useLocation();
+  const returnTo = `${location.pathname}${location.search}`;
   const [query, setQuery] = useState({ page: 1, pageSize: 10, attempt: 0 });
   const key = `${query.page}:${query.pageSize}:${query.attempt}`;
   const [view, setView] = useState<{
@@ -91,7 +94,9 @@ function OrderHistory({ kind, identity }: { kind: Buyer["kind"]; identity: strin
                 title: "Đơn hàng",
                 key: "order",
                 render: (_, row) => (
-                  <Link to={`/orders/${encodeURIComponent(row._id)}`}>
+                  <Link
+                    to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
+                  >
                     {row.orderNumber?.trim() || "Chi tiết đơn hàng"}
                   </Link>
                 )

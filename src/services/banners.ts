@@ -15,9 +15,6 @@ export interface Banner {
 }
 export type BannerInput = Pick<Banner, "image" | "title" | "isActive"> &
   Partial<Pick<Banner, "subtitle" | "ctaLabel" | "ctaHref">>;
-export interface UploadedImage {
-  path: string;
-}
 
 const inlineErrors = { toastError: false };
 const bannerPath = (id: string) => `/banners/${encodeURIComponent(id)}`;
@@ -34,9 +31,3 @@ export const deleteBannerAPI = (id: string): Promise<ApiResponse<{ success: bool
   axiosRequest.delete(bannerPath(id), inlineErrors);
 export const reorderBannersAPI = (bannerIds: string[]): Promise<ApiResponse<Banner[]>> =>
   axiosRequest.put("/banners/order", { bannerIds }, inlineErrors);
-export const uploadImageAPI = (file: File): Promise<ApiResponse<UploadedImage>> => {
-  const body = new FormData();
-  body.append("image", file);
-  // Upload chậm hơn request thường — timeout riêng như request.ts gợi ý
-  return axiosRequest.post("/images/upload", body, { ...inlineErrors, timeout: 60_000 });
-};

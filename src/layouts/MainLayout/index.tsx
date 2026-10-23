@@ -8,10 +8,26 @@ import { ApiError } from "@/utils/request";
 import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
-import { safeOrderReturnTo } from "@/pages/Orders/order-list-query";
+import { menuKeyOf } from "./menu";
+import { readOrderReturnTo } from "@/pages/Orders/order-list-query";
 import { safeCustomerReturnTo } from "@/pages/Customers/customer-list-query";
 
 const { Content } = Layout;
+
+// Tra theo mục menu đang sáng nên route con dùng crumb của mục cha; màn chưa khai thì không hiện crumb
+const STATIC_BREADCRUMBS: Record<string, string[]> = {
+  [PATH.PRODUCTS]: ["Catalog", "Sản phẩm"],
+  [PATH.CATEGORIES]: ["Catalog", "Danh mục sản phẩm"],
+  [PATH.CONTENT_HOME]: ["Nội dung", "Trang chủ"],
+  [PATH.CONTENT_INFO]: ["Nội dung", "Thông tin cửa hàng"],
+  [PATH.POLICIES]: ["Nội dung", "Trang chính sách"],
+  [PATH.SETTINGS_CHECKOUT]: ["Cài đặt", "Đặt hàng"],
+  [PATH.REVIEWS]: ["Đánh giá"],
+  [PATH.REPORTS]: ["Báo cáo bán hàng"],
+  [PATH.INVENTORY]: ["Tồn kho"],
+  [PATH.VOUCHERS]: ["Voucher"],
+  [PATH.DASHBOARD]: ["Tổng quan"]
+};
 
 const MainLayout = () => {
   const { profile, setProfile } = useAppStore();
@@ -23,11 +39,8 @@ const MainLayout = () => {
   const customerDetail = !!matchPath(PATH.CUSTOMER_DETAIL, pathname);
   const guestDetail = pathname === PATH.GUEST_BUYER_DETAIL;
   const params = new URLSearchParams(search);
-  const returnTo = safeOrderReturnTo(
-    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
-  );
-  const paymentsOrigin =
-    pathname === PATH.PAYMENTS || (orderDetail && returnTo.split("?")[0] === PATH.PAYMENTS);
+  const { returnTo, fromCustomer } = readOrderReturnTo(search);
+  const customerOrigin = orderDetail && fromCustomer;
   const breadcrumbs =
     pathname === PATH.CUSTOMERS || customerDetail || guestDetail
       ? [
@@ -50,44 +63,24 @@ const MainLayout = () => {
         ]
       : pathname === PATH.ATTRIBUTES || attributeDetail
         ? [
-            { title: "Danh mục" },
+            { title: "Catalog" },
             {
               title: attributeDetail ? <Link to={PATH.ATTRIBUTES}>Thuộc tính</Link> : "Thuộc tính"
             },
             ...(attributeDetail ? [{ title: "Chi tiết thuộc tính" }] : [])
           ]
-        : orderDetail || pathname === PATH.ORDER || pathname === PATH.PAYMENTS
+        : orderDetail || pathname === PATH.ORDER
           ? [
               {
                 title: orderDetail ? (
-                  <Link to={returnTo}>
-                    {paymentsOrigin ? "Quản lý Thanh toán" : "Quản lý Đơn hàng"}
-                  </Link>
-                ) : paymentsOrigin ? (
-                  "Quản lý Thanh toán"
+                  <Link to={returnTo}>{customerOrigin ? "Khách hàng" : "Quản lý Đơn hàng"}</Link>
                 ) : (
                   "Quản lý Đơn hàng"
                 )
               },
               ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
             ]
-          : pathname === PATH.STORE_CONTENT
-            ? [{ title: "Nội dung" }, { title: "Nội dung cửa hàng" }]
-            : pathname === PATH.POLICIES
-              ? [{ title: "Nội dung" }, { title: "Trang chính sách" }]
-              : pathname === PATH.BANNERS
-                ? [{ title: "Banner" }]
-                : pathname === PATH.REVIEWS
-                  ? [{ title: "Đánh giá" }]
-                  : pathname === PATH.REPORTS
-                    ? [{ title: "Báo cáo bán hàng" }]
-                    : pathname === PATH.INVENTORY
-                      ? [{ title: "Tồn kho" }]
-                      : pathname === PATH.VOUCHERS
-                        ? [{ title: "Voucher" }]
-                        : pathname === PATH.DASHBOARD
-                          ? [{ title: "Trang chủ" }]
-                          : [{ title: "Trang chủ" }, { title: "Sản phẩm" }];
+          : (STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ?? []).map(title => ({ title }));
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 

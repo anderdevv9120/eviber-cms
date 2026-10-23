@@ -133,7 +133,7 @@ describe("Orders list", () => {
     });
   });
 
-  it("shows a clearable attention selector that resets page and stays in detail return context", async () => {
+  it("shows clearable attention presets that reset page and stay in detail return context", async () => {
     const requests: unknown[] = [];
     axiosRequest.defaults.adapter = async config => {
       requests.push(config.params);
@@ -141,8 +141,7 @@ describe("Orders list", () => {
     };
     const router = setup("/orders?page=3&status=pending");
     await screen.findByRole("link", { name: "Chi tiết" });
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lọc đơn cần chú ý" }));
-    fireEvent.click(await screen.findByText("Chờ chuyển khoản"));
+    fireEvent.click(screen.getByRole("radio", { name: "Chờ chuyển khoản" }));
     await waitFor(() =>
       expect(router.state.location.search).toBe("?status=pending&attention=awaiting-transfer")
     );
@@ -156,9 +155,17 @@ describe("Orders list", () => {
       status: "pending",
       attention: "awaiting-transfer"
     });
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lọc đơn cần chú ý" }));
-    fireEvent.click(await screen.findByText("Tất cả đơn hàng"));
+    fireEvent.click(screen.getByRole("radio", { name: "Tất cả" }));
     await waitFor(() => expect(router.state.location.search).toBe("?status=pending"));
+  });
+
+  it("lists payment date for every order and leaves payment actions to the detail page", async () => {
+    axiosRequest.defaults.adapter = async config => response(config, orderList([order]));
+    setup();
+    await screen.findByRole("link", { name: "Chi tiết" });
+    expect(screen.getByRole("columnheader", { name: "Ngày thanh toán" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Tất cả" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Xác nhận|Hoàn tiền|thanh toán/i })).toBeNull();
   });
 
   it("restores reload/deep-link inputs and retains complete detail origin", async () => {
@@ -214,7 +221,9 @@ describe("Orders list", () => {
       );
     setup();
     await screen.findByRole("link", { name: "Chi tiết" });
+    // Mã đơn, ngày tạo, tổng tiền, trạng thái thanh toán; đơn chưa trả không có ngày thanh toán là bình thường
     expect(screen.getAllByText("Chưa có dữ liệu")).toHaveLength(4);
+    expect(screen.getByText("—")).toBeTruthy();
     expect(screen.queryByText("Chưa thanh toán")).toBeNull();
   });
 });

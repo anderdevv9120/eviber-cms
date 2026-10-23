@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-SPA quản trị (Vite + React 19 + antd 6 + Tailwind 4), gọi **duy nhất** admin API `:8001/admin/v1` (`VITE_ADMIN_API_URL`). Auth riêng của admin (BE `modules-admin/auth/`): login chỉ nhận role ADMIN, token ký secret admin — không dùng chung token với storefront. Repo tái tạo sạch từ cây CMS cũ, lịch sử git bị bỏ; phase 6 nâng stack + tooling, chưa có màn quản trị nào ngoài Dashboard demo.
+SPA quản trị (Vite + React 19 + antd 6 + Tailwind 4), gọi **duy nhất** admin API `:8005/admin/v1` (`VITE_ADMIN_API_URL`). Auth riêng của admin (BE `modules-admin/auth/`): login chỉ nhận role ADMIN, token ký secret admin — không dùng chung token với storefront. Repo tái tạo sạch từ cây CMS cũ, lịch sử git bị bỏ; phase 6 nâng stack + tooling, chưa có màn quản trị nào ngoài Dashboard demo.
 
 ## Tech Stack Notes
 
@@ -21,7 +21,7 @@ SPA quản trị (Vite + React 19 + antd 6 + Tailwind 4), gọi **duy nhất** a
 
 - **CMS không yêu cầu responsive.** Ưu tiên chức năng, luồng nghiệp vụ và xử lý lỗi; không thêm công việc responsive hoặc kiểm tra bố cục mobile cho CMS trừ khi người dùng yêu cầu rõ ràng.
 - Alias duy nhất `@/` → `src/` (khai ở cả `vite.config.ts` và `tsconfig.json`); không thêm alias bare (`components/...`).
-- Cấu trúc layered: `pages/` (màn) · `layouts/` · `components/` · `services/` (API) · `store/` · `hooks/` · `utils/` · `constants/` · `guards/`. Màn mới → `pages/{Feature}/index.tsx` + route trong `router.tsx` + `PATH.*` trong `constants/paths.ts` + menu `layouts/MainLayout/Sidebar.tsx` (item đặt vào đúng section trong `sections`; `selectedKey`/`openKeys` tính theo pathname phải thêm nhánh cho route mới).
+- Cấu trúc layered: `pages/` (màn) · `layouts/` · `components/` · `services/` (API) · `store/` · `hooks/` · `utils/` · `constants/` · `guards/`. Màn mới → `pages/{Feature}/index.tsx` + route trong `router.tsx` + `PATH.*` trong `constants/paths.ts` + item trong `MENU_SECTIONS` (`layouts/MainLayout/menu.tsx`, key = path danh sách; route con tự sáng theo mục cha nhờ so tiền tố) + crumb trong `STATIC_BREADCRUMBS` (`layouts/MainLayout/index.tsx`, thiếu thì màn không có breadcrumb). Route màn mới mang tiền tố section (`/catalog/`, `/content/`, `/settings/`); `/products`, `/inventory`, `/policies` là ngoại lệ có trước, giữ nguyên để không gãy bookmark. Thư mục `pages/` đặt theo tên màn, không theo key `PATH` (`pages/StoreInfo` ↔ `PATH.CONTENT_INFO`).
 - Message tiếng Việt cho UI; `constants/validate.ts` chứa message + regex.
 - Prettier: double quote (`jsxSingleQuote: true`), no trailing comma, printWidth 100 — lint-staged tự format file staged.
 - Test: Vitest + Testing Library, file `*.test.ts(x)` co-located, import tường minh từ `vitest` (không globals). Guard test có thể dùng `MemoryRouter`; route/navigation test dùng `createMemoryRouter` + `RouterProvider` từ `react-router` với các route objects thực tế.
@@ -42,7 +42,7 @@ npm run build        # tsc -b && vite build
 - **`npm install` với `ignore-scripts=true` toàn cục vẫn đủ**: Vite 8 (rolldown), Tailwind 4 (oxide), lightningcss đều là binary prebuilt qua optional deps, không cần build script. `prepare: husky` không chạy nhưng `.husky/` đã commit sẵn.
 - `@lexical/react` 0.22 khai `RefObject<HTMLElement>` kiểu React 18 → chỗ truyền ref vào plugin Lexical dùng `useRef<T>(null!)` (DraggableBlockPlugin). Đừng "sửa" thành `null`.
 - oxlint `--report-unused-disable-directives` bật trong script lint: directive thừa = lỗi.
-- **`VITE_ADMIN_API_URL` có fallback dev** (`constants/env.ts` → `http://localhost:8001/admin/v1`), build production thiếu biến thì `main.tsx` chặn render. Đừng đọc thẳng `import.meta.env.VITE_ADMIN_API_URL` ở chỗ khác — thiếu biến là axios gọi URL tương đối, dev server trả `index.html` 200 và màn treo spinner không lỗi.
+- **`VITE_ADMIN_API_URL` có fallback dev** (`constants/env.ts` → `http://localhost:8005/admin/v1`), build production thiếu biến thì `main.tsx` chặn render. Đừng đọc thẳng `import.meta.env.VITE_ADMIN_API_URL` ở chỗ khác — thiếu biến là axios gọi URL tương đối, dev server trả `index.html` 200 và màn treo spinner không lỗi.
 - **`*ExpiresIn` từ BE là mili-giây** (`TimeUtils.convertLifespanToMilliseconds`) — `setCookies(key, value, maxAgeMs)` nhận đúng đơn vị đó; lưu token luôn qua `saveTokens()` (`utils/session.ts`), đừng tự chia đơn vị.
 - **Retry sau refresh gửi lại body CŨ** (axios giữ `config.data` đã serialize): endpoint mang token trong body (logout) phải nằm trong `REFRESH_EXCLUDED_PATHS` hoặc đọc token SAU khi refresh.
 - **Profile KHÔNG persist** (`useAppStore`): danh tính + roles lấy lại từ `/auth/profile` mỗi lần tải trang. Phiên = cookie (`hasSession()`: còn access HOẶC refresh); `clearSession()` dọn cả cookie lẫn profile, `MainLayout` thấy hết phiên là tự về login.

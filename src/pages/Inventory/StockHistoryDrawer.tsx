@@ -9,7 +9,7 @@ import {
   type InventoryMovementList,
   type StockMovementReason
 } from "@/services/inventory";
-import { useKeyedRead } from "@/pages/Dashboard/useKeyedRead";
+import { useKeyedRead } from "@/hooks/useKeyedRead";
 import { formatOrderDate } from "@/pages/Orders/order-display";
 import { ApiError } from "@/utils/request";
 import { INVENTORY_ERROR } from "./inventory-errors";

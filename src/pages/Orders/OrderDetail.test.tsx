@@ -267,16 +267,20 @@ describe("shared order detail", () => {
     ["?returnTo=%2Forders%2Fother-id", "/orders"],
     ["?returnTo=%2Fpayments&returnTo=%2Forders", "/orders"],
     [
-      "?returnTo=%2Fpayments%3Fpage%3D3%26pageSize%3D20%26search%3DAn%26paymentStatus%3Dpaid",
-      "/payments?page=3&pageSize=20&search=An&paymentStatus=paid"
+      "?returnTo=%2Forders%3Fpage%3D3%26pageSize%3D20%26search%3DAn%26paymentStatus%3Dpaid",
+      "/orders?page=3&pageSize=20&search=An&paymentStatus=paid"
+    ],
+    ["?returnTo=%2Fpayments%3Fpage%3D3", "/orders"],
+    [
+      "?returnTo=%2Fcustomers%2Fguests%2Fdetail%3Femail%3Da%2540b.vn",
+      "/customers/guests/detail?email=a%40b.vn"
     ]
   ])("uses safe persistent return destination %s", async (query, destination) => {
     axiosRequest.defaults.adapter = async config => response(config, order);
     renderDetail(`/orders/order-id${query}`);
     await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
-    expect(screen.getByRole("link", { name: "Về danh sách" }).getAttribute("href")).toBe(
-      destination
-    );
+    const backLabel = destination.startsWith("/customers/") ? "Về khách hàng" : "Về danh sách";
+    expect(screen.getByRole("link", { name: backLabel }).getAttribute("href")).toBe(destination);
   });
 });
 

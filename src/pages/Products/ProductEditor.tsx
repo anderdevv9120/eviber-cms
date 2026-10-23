@@ -5,7 +5,6 @@ import {
   changeProductStatusAPI,
   createProductAPI,
   getProductAPI,
-  listProductCategoriesAPI,
   updateProductAPI,
   type CategoryOption,
   type ProductEditorView,
@@ -15,6 +14,7 @@ import {
 } from "@/services/products";
 import { PATH } from "@/constants/paths";
 import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
+import { listCategoriesAPI } from "@/services/categories";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
@@ -167,7 +167,7 @@ function ProductEditorPage({ id }: { id?: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    listProductCategoriesAPI(controller.signal).then(
+    listCategoriesAPI(controller.signal).then(
       ({ data }) => setCategories({ options: Array.isArray(data) ? data : [], error: null }),
       (cause: unknown) => {
         if (!controller.signal.aborted)

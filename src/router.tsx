@@ -17,16 +17,16 @@ const Attributes = lazy(() => import("./pages/Attributes"));
 const AttributeDetail = lazy(() => import("./pages/Attributes/AttributeDetail"));
 const OrderDetail = lazy(() => import("./pages/Orders/OrderDetail"));
 const Orders = lazy(() => import("./pages/Orders"));
-const Payments = lazy(() => import("./pages/Payments"));
 const Customers = lazy(() => import("./pages/Customers"));
 const RegisteredCustomerDetail = lazy(() => import("./pages/Customers/RegisteredCustomerDetail"));
 const GuestBuyerDetail = lazy(() => import("./pages/Customers/GuestBuyerDetail"));
 const Categories = lazy(() => import("./pages/Categories"));
-const Banners = lazy(() => import("./pages/Banners"));
 const Reviews = lazy(() => import("./pages/Reviews"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Vouchers = lazy(() => import("./pages/Vouchers"));
-const StoreContent = lazy(() => import("./pages/StoreContent"));
+const ContentHome = lazy(() => import("./pages/ContentHome"));
+const StoreInfo = lazy(() => import("./pages/StoreInfo"));
+const CheckoutSettings = lazy(() => import("./pages/Settings/CheckoutSettings"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
@@ -60,7 +60,6 @@ export const routes: RouteObject[] = [
       { path: PATH.PRODUCT_NEW, element: <ProductEditor /> },
       { path: PATH.PRODUCT_DETAIL, element: <ProductEditor /> },
       { path: PATH.ORDER, element: <Orders /> },
-      { path: PATH.PAYMENTS, element: <Payments /> },
       { path: PATH.CUSTOMERS, element: <Customers /> },
       { path: PATH.CUSTOMER_DETAIL, element: <RegisteredCustomerDetail /> },
       { path: PATH.GUEST_BUYER_DETAIL, element: <GuestBuyerDetail /> },
@@ -68,12 +67,13 @@ export const routes: RouteObject[] = [
       { path: PATH.CATEGORIES, element: <Categories /> },
       { path: PATH.ATTRIBUTES, element: <Attributes /> },
       { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> },
-      { path: PATH.BANNERS, element: <Banners /> },
       { path: PATH.REVIEWS, element: <Reviews /> },
       { path: PATH.VOUCHERS, element: <Vouchers /> },
-      { path: PATH.STORE_CONTENT, element: <StoreContent /> },
+      { path: PATH.CONTENT_HOME, element: <ContentHome /> },
+      { path: PATH.CONTENT_INFO, element: <StoreInfo /> },
       { path: PATH.POLICIES, element: <Policies /> },
-      { path: PATH.REPORTS, element: <Reports /> }
+      { path: PATH.REPORTS, element: <Reports /> },
+      { path: PATH.SETTINGS_CHECKOUT, element: <CheckoutSettings /> }
     ]
   },
   { path: "*", element: <NotFound /> }

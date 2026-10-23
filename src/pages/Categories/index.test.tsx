@@ -5,9 +5,10 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/categories";
-import * as banners from "@/services/banners";
+import * as imagesApi from "@/services/images";
 import { CATEGORY_ERROR } from "./category-errors";
 import Categories from "./index";
+import { PATH } from "@/constants/paths";
 
 vi.mock("@/constants/env", () => ({ ADMIN_API_URL: "http://api.test:8001/admin/v1" }));
 vi.mock("@/services/categories", () => ({
@@ -17,7 +18,7 @@ vi.mock("@/services/categories", () => ({
   deleteCategoryAPI: vi.fn(),
   reorderCategoriesAPI: vi.fn()
 }));
-vi.mock("@/services/banners", () => ({ uploadImageAPI: vi.fn() }));
+vi.mock("@/services/images", () => ({ uploadImageAPI: vi.fn() }));
 
 const category = (
   id: string,
@@ -43,11 +44,11 @@ const ok = <T,>(data: T) => ({ data, message: "success" });
 const setup = () => {
   const router = createMemoryRouter(
     [
-      { path: "/categories", element: <Categories /> },
+      { path: PATH.CATEGORIES, element: <Categories /> },
       { path: "/products", element: <p>Trang sản phẩm</p> },
       { path: "/other", element: <p>Trang khác</p> }
     ],
-    { initialEntries: ["/categories"] }
+    { initialEntries: [PATH.CATEGORIES] }
   );
   render(
     <ConfigProvider theme={{ token: { motion: false } }}>
@@ -187,7 +188,7 @@ describe("categories page", () => {
 
   it("adds a category from the form and reloads", async () => {
     vi.mocked(api.createCategoryAPI).mockResolvedValue(ok(pants));
-    vi.mocked(banners.uploadImageAPI).mockResolvedValue(ok({ path: "/images/b.jpg" }));
+    vi.mocked(imagesApi.uploadImageAPI).mockResolvedValue(ok({ path: "/images/b.jpg" }));
     setup();
     fireEvent.click(await screen.findByRole("button", { name: "Thêm danh mục" }));
     const dialog = await screen.findByRole("dialog");

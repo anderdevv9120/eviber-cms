@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Input, Modal, Result, Spin, Switch, Typography } from "antd";
 import { RichEditor } from "@/components/RichEditor";
+import { CONFLICT_MESSAGE, SAVED_MESSAGE } from "@/components/StoreContent/rules";
 import { STOREFRONT_URL } from "@/constants/env";
 import {
   getPolicyAPI,
@@ -15,8 +16,6 @@ import { successNotification } from "@/utils/notification";
 // RichEditor phát HTML sau 300 ms kể từ thay đổi cuối — chờ đủ để Save ngay sau khi gõ
 // vẫn gửi phím cuối cùng
 const EDITOR_SETTLE_MS = 400;
-const SAVED_MESSAGE = "Đã lưu. Cửa hàng cập nhật trong tối đa 5 phút.";
-const CONFLICT_MESSAGE = "Nội dung đã thay đổi. Tải lại để bỏ bản nháp trước khi lưu.";
 // Toolbar RichEditor rộng ~920px — modal đủ rộng để không phải cuộn ngang
 const MODAL_WIDTH = 1040;
 

@@ -10,13 +10,6 @@ import RegisteredCustomerDetail from "./RegisteredCustomerDetail";
 import GuestBuyerDetail from "./GuestBuyerDetail";
 import { order } from "@/test/order-fixtures";
 
-vi.mock("@/services/checkout-settings", () => ({
-  getCheckoutSettingsAPI: vi.fn(async () => ({
-    data: { allowGuestCheckout: true },
-    message: "success"
-  })),
-  updateCheckoutSettingsAPI: vi.fn()
-}));
 vi.mock("@/services/customers", () => ({
   listCustomersAPI: vi.fn(),
   listGuestBuyersAPI: vi.fn(),
@@ -318,7 +311,9 @@ describe("Customer detail integration", () => {
       "/customers?page=2"
     );
     expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
-      "/orders/order-id"
+      `/orders/order-id?${new URLSearchParams({
+        returnTo: "/customers/registered/customer-id?returnTo=%2Fcustomers%3Fpage%3D2"
+      })}`
     );
     expect(vi.mocked(api.getCustomerOrdersAPI).mock.calls[0][0]).toBe("customer-id");
     expect(api.getGuestBuyerOrdersAPI).not.toHaveBeenCalled();

@@ -56,14 +56,6 @@ const dashboard: api.DashboardSummary = {
   orders: { pending: 4, awaitingShipment: 3, awaitingTransfer: 2, refundNeeded: 1 },
   catalog: { publishedProducts: 9, activeSkus: 20, lowStockSkus: 5, outOfStockSkus: 2 }
 };
-const stock: api.StockReport = {
-  metadata: { lowStockThreshold: 7, stockStatus: "out", generatedAt: "2026-10-07T03:00:00.000Z" },
-  data: [{ variantId: "v1", productId: "p1", productName: "Áo", sku: "SKU-S", inventoryCount: 0 }],
-  total: 21,
-  page: 2,
-  pageSize: 20,
-  totalPage: 2
-};
 
 describe("report transport through the shared Axios client", () => {
   it("preserves free-order counts, units and merchandise snapshots with no paid value", async () => {
@@ -87,12 +79,12 @@ describe("report transport through the shared Axios client", () => {
     });
   });
 
-  it("reads all three report endpoints with exact query wire format, one envelope and cancellation", async () => {
+  it("reads both report endpoints with exact query wire format, one envelope and cancellation", async () => {
     const calls: InternalAxiosRequestConfig[] = [];
     axiosRequest.defaults.adapter = async config => {
       calls.push(config);
       const body = { "/reports/sales": sales, "/reports/dashboard": dashboard }[config.url!];
-      return response(config, body ?? stock);
+      return response(config, body);
     };
     const signal = new AbortController().signal;
     expect(
@@ -101,44 +93,30 @@ describe("report transport through the shared Axios client", () => {
         signal
       )
     ).toEqual({ data: sales, message: "success" });
-    expect(await api.getDashboardAPI({ lowStockThreshold: 7 }, signal)).toEqual({
+    expect(await api.getDashboardAPI(signal)).toEqual({
       data: dashboard,
       message: "success"
     });
-    expect(
-      await api.getStockReportAPI(
-        { lowStockThreshold: 7, stockStatus: "out", page: 2, pageSize: 20 },
-        signal
-      )
-    ).toEqual({ data: stock, message: "success" });
     const path = (config: InternalAxiosRequestConfig) =>
       axiosRequest.getUri(config).slice(axiosRequest.defaults.baseURL!.length);
     expect(calls.map(c => [c.method, path(c), c.signal, c.toastError])).toEqual([
       ["get", "/reports/sales?from=2026-10-01&to=2026-10-07&deliveredOnly=true", signal, false],
-      ["get", "/reports/dashboard?lowStockThreshold=7", signal, false],
-      [
-        "get",
-        "/reports/stock?lowStockThreshold=7&stockStatus=out&page=2&pageSize=20",
-        signal,
-        false
-      ]
+      ["get", "/reports/dashboard", signal, false]
     ]);
     expect(calls[0].headers.Authorization).toBe("Bearer test-admin");
   });
 
-  it("omits unset optional dashboard/stock fields and sends deliveredOnly=false explicitly", async () => {
+  it("sends deliveredOnly=false explicitly and no dashboard query", async () => {
     const uris: string[] = [];
     axiosRequest.defaults.adapter = async config => {
       uris.push(axiosRequest.getUri(config).slice(axiosRequest.defaults.baseURL!.length));
       return response(config, {});
     };
     await api.getSalesReportAPI({ from: "2026-10-07", to: "2026-10-07", deliveredOnly: false });
-    await api.getDashboardAPI({});
-    await api.getStockReportAPI({});
+    await api.getDashboardAPI();
     expect(uris).toEqual([
       "/reports/sales?from=2026-10-07&to=2026-10-07&deliveredOnly=false",
-      "/reports/dashboard",
-      "/reports/stock"
+      "/reports/dashboard"
     ]);
   });
 

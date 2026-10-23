@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { ConfigProvider } from "antd";
+import { App, ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/banners";
-import Banners from "./index";
+import * as imagesApi from "@/services/images";
+import BannerBlock from "./BannerBlock";
+import { PATH } from "@/constants/paths";
 
 vi.mock("@/constants/env", () => ({ ADMIN_API_URL: "http://api.test:8001/admin/v1" }));
 vi.mock("@/services/banners", () => ({
@@ -13,9 +15,9 @@ vi.mock("@/services/banners", () => ({
   createBannerAPI: vi.fn(),
   updateBannerAPI: vi.fn(),
   deleteBannerAPI: vi.fn(),
-  reorderBannersAPI: vi.fn(),
-  uploadImageAPI: vi.fn()
+  reorderBannersAPI: vi.fn()
 }));
+vi.mock("@/services/images", () => ({ uploadImageAPI: vi.fn() }));
 
 const banner = (id: string, title: string, sortOrder: number): api.Banner => ({
   _id: id,
@@ -33,10 +35,17 @@ const ok = <T,>(data: T) => ({ data, message: "success" });
 const setup = () => {
   const router = createMemoryRouter(
     [
-      { path: "/banners", element: <Banners /> },
+      {
+        path: PATH.CONTENT_HOME,
+        element: (
+          <App component={false}>
+            <BannerBlock />
+          </App>
+        )
+      },
       { path: "/other", element: <p>Trang khác</p> }
     ],
-    { initialEntries: ["/banners"] }
+    { initialEntries: [PATH.CONTENT_HOME] }
   );
   render(
     <ConfigProvider theme={{ token: { motion: false } }}>
@@ -87,7 +96,7 @@ describe("banners page", () => {
     vi.mocked(api.deleteBannerAPI)
       .mockReset()
       .mockResolvedValue(ok({ success: true }));
-    vi.mocked(api.uploadImageAPI)
+    vi.mocked(imagesApi.uploadImageAPI)
       .mockReset()
       .mockResolvedValue(ok({ path: "/images/hero_1.png" }));
   });
@@ -155,7 +164,7 @@ describe("banners page", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     expect(await within(dialog).findByText(/Nhập cả nội dung nút và đường dẫn/)).toBeTruthy();
     expect(api.createBannerAPI).not.toHaveBeenCalled();
-    expect(api.uploadImageAPI).not.toHaveBeenCalled();
+    expect(imagesApi.uploadImageAPI).not.toHaveBeenCalled();
   });
 
   it.each(["javascript:alert(1)", "/\\evil.example"])(
@@ -176,7 +185,7 @@ describe("banners page", () => {
     upload(dialog);
     const preview = await within(dialog).findByAltText("Ảnh banner xem trước");
     expect(preview.getAttribute("src")).toBe("blob:http://localhost/banner-preview");
-    expect(api.uploadImageAPI).not.toHaveBeenCalled();
+    expect(imagesApi.uploadImageAPI).not.toHaveBeenCalled();
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: " Sale " } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     await waitFor(() =>
@@ -189,7 +198,7 @@ describe("banners page", () => {
         isActive: true
       })
     );
-    expect(api.uploadImageAPI).toHaveBeenCalledTimes(1);
+    expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1);
   });
 
   it("cancels a selected image without uploading", async () => {
@@ -199,12 +208,12 @@ describe("banners page", () => {
     await within(dialog).findByAltText("Ảnh banner xem trước");
     fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(api.uploadImageAPI).not.toHaveBeenCalled();
+    expect(imagesApi.uploadImageAPI).not.toHaveBeenCalled();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/banner-preview");
   });
 
   it("keeps the selection for retry when upload fails and does not save the banner", async () => {
-    vi.mocked(api.uploadImageAPI).mockRejectedValueOnce(new ApiError("File too large", 413));
+    vi.mocked(imagesApi.uploadImageAPI).mockRejectedValueOnce(new ApiError("File too large", 413));
     setup();
     const dialog = await openCreate();
     upload(dialog);
@@ -215,7 +224,7 @@ describe("banners page", () => {
     expect(api.createBannerAPI).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     await waitFor(() => expect(api.createBannerAPI).toHaveBeenCalledTimes(1));
-    expect(api.uploadImageAPI).toHaveBeenCalledTimes(2);
+    expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the form open with the error when saving fails", async () => {
@@ -230,7 +239,7 @@ describe("banners page", () => {
     expect((within(dialog).getByLabelText("Tiêu đề") as HTMLInputElement).value).toBe("Sale");
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
     await waitFor(() => expect(api.createBannerAPI).toHaveBeenCalledTimes(2));
-    expect(api.uploadImageAPI).toHaveBeenCalledTimes(1);
+    expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1);
   });
 
   it("deletes a banner after confirmation", async () => {

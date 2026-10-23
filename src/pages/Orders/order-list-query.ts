@@ -1,3 +1,5 @@
+import { matchPath } from "react-router";
+import { PATH } from "@/constants/paths";
 import type { OrderAttention, OrderListQuery, OrderStatus, PaymentStatus } from "@/services/orders";
 import { orderAttentionLabels, orderStatusLabels, paymentStatusLabels } from "./order-display";
 
@@ -53,12 +55,26 @@ export function serializeOrderListQuery(query: OrderListQuery): URLSearchParams 
   return result;
 }
 
+// Customer detail pages validate their own query (email, nested returnTo), so it passes through as-is
+export const isCustomerOrigin = (path: string): boolean =>
+  !!matchPath(PATH.CUSTOMER_DETAIL, path) || path === PATH.GUEST_BUYER_DETAIL;
+
 export function safeOrderReturnTo(value: string | null): string {
-  if (!value || value.includes("#")) return "/orders";
+  if (!value || value.includes("#")) return PATH.ORDER;
   const separator = value.indexOf("?");
   const path = separator < 0 ? value : value.slice(0, separator);
-  if (path !== "/orders" && path !== "/payments") return "/orders";
+  if (isCustomerOrigin(path)) return value;
+  if (path !== PATH.ORDER) return PATH.ORDER;
   const params = new URLSearchParams(separator < 0 ? "" : value.slice(separator + 1));
   const query = serializeOrderListQuery(parseOrderListQuery(params)).toString();
   return query ? `${path}?${query}` : path;
+}
+
+// Order detail, sidebar and breadcrumb must agree on where "back" goes; a repeated returnTo is ignored
+export function readOrderReturnTo(search: string): { returnTo: string; fromCustomer: boolean } {
+  const params = new URLSearchParams(search);
+  const returnTo = safeOrderReturnTo(
+    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
+  );
+  return { returnTo, fromCustomer: isCustomerOrigin(returnTo.split("?")[0]) };
 }

@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Alert, Button, Flex, Input, Pagination, Select, Spin, Table, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Flex,
+  Input,
+  Pagination,
+  Segmented,
+  Select,
+  Spin,
+  Table,
+  Typography
+} from "antd";
 import type { TableColumnsType } from "antd";
 import viVN from "antd/locale/vi_VN";
 import { Link, useLocation } from "react-router";
@@ -8,7 +19,6 @@ import type {
   AdminOrderSummary,
   OrderAttention,
   OrderStatus,
-  PaymentAction,
   PaymentStatus
 } from "@/services/orders";
 import { useOrdersList } from "./useOrdersList";
@@ -20,20 +30,21 @@ import {
   missingOrderData,
   orderAttentionLabels,
   orderStatusLabels,
-  paymentActionLabels,
   paymentMethodLabels,
   paymentStatusLabels
 } from "./order-display";
-import OrderActionDialog from "./OrderActionDialog";
+
+const ATTENTION_OPTIONS: { value: OrderAttention | ""; label: string }[] = [
+  { value: "", label: "Tất cả" },
+  ...(Object.entries(orderAttentionLabels) as [OrderAttention, string][]).map(([value, label]) => ({
+    value,
+    label
+  }))
+];
 
 export default function Orders() {
-  return <OrderListView />;
-}
-
-export function OrderListView({ payments = false }: { payments?: boolean }) {
   const { query, result, loading, error, changeQuery, reload } = useOrdersList();
   const location = useLocation();
-  const [action, setAction] = useState<{ orderId: string; action: PaymentAction } | null>(null);
   const returnTo = safeOrderReturnTo(`${location.pathname}${location.search}`);
   const refresh = () => {
     reload().catch(() => {
@@ -42,15 +53,7 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
   };
   const columns: TableColumnsType<AdminOrderSummary> = [
     { title: "Mã đơn hàng", key: "number", render: (_, row) => displayOrderText(row.orderNumber) },
-    ...(!payments
-      ? [
-          {
-            title: "Ngày tạo",
-            key: "created",
-            render: (_: unknown, row: AdminOrderSummary) => formatOrderDate(row.created_at)
-          }
-        ]
-      : []),
+    { title: "Ngày tạo", key: "created", render: (_, row) => formatOrderDate(row.created_at) },
     {
       title: "Người nhận",
       key: "recipient",
@@ -82,37 +85,20 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
       render: (_, row) =>
         row.paymentStatus ? paymentStatusLabels[row.paymentStatus] : missingOrderData
     },
-    ...(payments
-      ? [
-          {
-            title: "Ngày thanh toán",
-            key: "paid",
-            render: (_: unknown, row: AdminOrderSummary) => formatOrderDate(row.paidAt)
-          }
-        ]
-      : []),
+    {
+      title: "Ngày thanh toán",
+      key: "paid",
+      render: (_, row) => (row.paidAt ? formatOrderDate(row.paidAt) : "—")
+    },
     {
       title: "Thao tác",
       key: "actions",
       render: (_, row) => (
-        <Flex gap={8} wrap>
-          <Link
-            to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
-          >
-            Chi tiết
-          </Link>
-          {/* Summaries carry no eligibility; the dialog's fresh read decides what is allowed. */}
-          {payments &&
-            (Object.keys(paymentActionLabels) as PaymentAction[]).map(item => (
-              <Button
-                key={item}
-                size='small'
-                onClick={() => setAction({ orderId: row._id, action: item })}
-              >
-                {paymentActionLabels[item]}
-              </Button>
-            ))}
-        </Flex>
+        <Link
+          to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
+        >
+          Chi tiết
+        </Link>
       )
     }
   ];
@@ -120,13 +106,18 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
   return (
     <section className='min-w-0'>
       <Flex justify='space-between' align='center'>
-        <Typography.Title level={2}>
-          {payments ? "Quản lý Thanh toán" : "Quản lý Đơn hàng"}
-        </Typography.Title>
+        <Typography.Title level={2}>Quản lý Đơn hàng</Typography.Title>
         <Button onClick={refresh} disabled={loading}>
           Tải lại
         </Button>
       </Flex>
+      <Segmented<OrderAttention | "">
+        aria-label='Lọc đơn cần chú ý'
+        className='mb-4'
+        value={query.attention ?? ""}
+        onChange={attention => changeQuery({ attention: attention || undefined })}
+        options={ATTENTION_OPTIONS}
+      />
       <Flex gap={12} className='mb-4'>
         <OrderSearch
           key={query.search ?? ""}
@@ -155,19 +146,6 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
             { value: "", label: "Tất cả trạng thái thanh toán" },
             ...Object.entries(paymentStatusLabels).map(([value, label]) => ({
               value: value as PaymentStatus,
-              label
-            }))
-          ]}
-        />
-        <Select<OrderAttention | "">
-          aria-label='Lọc đơn cần chú ý'
-          style={{ minWidth: 200 }}
-          value={query.attention ?? ""}
-          onChange={attention => changeQuery({ attention: attention || undefined })}
-          options={[
-            { value: "", label: "Tất cả đơn hàng" },
-            ...Object.entries(orderAttentionLabels).map(([value, label]) => ({
-              value: value as OrderAttention,
               label
             }))
           ]}
@@ -210,18 +188,6 @@ export function OrderListView({ payments = false }: { payments?: boolean }) {
             />
           </Flex>
         </>
-      )}
-      {action && (
-        <OrderActionDialog
-          key={`${action.orderId}:${action.action}`}
-          orderId={action.orderId}
-          intent={{ type: "payment", action: action.action }}
-          onClose={() => setAction(null)}
-          // Lives outside the table: a list reload unmounts rows but must not erase the outcome.
-          onOrderChanged={async () => {
-            await reload();
-          }}
-        />
       )}
     </section>
   );

@@ -112,7 +112,13 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
                 style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4 }}
               />
             )}
-            <Typography.Text strong>{review.product?.name ?? "Sản phẩm đã bị xóa"}</Typography.Text>
+            {review.product?.name ? (
+              <Link to={generatePath(PATH.PRODUCT_DETAIL, { id: review.product._id })}>
+                <Typography.Text strong>{review.product.name}</Typography.Text>
+              </Link>
+            ) : (
+              <Typography.Text strong>Sản phẩm đã bị xóa</Typography.Text>
+            )}
           </Flex>
           <Flex gap={8} align='center'>
             <Rate disabled value={review.rating} />

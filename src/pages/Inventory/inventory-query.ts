@@ -1,4 +1,3 @@
-import { thresholdError, validThreshold } from "@/pages/Dashboard/dashboard-query";
 import type { InventoryQuery, InventoryStockFilter } from "@/services/inventory";
 
 export interface InventoryUrlQuery {
@@ -17,6 +16,10 @@ export interface InventoryUrlState {
   /** One message per explicit invalid or repeated value; any entry blocks the request. */
   errors: string[];
 }
+
+export const thresholdError = "Ngưỡng tồn kho phải là số nguyên từ 1 đến 1000";
+// Mirrors backend THRESHOLD_PATTERN: no signs, fractions, exponents or leading zeros.
+export const validThreshold = (value: string) => /^(?:[1-9]\d{0,2}|1000)$/.test(value);
 
 export const INVENTORY_PAGE_SIZES = [10, 20, 50];
 const SEARCH_MAX = 100; // backend InventoryQueryDto

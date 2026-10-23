@@ -77,7 +77,7 @@ describe("CMS data router", () => {
     await screen.findByRole("heading", { name: "Voucher" });
     expect(router.state.location.pathname).toBe("/vouchers");
   });
-  it("opens store content from the Nội dung group with breadcrumbs", async () => {
+  it("opens store info from the Nội dung group with breadcrumbs", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(
         config,
@@ -86,32 +86,44 @@ describe("CMS data router", () => {
           : {
               contact: { address: "A", email: "a@b.vn", phone: "1" },
               socials: { facebook: "", instagram: "", twitter: "" },
-              promoTiles: [0, 1].map(() => ({
-                title: "T",
-                description: "D",
-                ctaLabel: "C",
-                href: "/collection",
-                image: "https://img.test/a.jpg",
-                theme: "light"
-              })),
-              homePromises: [0, 1, 2, 3].map(() => ({ title: "T", description: "D" })),
               productPromises: ["a", "b", "c"],
               revision: 0
             }
       );
-    const router = renderRoute("/store-content");
-    await screen.findByRole("heading", { name: "Nội dung cửa hàng" });
+    const router = renderRoute("/content/store-info");
+    await screen.findByRole("heading", { name: "Thông tin cửa hàng" });
     expect(
-      (await screen.findByRole("menuitem", { name: /Nội dung cửa hàng/ })).className
+      (await screen.findByRole("menuitem", { name: /Thông tin cửa hàng/ })).className
     ).toContain("ant-menu-item-selected");
-    // `navigation` is the breadcrumb (same as the vouchers case above)
     const breadcrumb = within(screen.getByRole("navigation"));
     expect(breadcrumb.getByText("Nội dung")).toBeTruthy();
-    expect(breadcrumb.getByText("Nội dung cửa hàng")).toBeTruthy();
+    expect(breadcrumb.getByText("Thông tin cửa hàng")).toBeTruthy();
     await act(() => router.navigate("/dashboard"));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Trang chính sách/ }));
     expect(router.state.location.pathname).toBe("/policies");
   });
+
+  it("opens Cài đặt › Đặt hàng with the guest checkout switch", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? profile : { allowGuestCheckout: true });
+    const router = renderRoute("/dashboard");
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Đặt hàng/ }));
+    await screen.findByRole("heading", { name: "Đặt hàng" });
+    expect(router.state.location.pathname).toBe("/settings/checkout");
+    expect(
+      screen.getByRole("switch", { name: "Cho phép mua hàng không cần đăng nhập" })
+    ).toBeTruthy();
+    const breadcrumb = within(screen.getByRole("navigation"));
+    expect(breadcrumb.getByText("Cài đặt")).toBeTruthy();
+  });
+
+  it("drops the removed Payments, Banner and old content routes", () => {
+    const paths = routes.flatMap(route => route.children ?? []).map(route => route.path);
+    for (const removed of ["/payments", "/banners", "/store-content", "/categories"])
+      expect(paths).not.toContain(removed);
+    expect(paths).toEqual(expect.arrayContaining(["/content/home", "/catalog/categories"]));
+  });
+
   it.each([
     ["/customers/registered/customer-id", "Khách hàng đã đăng ký", "/customers?page=2&search=An"],
     [
@@ -153,8 +165,9 @@ describe("CMS data router", () => {
       const crumbs = within(screen.getByRole("navigation"));
       expect(crumbs.getByText(label)).toBeTruthy();
       expect(crumbs.getByRole("link", { name: "Khách hàng" }).getAttribute("href")).toBe(returnTo);
+      const detailUrl = `${router.state.location.pathname}${router.state.location.search}`;
       expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
-        "/orders/order-id"
+        `/orders/order-id?${new URLSearchParams({ returnTo: detailUrl })}`
       );
       fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
       await screen.findByRole("link", { name: "Chi tiết" });
@@ -214,9 +227,7 @@ describe("CMS data router", () => {
 
   it.each([
     ["/orders", "Quản lý Đơn hàng", "Đơn hàng"],
-    ["/payments", "Quản lý Thanh toán", "Thanh toán"],
-    ["/orders", "Quản lý Đơn hàng", "Đơn hàng", "not_required"],
-    ["/payments", "Quản lý Thanh toán", "Thanh toán", "not_required"]
+    ["/orders", "Quản lý Đơn hàng", "Đơn hàng", "not_required"]
   ])(
     "preserves %s query through detail/back, browser Back and a direct reload",
     async (path, label, menuLabel, paymentStatus = "unpaid") => {
@@ -268,10 +279,16 @@ describe("CMS data router", () => {
     ["", "/orders", "Đơn hàng"],
     ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Đơn hàng"],
     [
-      "?returnTo=%2Fpayments%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
-      "/payments?page=3&search=An&paymentStatus=paid",
-      "Thanh toán"
-    ]
+      "?returnTo=%2Forders%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
+      "/orders?page=3&search=An&paymentStatus=paid",
+      "Đơn hàng"
+    ],
+    [
+      "?returnTo=%2Fcustomers%2Fregistered%2Fcustomer-id%3FreturnTo%3D%252Fcustomers",
+      "/customers/registered/customer-id?returnTo=%2Fcustomers",
+      "Khách hàng"
+    ],
+    ["?returnTo=%2Fpayments%3Fpage%3D3", "/orders", "Đơn hàng"]
   ])(
     "loads direct order detail with origin selection and breadcrumbs (%s)",
     async (query, destination, menuLabel) => {
@@ -287,9 +304,8 @@ describe("CMS data router", () => {
       fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
       await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
       expect(router.state.location.search).toBe(query);
-      expect(screen.getByRole("link", { name: "Về danh sách" }).getAttribute("href")).toBe(
-        destination
-      );
+      const backLabel = destination.startsWith("/customers/") ? "Về khách hàng" : "Về danh sách";
+      expect(screen.getByRole("link", { name: backLabel }).getAttribute("href")).toBe(destination);
       if (destination === "/orders") {
         fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
         await waitFor(() => expect(router.state.location.pathname).toBe("/orders"));
@@ -327,10 +343,10 @@ describe("CMS data router", () => {
     const router = renderRoute("/dashboard");
     await screen.findByRole("heading", { name: "Tổng quan vận hành" });
     const crumbs = () => within(screen.getByRole("navigation"));
-    expect(screen.getByRole("menuitem", { name: /Trang chủ/ }).className).toContain(
+    expect(screen.getByRole("menuitem", { name: "home Tổng quan" }).className).toContain(
       "ant-menu-item-selected"
     );
-    expect(crumbs().getByText("Trang chủ")).toBeTruthy();
+    expect(crumbs().getByText("Tổng quan")).toBeTruthy();
     expect(crumbs().queryByText("Sản phẩm")).toBeNull();
     expect(
       screen.queryByRole("menuitem", { name: /Báo cáo Doanh thu|Báo cáo Sản phẩm/ })
@@ -341,11 +357,11 @@ describe("CMS data router", () => {
     expect(screen.getByRole("menuitem", { name: /Báo cáo bán hàng/ }).className).toContain(
       "ant-menu-item-selected"
     );
-    expect(screen.getByRole("menuitem", { name: /Trang chủ/ }).className).not.toContain(
+    expect(screen.getByRole("menuitem", { name: "home Tổng quan" }).className).not.toContain(
       "ant-menu-item-selected"
     );
     expect(crumbs().getByText("Báo cáo bán hàng")).toBeTruthy();
-    expect(crumbs().queryByText("Trang chủ")).toBeNull();
+    expect(crumbs().queryByText("Tổng quan")).toBeNull();
     await act(() => router.navigate(-1));
     await screen.findByRole("heading", { name: "Tổng quan vận hành" });
   }, 20000);

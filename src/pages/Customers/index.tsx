@@ -32,7 +32,6 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import { formatOrderDate } from "@/pages/Orders/order-display";
 import { parseCustomerListQuery, serializeCustomerListQuery } from "./customer-list-query";
 import CustomerForm from "./CustomerForm";
-import GuestCheckoutSwitch from "./GuestCheckoutSwitch";
 
 type ListResult =
   CustomerListResult<RegisteredCustomerSummary> | CustomerListResult<GuestBuyerSummary>;
@@ -323,7 +322,6 @@ export default function Customers() {
           )}
         </Flex>
       </Flex>
-      <GuestCheckoutSwitch />
       <Tabs
         activeKey={query.tab}
         onChange={tab => changeQuery({ tab: tab === "guests" ? "guests" : "registered" })}

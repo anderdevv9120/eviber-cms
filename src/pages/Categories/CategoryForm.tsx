@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import { uploadImageAPI } from "@/services/banners";
+import { uploadImageAPI } from "@/services/images";
 import {
   createCategoryAPI,
   updateCategoryAPI,
