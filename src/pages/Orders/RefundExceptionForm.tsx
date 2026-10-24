@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Button, Checkbox, Flex, Input, InputNumber, Radio, Select } from "antd";
+import { Alert, Button, Checkbox, DatePicker, Flex, Input, InputNumber, Radio, Select } from "antd";
+import dayjs from "dayjs";
 import {
   createAdminRefundAPI,
   reviewLegacyRefundAPI,
@@ -329,11 +330,14 @@ function LegacyReview({ ctx, labels, onClose }: Props) {
           <label htmlFor='refund-legacy-delivered-at' className='mb-1 block'>
             Thời điểm giao hàng (kê khai)
           </label>
-          <Input
+          <DatePicker
             id='refund-legacy-delivered-at'
-            type='datetime-local'
-            value={deliveredAt}
-            onChange={event => edit(() => setDeliveredAt(event.target.value))}
+            format='DD/MM/YYYY HH:mm'
+            showTime
+            needConfirm={false}
+            placeholder='Chọn thời điểm giao hàng'
+            value={deliveredAt ? dayjs(deliveredAt) : null}
+            onChange={value => edit(() => setDeliveredAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))}
           />
           {error("deliveredAt")}
         </div>

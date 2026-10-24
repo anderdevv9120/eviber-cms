@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
+import dayjs from "dayjs";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import axiosRequest from "@/utils/request";
 import { deferred, order, response } from "@/test/order-fixtures";
@@ -345,9 +346,11 @@ describe("admin refund section", () => {
       expect(await screen.findByText(message)).toBeTruthy();
     expect(writes()).toHaveLength(0);
 
-    fireEvent.change(screen.getByLabelText("Thời điểm giao hàng (kê khai)"), {
-      target: { value: "2026-10-20T09:00" }
+    const delivery = screen.getByRole("textbox", { name: "Thời điểm giao hàng (kê khai)" });
+    fireEvent.change(delivery, {
+      target: { value: dayjs("2026-10-20T09:00").format("DD/MM/YYYY HH:mm") }
     });
+    fireEvent.keyDown(delivery, { key: "Enter", code: "Enter" });
     type("spinbutton", `Số tiền thực tế ${itemLabel}`, "180000");
     type("spinbutton", "Phí vận chuyển", "30000");
     type("spinbutton", "Số tiền đã thu", "200000");

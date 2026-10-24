@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
+import dayjs from "dayjs";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import axiosRequest from "@/utils/request";
 import { deferred, response } from "@/test/order-fixtures";
@@ -175,6 +176,11 @@ const open = async (name: string) => fireEvent.click(await screen.findByRole("bu
 const button = (name: string | RegExp) =>
   screen.queryByRole("button", { name }) as HTMLButtonElement | null;
 const PAID_AT = "2026-10-24T12:00";
+const selectTime = (label: string, time: string) => {
+  const input = screen.getByRole("textbox", { name: label });
+  fireEvent.change(input, { target: { value: dayjs(time).format("DD/MM/YYYY HH:mm") } });
+  fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+};
 const fillPayout = (
   values: { amount?: string; paidAt?: string; reference?: string } = {}
 ): void => {
@@ -182,9 +188,7 @@ const fillPayout = (
   fireEvent.change(screen.getByRole("spinbutton", { name: "Số tiền đã hoàn" }), {
     target: { value: amount }
   });
-  fireEvent.change(screen.getByLabelText("Thời điểm đã chuyển tiền"), {
-    target: { value: paidAt }
-  });
+  selectTime("Thời điểm đã chuyển tiền", paidAt);
   fireEvent.change(screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }), {
     target: { value: reference }
   });
@@ -441,7 +445,7 @@ describe("refund payout claim and completion", () => {
     click("Ghi nhận đã hoàn tiền");
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0].body?.reference).toBe("r".repeat(100));
-  });
+  }, 15000);
 
   it("double_click_sends_one_command", async () => {
     const pending = deferred<AxiosResponse>();

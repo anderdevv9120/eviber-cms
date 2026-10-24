@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Button, Checkbox, Flex, Input, InputNumber } from "antd";
+import { Alert, Button, Checkbox, DatePicker, Flex, Input, InputNumber } from "antd";
+import dayjs from "dayjs";
 import {
   claimRefundPayoutAPI,
   recordRefundPayoutAPI,
@@ -244,11 +245,14 @@ function RecordStep({
         {error("amount")}
       </div>
       <div className='mt-2'>
-        <Input
+        <DatePicker
           aria-label='Thời điểm đã chuyển tiền'
-          type='datetime-local'
-          value={paidAt}
-          onChange={event => edit(() => setPaidAt(event.target.value))}
+          format='DD/MM/YYYY HH:mm'
+          showTime
+          needConfirm={false}
+          placeholder='Chọn thời điểm đã chuyển tiền'
+          value={paidAt ? dayjs(paidAt) : null}
+          onChange={value => edit(() => setPaidAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))}
         />
         {error("paidAt")}
       </div>
