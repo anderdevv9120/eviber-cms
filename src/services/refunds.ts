@@ -278,3 +278,13 @@ export const recordRefundPayoutAPI = (
   input: RefundPayoutInput
 ): Promise<ApiResponse<AdminRefundOrderView>> =>
   axiosRequest.post(`${requestPath(id, requestId)}/payout`, input, inlineErrors);
+// Evidence bytes are private: fetched with the admin token and shown through object URLs.
+export const getRefundEvidenceAPI = (
+  id: string,
+  evidenceId: string,
+  signal?: AbortSignal
+): Promise<Blob> =>
+  axiosRequest.get(
+    `/orders/${encodeURIComponent(id)}/refund-evidence/${encodeURIComponent(evidenceId)}`,
+    { ...inlineErrors, responseType: "blob", signal }
+  );

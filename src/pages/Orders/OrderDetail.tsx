@@ -20,6 +20,7 @@ import {
 } from "./order-display";
 import OrderHistory from "./OrderHistory";
 import OrderActionDialog, { type OrderActionIntent } from "./OrderActionDialog";
+import RefundSection from "./RefundSection";
 
 // Stored purchase snapshot; legacy orders without a type keep the old percentage field.
 const couponDiscount = (
@@ -92,6 +93,13 @@ function OrderDetailRead({
   const reload = () => {
     setView({ loading: true });
     setAttempt(value => value + 1);
+  };
+  // A committed refund changes the order's revision and action eligibility; read it quietly so the
+  // refund section keeps its place.
+  const refreshOrder = async () => {
+    const { data } = await getOrderAPI(orderId);
+    if (!data?._id) throw new Error("Không tải được dữ liệu đơn hàng");
+    setView({ loading: false, order: data });
   };
   const order = view.order;
   const currency = order?.checkoutInfo.currency;
@@ -390,6 +398,12 @@ function OrderDetailRead({
               ))}
             </ul>
           </section>
+          <RefundSection
+            orderId={orderId}
+            revision={order.revision}
+            order={order}
+            onCommitted={refreshOrder}
+          />
           <OrderHistory order={order} />
         </>
       )}

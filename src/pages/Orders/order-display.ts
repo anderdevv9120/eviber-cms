@@ -1,4 +1,4 @@
-import type { RefundFilter } from "@/services/refunds";
+import type { RefundFilter, RefundReason } from "@/services/refunds";
 import type {
   OrderAttention,
   OrderStatus,
@@ -83,4 +83,11 @@ export const refundStatusLabels: Record<RefundFilter, string> = {
   fully_refunded: "Đã hoàn toàn bộ",
   rejected: "Đã từ chối",
   no_requests: "Chưa có yêu cầu"
+};
+
+export const refundReasonLabels: Record<RefundReason, string> = {
+  ordinary: "Hoàn tiền thông thường",
+  missing_item: "Thiếu hàng",
+  incorrect_item: "Giao sai hàng",
+  other: "Lý do khác"
 };

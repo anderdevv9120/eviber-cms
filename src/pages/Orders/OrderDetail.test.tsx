@@ -1,13 +1,47 @@
 import "@/test/attribute-fixtures";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { AxiosError, type AxiosResponse } from "axios";
+import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import axiosRequest from "@/utils/request";
 import { order, response, deferred } from "@/test/order-fixtures";
+import type { AdminRefundOrderView } from "@/services/refunds";
 import OrderDetail from "./OrderDetail";
 
+type Adapter = (config: InternalAxiosRequestConfig) => Promise<AxiosResponse>;
+const refundView: AdminRefundOrderView = {
+  orderId: "order-id",
+  orderNumber: "ORD-SNAPSHOT",
+  revision: 4,
+  policy: { enabled: true, windowDays: 7 },
+  deadline: null,
+  eligibility: { eligible: false, reviewRequired: false, reason: null },
+  allocations: [],
+  remainingPaidShipping: 0,
+  summary: {
+    activeStages: [],
+    paidAmount: 0,
+    paidShippingAmount: 0,
+    coverage: "none",
+    requestCount: 0,
+    reviewRequired: false
+  },
+  requests: [],
+  canReview: false,
+  canPay: false
+};
+// The refund section reads its own endpoints; these tests count order reads and writes only.
+let serveRefunds: Adapter | undefined;
+afterEach(() => {
+  serveRefunds = undefined;
+});
+
 const renderDetail = (path = "/orders/order-id") => {
+  const orderAdapter = axiosRequest.defaults.adapter as Adapter;
+  axiosRequest.defaults.adapter = async config =>
+    config.url?.includes("/refunds")
+      ? (serveRefunds ?? (async () => response(config, refundView)))(config)
+      : orderAdapter(config);
   const router = createMemoryRouter([{ path: "/orders/:orderId", element: <OrderDetail /> }], {
     initialEntries: [path]
   });
@@ -401,5 +435,107 @@ describe("order detail actions", () => {
     expect((dialog.getByRole("button", { name: "Xác nhận" }) as HTMLButtonElement).disabled).toBe(
       true
     );
+  });
+
+  it("refreshes the order after a committed refund decision without reloading the page or moving the order status", async () => {
+    const itemLabel = "Áo tại thời điểm mua (SKU-S)";
+    const reviewed: AdminRefundOrderView = {
+      ...refundView,
+      canReview: true,
+      allocations: [
+        {
+          allocationId: "a1",
+          productInfoIndex: 0,
+          productName: "Áo tại thời điểm mua",
+          variantLabel: "SKU-S",
+          purchasedQuantity: 2,
+          availableQuantity: 0,
+          requestedQuantity: 2,
+          refundedQuantity: 0,
+          netAmount: 180000,
+          availableAmount: 0,
+          requestedAmount: 180000,
+          refundedAmount: 0,
+          productRefundEnabled: true
+        }
+      ],
+      requests: [
+        {
+          requestId: "r1",
+          stage: "awaiting_review",
+          submittedAt: "2026-10-22T03:00:00.000Z",
+          items: [
+            {
+              allocationId: "a1",
+              productInfoIndex: 0,
+              quantity: 2,
+              reason: "ordinary",
+              explanation: "Không vừa",
+              requestedReturn: "return",
+              evidenceIds: [],
+              approvedQuantity: 0,
+              approvedAmount: 0,
+              returnRequired: false,
+              receivedQuantity: 0,
+              netAmount: 180000,
+              decisionReason: null,
+              sellableQuantity: 0,
+              ranges: [{ allocationId: "a1", start: 0, quantity: 2 }]
+            }
+          ],
+          shipping: { reservedAmount: 0, approvedAmount: 0 },
+          history: [],
+          payout: null,
+          exceptionReason: null,
+          reviewRequired: false,
+          inspections: [],
+          approval: null,
+          claim: null
+        }
+      ]
+    };
+    const decided: AdminRefundOrderView = {
+      ...reviewed,
+      revision: 5,
+      requests: [
+        {
+          ...reviewed.requests[0],
+          stage: "awaiting_return",
+          items: [{ ...reviewed.requests[0].items[0], approvedQuantity: 2, returnRequired: true }]
+        }
+      ]
+    };
+    const calls: string[] = [];
+    let committed = false;
+    serveRefunds = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      if (config.method === "post") {
+        committed = true;
+        return response(config, decided);
+      }
+      return response(config, reviewed);
+    };
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      return response(config, { ...order, revision: committed ? 5 : 4 });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    fireEvent.click(await screen.findByRole("button", { name: "Duyệt yêu cầu" }));
+    fireEvent.change(screen.getByRole("textbox", { name: `Lý do quyết định ${itemLabel}` }), {
+      target: { value: "Hàng lỗi" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận duyệt" }));
+
+    const request = within(await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" }));
+    expect(await request.findByText("Chờ nhận hàng")).toBeTruthy();
+    await waitFor(() =>
+      expect(calls.filter(call => call === "get /orders/order-id")).toHaveLength(2)
+    );
+    expect(screen.queryByLabelText("Đang tải đơn hàng")).toBeNull();
+    expect(calls.filter(call => call.includes("/status"))).toEqual([]);
+    expect(calls.filter(call => call.startsWith("post"))).toEqual([
+      "post /orders/order-id/refunds/r1/decision"
+    ]);
   });
 });
