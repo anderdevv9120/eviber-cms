@@ -47,7 +47,7 @@ describe("Orders list", () => {
         )
       );
     setup();
-    await screen.findAllByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: "ORD-0" });
     expect(
       within(screen.getByRole("row", { name: /ORD-0/ })).getByText("Chưa có yêu cầu")
     ).toBeTruthy();
@@ -102,7 +102,7 @@ describe("Orders list", () => {
       { initialEntries: [path] }
     );
     render(<RouterProvider router={router} />);
-    const link = await screen.findByRole("link", { name: "Chi tiết" });
+    const link = await screen.findByRole("link", { name: order.orderNumber });
     const row = within(screen.getByRole("row", { name: /ORD-SNAPSHOT/ }));
     for (const text of [
       "Đã thanh toán",
@@ -119,7 +119,7 @@ describe("Orders list", () => {
     fireEvent.click(link);
     await screen.findByText("Chi tiết đơn");
     await act(() => router.navigate(-1));
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     expect(router.state.location.pathname + router.state.location.search).toBe(path);
     expect(requests[requests.length - 1]).toEqual({
       page: 3,
@@ -151,13 +151,13 @@ describe("Orders list", () => {
       return response(config, { ...orderList(), data: [free] });
     };
     setup("/orders?paymentStatus=not_required");
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     expect(requests).toEqual([{ page: 1, pageSize: 10, paymentStatus: "not_required" }]);
     const row = within(screen.getByRole("row", { name: /ORD-SNAPSHOT/ }));
     expect(row.getByText("0 ₫")).toBeTruthy();
     // Spec §6: both method and status read "No payment required", never "not paid".
     expect(row.getAllByText("Không cần thanh toán")).toHaveLength(2);
-    expect(row.getByRole("link", { name: "Chi tiết" }).getAttribute("href")).toContain(
+    expect(row.getByRole("link", { name: order.orderNumber }).getAttribute("href")).toContain(
       "paymentStatus%3Dnot_required"
     );
   });
@@ -168,7 +168,7 @@ describe("Orders list", () => {
       return response(config, orderList([order], 1, 42));
     };
     setup();
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     for (const label of [
       "Mã đơn hàng",
       "Ngày tạo",
@@ -176,10 +176,11 @@ describe("Orders list", () => {
       "Tổng tiền",
       "Phương thức thanh toán",
       "Trạng thái đơn hàng",
-      "Trạng thái thanh toán",
-      "Thao tác"
+      "Trạng thái thanh toán"
     ])
       expect(screen.getByRole("columnheader", { name: label })).toBeTruthy();
+    expect(screen.queryByRole("columnheader", { name: "Thao tác" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Chi tiết" })).toBeNull();
     const row = within(screen.getByRole("row", { name: /ORD-SNAPSHOT/ }));
     for (const text of [
       "ORD-SNAPSHOT",
@@ -194,7 +195,7 @@ describe("Orders list", () => {
       expect(row.getByText(text)).toBeTruthy();
     expect(screen.getByText("Tổng 42 đơn hàng")).toBeTruthy();
     expect(requests).toEqual([{ page: 1, pageSize: 10 }]);
-    expect(row.getByRole("link", { name: "Chi tiết" }).getAttribute("href")).toBe(
+    expect(row.getByRole("link", { name: order.orderNumber }).getAttribute("href")).toBe(
       "/orders/order-id?returnTo=%2Forders"
     );
   });
@@ -209,7 +210,7 @@ describe("Orders list", () => {
       "/orders?page=3&pageSize=20&search=Old&status=pending&paymentStatus=unpaid"
     );
     const input = await screen.findByRole("searchbox", { name: "Tìm đơn hàng" });
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     expect((input as HTMLInputElement).value).toBe("Old");
     fireEvent.change(input, { target: { value: "  An  " } });
     expect(requests).toHaveLength(1);
@@ -234,14 +235,14 @@ describe("Orders list", () => {
       return response(config, orderList([order], config.params.page, 100, config.params.pageSize));
     };
     const router = setup("/orders?page=3&paymentStatus=paid");
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lọc trạng thái đơn hàng" }));
     fireEvent.click(await screen.findByText("Đã hủy"));
     await waitFor(() =>
       expect(router.state.location.search).toBe("?status=cancelled&paymentStatus=paid")
     );
     await act(() => router.navigate("/orders?page=3&status=cancelled&paymentStatus=paid"));
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Số đơn mỗi trang" }));
     fireEvent.click(await screen.findByText("20 / trang"));
     await waitFor(() =>
@@ -262,12 +263,12 @@ describe("Orders list", () => {
       return response(config, orderList([order], config.params.page, 100, config.params.pageSize));
     };
     const router = setup("/orders?page=3&status=pending");
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     fireEvent.click(screen.getByRole("radio", { name: "Chờ chuyển khoản" }));
     await waitFor(() =>
       expect(router.state.location.search).toBe("?status=pending&attention=awaiting-transfer")
     );
-    const link = await screen.findByRole("link", { name: "Chi tiết" });
+    const link = await screen.findByRole("link", { name: order.orderNumber });
     expect(
       new URL(link.getAttribute("href")!, "http://test.local").searchParams.get("returnTo")
     ).toBe("/orders?status=pending&attention=awaiting-transfer");
@@ -284,7 +285,7 @@ describe("Orders list", () => {
   it("lists payment date for every order and leaves payment actions to the detail page", async () => {
     axiosRequest.defaults.adapter = async config => response(config, orderList([order]));
     setup();
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: order.orderNumber });
     expect(screen.getByRole("columnheader", { name: "Ngày thanh toán" })).toBeTruthy();
     expect(screen.getByRole("radio", { name: "Tất cả" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Xác nhận|Hoàn tiền|thanh toán/i })).toBeNull();
@@ -293,7 +294,7 @@ describe("Orders list", () => {
   it("restores reload/deep-link inputs and retains complete detail origin", async () => {
     axiosRequest.defaults.adapter = async config => response(config, orderList([order], 2, 35, 20));
     setup("/orders?page=2&pageSize=20&search=An&status=pending&paymentStatus=unpaid");
-    const link = await screen.findByRole("link", { name: "Chi tiết" });
+    const link = await screen.findByRole("link", { name: order.orderNumber });
     expect(
       (screen.getByRole("searchbox", { name: "Tìm đơn hàng" }) as HTMLInputElement).value
     ).toBe("An");
@@ -342,7 +343,8 @@ describe("Orders list", () => {
         ])
       );
     setup();
-    await screen.findByRole("link", { name: "Chi tiết" });
+    const link = await screen.findByRole("link", { name: missingOrderData });
+    expect(link.getAttribute("href")).toBe("/orders/order-id?returnTo=%2Forders");
     // Mã đơn, ngày tạo, tổng tiền, trạng thái thanh toán; đơn chưa trả không có ngày thanh toán là bình thường
     expect(screen.getAllByText("—")).toHaveLength(5);
     expect(screen.queryByText("-")).toBeNull();

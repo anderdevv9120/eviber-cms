@@ -283,7 +283,6 @@ function CombosPage() {
           action(row, "DRAFT", "Khôi phục")
         ) : (
           <Flex gap={8} wrap>
-            <Link to={comboDetailPath(row._id)}>Sửa combo</Link>
             {row.status === "PUBLISH" ? (
               <Popconfirm
                 title='Ngừng bán combo này?'

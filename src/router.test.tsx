@@ -196,7 +196,7 @@ describe("CMS data router", () => {
         `/orders/order-id?${new URLSearchParams({ returnTo: detailUrl })}`
       );
       fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
-      await screen.findByRole("link", { name: "Chi tiết" });
+      await screen.findByRole("link", { name: path.includes("/guests/") ? guest.email : "—" });
       expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(returnTo);
       await act(() => router.navigate(-1));
       await screen.findByRole("heading", { name: label });
@@ -259,7 +259,7 @@ describe("CMS data router", () => {
     async (path, label, menuLabel, paymentStatus = "unpaid") => {
       const query = `?page=3&pageSize=20&search=An&status=pending&paymentStatus=${paymentStatus}`;
       const router = renderRoute(`${path}${query}`);
-      const link = await screen.findByRole("link", { name: "Chi tiết" });
+      const link = await screen.findByRole("link", { name: order.orderNumber });
       expect(screen.getByRole("heading", { name: label })).toBeTruthy();
       expect(screen.getByRole("menuitem", { name: new RegExp(menuLabel) }).className).toContain(
         "ant-menu-item-selected"
@@ -272,14 +272,14 @@ describe("CMS data router", () => {
         `${path}${query}`
       );
       fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
-      await screen.findByRole("link", { name: "Chi tiết" });
+      await screen.findByRole("link", { name: order.orderNumber });
       expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(
         `${path}${query}`
       );
       await act(() => router.navigate(-1));
       await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
       await act(() => router.navigate(-1));
-      await screen.findByRole("link", { name: "Chi tiết" });
+      await screen.findByRole("link", { name: order.orderNumber });
       expect(router.state.location.search).toBe(query);
       const fresh = createMemoryRouter(routes, { initialEntries: [detailLocation] });
       await act(() => router.navigate(detailLocation, { replace: true }));

@@ -49,7 +49,7 @@ describe("Operational Dashboard", () => {
     );
     render(<RouterProvider router={router} />);
     fireEvent.click(await screen.findByRole("link", { name: "Cần hoàn tiền: 1" }));
-    await screen.findByRole("link", { name: "Chi tiết" });
+    await screen.findByRole("link", { name: "ORD-SNAPSHOT" });
     expect(router.state.location.pathname + router.state.location.search).toBe(
       "/orders?attention=refund-needed"
     );

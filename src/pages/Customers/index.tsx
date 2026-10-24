@@ -253,7 +253,11 @@ export default function Customers() {
     {
       title: "Tên",
       key: "name",
-      render: (_, row) => text([row.firstName, row.lastName].filter(Boolean).join(" "))
+      render: (_, row) => (
+        <Link to={registeredLink(row._id)}>
+          {text([row.firstName, row.lastName].filter(Boolean).join(" "))}
+        </Link>
+      )
     },
     { title: "Email", dataIndex: "email" },
     { title: "Số điện thoại", key: "phone", render: (_, row) => text(row.phone) },
@@ -268,22 +272,12 @@ export default function Customers() {
             ? "Google"
             : "—"
     },
-    { title: "Ngày tạo", key: "created", render: (_, row) => date(row.created_at) },
-    {
-      title: "Thao tác",
-      key: "actions",
-      render: (_, row) => <Link to={registeredLink(row._id)}>Chi tiết</Link>
-    }
+    { title: "Ngày tạo", key: "created", render: (_, row) => date(row.created_at) }
   ];
   const guestColumns: TableColumnsType<GuestBuyerSummary> = [
-    { title: "Email", dataIndex: "email" },
-    { title: "Tên liên hệ gần nhất", key: "name", render: (_, row) => text(row.name) },
-    { title: "Số điện thoại gần nhất", key: "phone", render: (_, row) => text(row.phoneNumber) },
-    { title: "Đơn hàng gần nhất", key: "latest", render: (_, row) => date(row.latestOrderAt) },
-    { title: "Số đơn hàng", dataIndex: "orderCount" },
     {
-      title: "Thao tác",
-      key: "actions",
+      title: "Email",
+      key: "email",
       render: (_, row) => (
         <Link
           to={{
@@ -294,10 +288,14 @@ export default function Customers() {
             }).toString()
           }}
         >
-          Chi tiết
+          {row.email}
         </Link>
       )
-    }
+    },
+    { title: "Tên liên hệ gần nhất", key: "name", render: (_, row) => text(row.name) },
+    { title: "Số điện thoại gần nhất", key: "phone", render: (_, row) => text(row.phoneNumber) },
+    { title: "Đơn hàng gần nhất", key: "latest", render: (_, row) => date(row.latestOrderAt) },
+    { title: "Số đơn hàng", dataIndex: "orderCount" }
   ];
 
   return (

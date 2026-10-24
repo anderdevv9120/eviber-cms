@@ -55,7 +55,17 @@ export default function Orders() {
     });
   };
   const columns: TableColumnsType<AdminOrderSummary> = [
-    { title: "Mã đơn hàng", key: "number", render: (_, row) => displayOrderText(row.orderNumber) },
+    {
+      title: "Mã đơn hàng",
+      key: "number",
+      render: (_, row) => (
+        <Link
+          to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
+        >
+          {displayOrderText(row.orderNumber)}
+        </Link>
+      )
+    },
     { title: "Ngày tạo", key: "created", render: (_, row) => formatOrderDate(row.created_at) },
     {
       title: "Người nhận",
@@ -136,17 +146,6 @@ export default function Orders() {
       title: "Ngày thanh toán",
       key: "paid",
       render: (_, row) => (row.paidAt ? formatOrderDate(row.paidAt) : "—")
-    },
-    {
-      title: "Thao tác",
-      key: "actions",
-      render: (_, row) => (
-        <Link
-          to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
-        >
-          Chi tiết
-        </Link>
-      )
     }
   ];
 
@@ -165,7 +164,7 @@ export default function Orders() {
         onChange={attention => changeQuery({ attention: attention || undefined })}
         options={ATTENTION_OPTIONS}
       />
-      <Flex gap={12} className='mb-4'>
+      <Flex gap={12} wrap className='mb-4'>
         <OrderSearch
           key={query.search ?? ""}
           search={query.search ?? ""}
@@ -255,6 +254,7 @@ function OrderSearch({ search, onSearch }: { search: string; onSearch: (value: s
   return (
     <Input.Search
       aria-label='Tìm đơn hàng'
+      style={{ flex: "1 1 320px", minWidth: "min(100%, 320px)" }}
       placeholder='Mã đơn, tên, email hoặc số điện thoại'
       value={draft}
       onChange={event => setDraft(event.target.value)}
