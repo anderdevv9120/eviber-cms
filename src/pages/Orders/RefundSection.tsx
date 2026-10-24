@@ -1,11 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Descriptions, Flex, Spin, Table, Tag, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Descriptions,
+  Flex,
+  Spin,
+  Statistic,
+  Table,
+  Tag,
+  Timeline,
+  Typography
+} from "antd";
+import dayjs from "dayjs";
 import {
   getOrderRefundsAPI,
   type AdminRefundOrderView,
   type AdminRefundRequest,
   type RefundCoverage,
-  type RefundOrderAllocationView
+  type RefundOrderAllocationView,
+  type RefundStage
 } from "@/services/refunds";
 import type { AdminOrderDetail } from "@/services/orders";
 import { getErrorMessage } from "@/utils/getErrorMessage";
@@ -38,6 +51,25 @@ const coverageLabels: Record<RefundCoverage, string> = {
   none: "Chưa hoàn",
   partial: "Đã hoàn một phần",
   full: "Đã hoàn toàn bộ"
+};
+const coverageColors: Record<RefundCoverage, string> = {
+  none: "default",
+  partial: "warning",
+  full: "success"
+};
+const stageColors: Record<RefundStage, string> = {
+  awaiting_review: "warning",
+  awaiting_return: "processing",
+  awaiting_payout: "warning",
+  payout_in_progress: "processing",
+  refunded: "success",
+  rejected: "default"
+};
+// Stages where staff must act next; drives the "chờ xử lý" count next to the title.
+const actionStages: RefundStage[] = ["awaiting_review", "awaiting_return", "awaiting_payout"];
+const deadlineNote = (deadline: string) => {
+  const left = dayjs(deadline).diff(dayjs(), "day", true);
+  return left < 0 ? <Tag color='error'>Quá hạn</Tag> : <Tag>Còn {Math.ceil(left)} ngày</Tag>;
 };
 // The legacy resolver reports its reason in English; staff read these in Vietnamese.
 const legacyReasons: Record<string, string> = {
@@ -161,47 +193,41 @@ export default function RefundSection({
   );
   const { eligibility } = view;
   const closeForm = () => setForm(null);
+  const pending = view.requests.filter(request => actionStages.includes(request.stage)).length;
+  const refundedTotal = view.summary.paidAmount + view.summary.paidShippingAmount;
 
   return (
     <section aria-label='Hoàn tiền' className='mt-6'>
-      <Typography.Title level={3}>Hoàn tiền</Typography.Title>
-      <Descriptions
-        bordered
-        column={2}
-        items={[
-          { key: "order", label: "Đơn hàng", children: displayOrderText(view.orderNumber) },
-          {
-            key: "policy",
-            label: "Chính sách khi mua",
-            children: view.policy
-              ? `${view.policy.enabled ? "Có hỗ trợ" : "Không hỗ trợ"} hoàn tiền thông thường trong ${view.policy.windowDays} ngày sau khi giao`
-              : "Chưa có chính sách (đơn cũ)"
-          },
-          {
-            key: "deadline",
-            label: "Hạn gửi yêu cầu",
-            children: view.deadline
-              ? formatOrderDate(view.deadline)
-              : "Chưa xác định (chưa giao hoặc thiếu lịch sử giao hàng)"
-          },
-          { key: "coverage", label: "Mức hoàn", children: coverageLabels[view.summary.coverage] },
-          {
-            key: "refunded",
-            label: "Đã hoàn",
-            children: money(view.summary.paidAmount + view.summary.paidShippingAmount)
-          },
-          {
-            key: "shipping",
-            label: "Phí vận chuyển còn có thể hoàn",
-            children: money(view.remainingPaidShipping)
-          }
-        ]}
-      />
+      <Flex justify='space-between' align='center' className='mb-3'>
+        <Flex gap={8} align='center'>
+          <Typography.Title level={3} className='m-0!'>
+            Hoàn tiền
+          </Typography.Title>
+          {pending > 0 && <Tag color='warning'>{pending} yêu cầu chờ xử lý</Tag>}
+        </Flex>
+        {view.canReview &&
+          (eligibility.reviewRequired ? (
+            <Button type='primary' onClick={() => setForm({ type: "legacy" })}>
+              Đối soát đơn cũ
+            </Button>
+          ) : (
+            <Button onClick={() => setForm({ type: "exception" })}>Tạo yêu cầu ngoại lệ</Button>
+          ))}
+      </Flex>
+      {refreshError && (
+        <Alert
+          type='error'
+          showIcon
+          className='mb-3'
+          title={`Không làm mới được thông tin đơn hàng: ${refreshError}`}
+          action={<Button onClick={refreshOrder}>Tải lại đơn hàng</Button>}
+        />
+      )}
       {eligibility.reviewRequired ? (
         <Alert
           type='warning'
           showIcon
-          className='mt-3'
+          className='mb-3'
           title={`Cần đối soát đơn cũ trước khi xử lý hoàn tiền: ${
             legacyReasons[eligibility.reason ?? ""] ?? displayOrderText(eligibility.reason)
           }`}
@@ -212,51 +238,94 @@ export default function RefundSection({
           <Alert
             type='info'
             showIcon
-            className='mt-3'
+            className='mb-3'
             title={`Khách chưa thể tự gửi yêu cầu: ${eligibility.reason}`}
           />
         )
       )}
-      {refreshError && (
-        <Alert
-          type='error'
-          showIcon
-          className='mt-3'
-          title={`Không làm mới được thông tin đơn hàng: ${refreshError}`}
-          action={<Button onClick={refreshOrder}>Tải lại đơn hàng</Button>}
+      <Flex gap={48} align='flex-start' className='mb-4'>
+        <Statistic
+          title='Đã hoàn'
+          value={refundedTotal}
+          formatter={value => money(Number(value))}
         />
-      )}
-      {view.canReview && (
-        <Flex gap={8} className='mt-3'>
-          {eligibility.reviewRequired ? (
-            <Button onClick={() => setForm({ type: "legacy" })}>Đối soát đơn cũ</Button>
-          ) : (
-            <Button onClick={() => setForm({ type: "exception" })}>Tạo yêu cầu ngoại lệ</Button>
-          )}
+        <Statistic
+          title='Phí vận chuyển còn có thể hoàn'
+          value={view.remainingPaidShipping}
+          formatter={value => money(Number(value))}
+        />
+        <Flex vertical gap={4} align='flex-start'>
+          <Typography.Text type='secondary'>Mức hoàn</Typography.Text>
+          <Tag color={coverageColors[view.summary.coverage]} className='m-0'>
+            {coverageLabels[view.summary.coverage]}
+          </Tag>
         </Flex>
-      )}
+      </Flex>
+      <Descriptions
+        bordered
+        size='small'
+        column={2}
+        items={[
+          {
+            key: "policy",
+            label: "Chính sách khi mua",
+            children: view.policy
+              ? `${view.policy.enabled ? "Có hỗ trợ" : "Không hỗ trợ"} hoàn tiền thông thường trong ${view.policy.windowDays} ngày sau khi giao`
+              : "Chưa có chính sách (đơn cũ)"
+          },
+          {
+            key: "deadline",
+            label: "Hạn gửi yêu cầu",
+            children: view.deadline ? (
+              <>
+                {formatOrderDate(view.deadline)} {deadlineNote(view.deadline)}
+              </>
+            ) : (
+              "Chưa xác định (chưa giao hoặc thiếu lịch sử giao hàng)"
+            )
+          }
+        ]}
+      />
       {form?.type === "legacy" && (
         <RefundExceptionForm mode='legacy' ctx={ctx} labels={labels} onClose={closeForm} />
       )}
       {form?.type === "exception" && (
         <RefundExceptionForm mode='request' ctx={ctx} labels={labels} onClose={closeForm} />
       )}
-      <Table<RefundOrderAllocationView>
-        className='mt-4'
-        size='small'
-        pagination={false}
-        rowKey='allocationId'
-        dataSource={view.allocations}
-        locale={{ emptyText: "Chưa có dữ liệu" }}
-        columns={[
-          { title: "Sản phẩm mua", key: "product", render: (_, row) => labels[row.allocationId] },
-          { title: "Đã mua", dataIndex: "purchasedQuantity", key: "purchased" },
-          { title: "Còn có thể hoàn", dataIndex: "availableQuantity", key: "available" },
-          { title: "Đang yêu cầu", dataIndex: "requestedQuantity", key: "requested" },
-          { title: "Đã hoàn", dataIndex: "refundedQuantity", key: "refunded" },
-          { title: "Thành tiền", key: "net", render: (_, row) => money(row.netAmount) }
-        ]}
-      />
+      {/* The legacy form lists these same lines with editable amounts. */}
+      {form?.type !== "legacy" && (
+        <Table<RefundOrderAllocationView>
+          className='mt-4'
+          size='small'
+          pagination={false}
+          rowKey='allocationId'
+          dataSource={view.allocations}
+          locale={{ emptyText: "Chưa có dữ liệu" }}
+          columns={[
+            { title: "Sản phẩm mua", key: "product", render: (_, row) => labels[row.allocationId] },
+            { title: "Đã mua", dataIndex: "purchasedQuantity", key: "purchased", align: "right" },
+            {
+              title: "Còn có thể hoàn",
+              dataIndex: "availableQuantity",
+              key: "available",
+              align: "right"
+            },
+            {
+              title: "Đang yêu cầu",
+              dataIndex: "requestedQuantity",
+              key: "requested",
+              align: "right"
+            },
+            { title: "Đã hoàn", dataIndex: "refundedQuantity", key: "refunded", align: "right" },
+            {
+              title: "Thành tiền",
+              key: "net",
+              align: "right",
+              render: (_, row) => money(row.netAmount)
+            }
+          ]}
+        />
+      )}
       {view.requests.map((request, index) => (
         <RequestCard
           key={request.requestId}
@@ -312,99 +381,131 @@ function RequestCard({
     form && "requestId" in form && form.requestId === request.requestId ? form : null;
   const awaitingPayout =
     request.stage === "awaiting_payout" || request.stage === "payout_in_progress";
+  // One chronology for decisions and goods inspections; ISO strings sort lexicographically.
+  const timeline = [
+    ...request.history.map(entry => ({
+      at: entry.at,
+      content: (
+        <>
+          {formatOrderDate(entry.at)} · {entry.event}
+          {entry.customerMessage && <> · Tin nhắn gửi khách: {entry.customerMessage}</>}
+        </>
+      )
+    })),
+    ...request.inspections.map(inspection => ({
+      at: inspection.at,
+      content: (
+        <>
+          {formatOrderDate(inspection.at)} · <Tag>Nội bộ</Tag>Ghi chú kiểm tra: {inspection.note}
+        </>
+      )
+    }))
+  ].sort((a, b) => a.at.localeCompare(b.at));
 
   return (
     <section aria-label={`Yêu cầu hoàn tiền ${number}`} className='mt-6'>
-      <Flex gap={8} align='center'>
-        <Typography.Title level={4} className='m-0!'>
-          Yêu cầu {number}
-        </Typography.Title>
-        <Tag>{refundStatusLabels[request.stage]}</Tag>
-        {request.exceptionReason && <Tag color='orange'>Ngoại lệ</Tag>}
+      <Flex justify='space-between' align='center' className='mb-1'>
+        <Flex gap={8} align='center'>
+          <Typography.Title level={4} className='m-0!'>
+            Yêu cầu {number}
+          </Typography.Title>
+          <Tag color={stageColors[request.stage]}>{refundStatusLabels[request.stage]}</Tag>
+          {request.exceptionReason && <Tag color='orange'>Ngoại lệ</Tag>}
+          <Typography.Text type='secondary'>
+            Gửi lúc: {formatOrderDate(request.submittedAt)}
+          </Typography.Text>
+        </Flex>
+        {view.canReview && request.stage === "awaiting_review" && !activeForm && (
+          <Button
+            type='primary'
+            onClick={() => onOpen({ type: "review", requestId: request.requestId })}
+          >
+            Duyệt yêu cầu
+          </Button>
+        )}
+        {view.canReview && request.stage === "awaiting_return" && !activeForm && (
+          <Button
+            type='primary'
+            onClick={() => onOpen({ type: "inspect", requestId: request.requestId })}
+          >
+            Kiểm tra hàng trả
+          </Button>
+        )}
       </Flex>
-      <p>Gửi lúc: {formatOrderDate(request.submittedAt)}</p>
-      {request.exceptionReason && <p>Lý do ngoại lệ (nội bộ): {request.exceptionReason}</p>}
+      {request.exceptionReason && (
+        <div>
+          <Tag>Nội bộ</Tag>Lý do ngoại lệ: {request.exceptionReason}
+        </div>
+      )}
       <ul aria-label={`Sản phẩm của yêu cầu ${number}`} className='list-none p-0'>
         {request.items.map(item => {
           const label = labels[item.allocationId];
           return (
-            <li key={item.allocationId} className='mb-3'>
-              <div className='font-semibold'>{label}</div>
-              <div>Khách yêu cầu: {item.quantity}</div>
-              <div>Lý do: {refundReasonLabels[item.reason]}</div>
-              <div>Giải thích của khách: {item.explanation}</div>
-              <div>
-                Khách chọn: {item.requestedReturn === "return" ? "Trả hàng" : "Không trả hàng"}
+            <li key={item.allocationId} className='mt-3 mb-4'>
+              <div className='mb-1 font-semibold'>{label}</div>
+              <div className={decided ? "grid grid-cols-2 gap-x-8" : undefined}>
+                <div>
+                  {decided && <Typography.Text type='secondary'>Từ khách hàng</Typography.Text>}
+                  <div>Khách yêu cầu: {item.quantity}</div>
+                  <div>Lý do: {refundReasonLabels[item.reason]}</div>
+                  <div>Giải thích của khách: {item.explanation}</div>
+                  <div>
+                    Khách chọn: {item.requestedReturn === "return" ? "Trả hàng" : "Không trả hàng"}
+                  </div>
+                </div>
+                {decided && (
+                  <div>
+                    <Typography.Text type='secondary'>Quyết định</Typography.Text>
+                    <div>Đã duyệt: {item.approvedQuantity}</div>
+                    <div>Số lượng được giải phóng: {item.quantity - item.approvedQuantity}</div>
+                    <div>Số tiền duyệt: {money(item.approvedAmount)}</div>
+                    <div>Yêu cầu trả hàng: {item.returnRequired ? "Có" : "Không"}</div>
+                    {item.decisionReason && (
+                      <div>
+                        <Tag>Nội bộ</Tag>Lý do quyết định: {item.decisionReason}
+                      </div>
+                    )}
+                    {item.returnRequired && (
+                      <div>
+                        Đã nhận: {item.receivedQuantity} · Có thể bán lại: {item.sellableQuantity}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              {decided && (
-                <>
-                  <div>Đã duyệt: {item.approvedQuantity}</div>
-                  <div>Số lượng được giải phóng: {item.quantity - item.approvedQuantity}</div>
-                  <div>Số tiền duyệt: {money(item.approvedAmount)}</div>
-                  <div>Yêu cầu trả hàng: {item.returnRequired ? "Có" : "Không"}</div>
-                  {item.decisionReason && (
-                    <div>Lý do quyết định (nội bộ): {item.decisionReason}</div>
-                  )}
-                  {item.returnRequired && (
-                    <div>
-                      Đã nhận: {item.receivedQuantity} · Có thể bán lại: {item.sellableQuantity}
-                    </div>
-                  )}
-                </>
-              )}
               <RefundEvidence orderId={view.orderId} evidenceIds={item.evidenceIds} label={label} />
             </li>
           );
         })}
       </ul>
       {request.approval && (
-        <p>
-          Đã duyệt hoàn: {money(request.approval.amount)} (hàng{" "}
-          {money(request.approval.merchandiseAmount)}, vận chuyển{" "}
-          {money(request.approval.shippingAmount)})
-        </p>
+        <div className='mb-2'>
+          <Typography.Text strong>Đã duyệt hoàn: {money(request.approval.amount)}</Typography.Text>{" "}
+          <Typography.Text type='secondary'>
+            (hàng {money(request.approval.merchandiseAmount)}, vận chuyển{" "}
+            {money(request.approval.shippingAmount)})
+          </Typography.Text>
+        </div>
       )}
       {request.payout && (
-        <section aria-label={`Khoản hoàn tiền đã hoàn tất của yêu cầu ${number}`}>
-          <p>
-            Đã hoàn tiền: {money(request.payout.amount)} (hàng{" "}
-            {money(request.payout.merchandiseAmount)}, vận chuyển{" "}
-            {money(request.payout.shippingAmount)})
-          </p>
-          <p>
+        <section aria-label={`Khoản hoàn tiền đã hoàn tất của yêu cầu ${number}`} className='mb-2'>
+          <div>
+            <Typography.Text strong>Đã hoàn tiền: {money(request.payout.amount)}</Typography.Text>{" "}
+            <Typography.Text type='secondary'>
+              (hàng {money(request.payout.merchandiseAmount)}, vận chuyển{" "}
+              {money(request.payout.shippingAmount)})
+            </Typography.Text>
+          </div>
+          <Typography.Text type='secondary'>
             Chuyển lúc {formatOrderDate(request.payout.paidAt)} · Ghi nhận lúc{" "}
             {formatOrderDate(request.payout.recordedAt)} · Mã tham chiếu: {request.payout.reference}
-          </p>
+          </Typography.Text>
         </section>
       )}
-      {request.history.length > 0 && (
-        <ul aria-label={`Lịch sử yêu cầu ${number}`} className='list-disc pl-5'>
-          {request.history.map((entry, position) => (
-            <li key={position}>
-              {formatOrderDate(entry.at)} · {entry.event}
-              {entry.customerMessage && <> · Tin nhắn gửi khách: {entry.customerMessage}</>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {request.inspections.length > 0 && (
-        <ul aria-label={`Kiểm tra hàng trả của yêu cầu ${number}`} className='list-disc pl-5'>
-          {request.inspections.map((inspection, position) => (
-            <li key={position}>
-              {formatOrderDate(inspection.at)} · Ghi chú kiểm tra (nội bộ): {inspection.note}
-            </li>
-          ))}
-        </ul>
-      )}
-      {view.canReview && request.stage === "awaiting_review" && !activeForm && (
-        <Button onClick={() => onOpen({ type: "review", requestId: request.requestId })}>
-          Duyệt yêu cầu
-        </Button>
-      )}
-      {view.canReview && request.stage === "awaiting_return" && !activeForm && (
-        <Button onClick={() => onOpen({ type: "inspect", requestId: request.requestId })}>
-          Kiểm tra hàng trả
-        </Button>
+      {timeline.length > 0 && (
+        <div role='group' aria-label={`Lịch sử yêu cầu ${number}`} className='mt-4'>
+          <Timeline items={timeline} />
+        </div>
       )}
       {awaitingPayout && !view.canPay && (
         <Alert type='info' showIcon title={payoutPermissionText} />

@@ -492,7 +492,7 @@ describe("refund payout claim and completion", () => {
     const done = within(
       await screen.findByRole("region", { name: "Khoản hoàn tiền đã hoàn tất của yêu cầu 1" })
     );
-    expect(done.getByText(/270\.000 ₫/)).toBeTruthy();
+    expect(done.getByText(/Đã hoàn tiền: 270\.000 ₫/)).toBeTruthy();
     expect(done.getByText(/FT-REAL-1/)).toBeTruthy();
     expect(done.getByText(/24\/10\/2026|10\/24\/2026/)).toBeTruthy();
     for (const name of [

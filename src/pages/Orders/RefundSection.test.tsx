@@ -387,7 +387,7 @@ describe("admin refund section", () => {
     await open("Đối soát đơn cũ");
     expect(screen.queryByRole("spinbutton", { name: `Số tiền thực tế ${itemLabel}` })).toBeNull();
     expect(
-      within(screen.getByRole("list", { name: "Dòng hàng cần đối soát" })).getByText(/180\.000/)
+      within(screen.getByRole("group", { name: "Dòng hàng cần đối soát" })).getByText(/180\.000/)
     ).toBeTruthy();
     expect(screen.queryByLabelText("Thời điểm giao hàng (kê khai)")).toBeNull();
     type("spinbutton", "Số tiền đã thu", "180000");
@@ -626,21 +626,21 @@ describe("admin refund section", () => {
     serve({
       "get /orders/order-1/refunds": () => first.promise,
       "get /orders/order-2/refunds": config =>
-        response(config, { ...view, orderId: "order-2", orderNumber: "ORD-2" })
+        response(config, { ...view, orderId: "order-2", remainingPaidShipping: 22000 })
     });
     const { rerender } = renderSection({ orderId: "order-1" });
     rerender({ orderId: "order-2" });
-    expect(await screen.findByText(/ORD-2/)).toBeTruthy();
+    expect(await screen.findByText(/22\.000/)).toBeTruthy();
     first.resolve(
       response({ headers: {} } as InternalAxiosRequestConfig, {
         ...view,
         orderId: "order-1",
-        orderNumber: "ORD-1"
+        remainingPaidShipping: 11000
       })
     );
     await Promise.resolve();
-    expect(screen.queryByText(/ORD-1/)).toBeNull();
-    expect(screen.getByText(/ORD-2/)).toBeTruthy();
+    expect(screen.queryByText(/11\.000/)).toBeNull();
+    expect(screen.getByText(/22\.000/)).toBeTruthy();
   });
 
   it("labels_combo_pieces_from_the_purchase_snapshot", async () => {
