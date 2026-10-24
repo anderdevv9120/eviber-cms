@@ -5,7 +5,7 @@ import { AxiosError, type AxiosResponse } from "axios";
 import axiosRequest from "@/utils/request";
 import { deferred, order, orderList, response } from "@/test/order-fixtures";
 import Orders from "./index";
-import { formatOrderDate } from "./order-display";
+import { formatOrderDate, missingOrderData } from "./order-display";
 
 function setup(path = "/orders") {
   const router = createMemoryRouter([{ path: "/orders", element: <Orders /> }], {
@@ -31,7 +31,8 @@ describe("Orders list", () => {
         ...order.refundSummary,
         requestCount: 1,
         activeStages: ["awaiting_payout", "payout_in_progress"] as const
-      }
+      },
+      { ...order.refundSummary, coverage: "full" as const }
     ];
     axiosRequest.defaults.adapter = async config =>
       response(
@@ -58,6 +59,10 @@ describe("Orders list", () => {
     expect(claim.getByText("Chờ hoàn tiền")).toBeTruthy();
     expect(claim.getByText("Đang hoàn tiền")).toBeTruthy();
     expect(claim.getByText("Đã hoàn: 0 ₫")).toBeTruthy();
+    const legacy = within(screen.getByRole("row", { name: /ORD-4/ }));
+    expect(legacy.getByText("Đã hoàn toàn bộ")).toBeTruthy();
+    expect(legacy.queryByText(/Đã hoàn: 0/)).toBeNull();
+    expect(legacy.getByText(`Đã hoàn: ${missingOrderData}`)).toBeTruthy();
   });
   it("shows completed money alongside active work and restores every filter after detail navigation", async () => {
     const requests: unknown[] = [];

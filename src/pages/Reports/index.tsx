@@ -133,8 +133,8 @@ export default function Reports() {
         Báo cáo tính các đơn theo ngày tạo đơn (giờ Việt Nam) với trạng thái hiện tại. Hoàn tiền,
         hủy, trả hàng hoặc điều chỉnh thanh toán sau này có thể làm thay đổi số liệu của kỳ đã qua.
         Bộ lọc giao hàng chỉ áp dụng cho đơn đã thanh toán, số lượng bán, biểu đồ và sản phẩm bán
-        chạy; đơn đã đặt, các bảng trạng thái và đơn đã hoàn tiền luôn tính trên mọi đơn tạo trong
-        khoảng.
+        chạy; đơn đã đặt, các bảng trạng thái, đơn đã hoàn tiền toàn bộ, Đã thu, Đã hoàn và Thực thu
+        luôn tính trên mọi đơn tạo trong khoảng.
       </Typography.Paragraph>
       {url.errors.length > 0 && (
         <Alert
@@ -324,15 +324,8 @@ function ReportBody({ report }: { report: SalesReport }) {
             unavailable='Không có số liệu tiền hợp lệ'
           />
         </Metric>
-        <Metric title='Đơn đã hoàn tiền'>
+        <Metric title='Đơn đã hoàn tiền toàn bộ'>
           <div>{report.refundedOrderCount}</div>
-          <div className='text-base font-normal'>
-            <Money
-              totals={report.refundedOrderValue}
-              count={report.refundedOrderCount}
-              unavailable='Không có số liệu tiền hợp lệ'
-            />
-          </div>
         </Metric>
       </Row>
       <Typography.Paragraph type='secondary'>

@@ -261,9 +261,10 @@ describe("Sales reports", () => {
     const paid = group("Giá trị gộp đơn đã thanh toán");
     expect(paid.getByText(money(1500000, "VND"))).toBeTruthy();
     expect(paid.getByText(money(25, "USD"))).toBeTruthy();
-    const refunded = group("Đơn đã hoàn tiền");
-    expect(refunded.getByText("1")).toBeTruthy();
-    expect(refunded.getByText(money(300000, "VND"))).toBeTruthy();
+    const refundedOrders = group("Đơn đã hoàn tiền toàn bộ");
+    expect(refundedOrders.getByText("1")).toBeTruthy();
+    expect(refundedOrders.queryByText(money(300000, "VND"))).toBeNull();
+    expect(group("Đã hoàn").getByText(money(300000, "VND"))).toBeTruthy();
     expect(screen.queryByText(/doanh thu thuần/i)).toBeNull();
     expect(screen.getByText(/theo ngày tạo đơn/)).toBeTruthy();
     expect(screen.getByText(/01\/10\/2026 – 20\/10\/2026/)).toBeTruthy();

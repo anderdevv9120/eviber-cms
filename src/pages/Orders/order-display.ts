@@ -78,7 +78,7 @@ export const refundStatusLabels: Record<RefundFilter, string> = {
   awaiting_return: "Chờ nhận hàng",
   awaiting_payout: "Chờ hoàn tiền",
   payout_in_progress: "Đang hoàn tiền",
-  refunded: "Đã hoàn tiền",
+  refunded: "Có khoản đã hoàn",
   partially_refunded: "Đã hoàn một phần",
   fully_refunded: "Đã hoàn toàn bộ",
   rejected: "Đã từ chối",

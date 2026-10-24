@@ -93,6 +93,11 @@ export default function Orders() {
       key: "refund",
       render: (_, row) => {
         const summary = row.refundSummary;
+        // Legacy full refunds carry no ledger amount; showing 0 ₫ would contradict "Đã hoàn toàn bộ".
+        const legacyFullRefund =
+          summary.coverage === "full" &&
+          summary.requestCount === 0 &&
+          summary.paidAmount + summary.paidShippingAmount === 0;
         return (
           <div>
             {summary.activeStages.map(stage => (
@@ -115,10 +120,12 @@ export default function Orders() {
               summary.coverage === "none" && <Tag>{refundStatusLabels.rejected}</Tag>}
             <div>
               Đã hoàn:{" "}
-              {formatOrderAmount(
-                summary.paidAmount + summary.paidShippingAmount,
-                row.checkoutInfo.currency
-              )}
+              {legacyFullRefund
+                ? missingOrderData
+                : formatOrderAmount(
+                    summary.paidAmount + summary.paidShippingAmount,
+                    row.checkoutInfo.currency
+                  )}
             </div>
             {summary.reviewRequired && <div>Cần kiểm tra dữ liệu hoàn tiền</div>}
           </div>
