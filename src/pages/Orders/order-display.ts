@@ -45,7 +45,7 @@ export const orderActorLabels: Record<OrderActorType, string> = {
   system: "Hệ thống",
   webhook: "Webhook"
 };
-export const missingOrderData = "Chưa có dữ liệu";
+export const missingOrderData = "—";
 export const legacyPaymentActionLabel = "Thay đổi cũ (chưa phân loại)";
 export const displayOrderText = (value?: string | null): string =>
   value?.trim() || missingOrderData;

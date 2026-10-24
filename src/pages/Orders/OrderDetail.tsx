@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Descriptions, Flex, Result, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Flex, Result, Spin, Tag, Typography } from "antd";
+import DataTable from "@/components/DataTable";
 import { Link, useLocation, useParams } from "react-router";
 import { getOrderAPI, type AdminOrderDetail } from "@/services/orders";
 import { ApiError } from "@/utils/request";
@@ -228,10 +229,10 @@ function OrderDetailRead({
           </section>
           <section aria-label='Sản phẩm đã mua' className='mt-6'>
             <Typography.Title level={3}>Sản phẩm đã mua</Typography.Title>
-            <Table<OrderLineRow>
+            <DataTable<OrderLineRow>
               pagination={false}
               dataSource={groupOrderLines(order.productInfo, order.combos)}
-              locale={{ emptyText: "Chưa có dữ liệu" }}
+              locale={{ emptyText: missingOrderData }}
               columns={[
                 {
                   title: "Sản phẩm",

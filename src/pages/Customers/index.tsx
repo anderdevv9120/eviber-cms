@@ -8,11 +8,11 @@ import {
   Pagination,
   Select,
   Spin,
-  Table,
   Tabs,
   Typography
 } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -381,7 +381,7 @@ export default function Customers() {
       {!loading && result && (
         <>
           {query.tab === "registered" ? (
-            <Table<RegisteredCustomerSummary>
+            <DataTable<RegisteredCustomerSummary>
               rowKey='_id'
               columns={registeredColumns}
               dataSource={result.data as RegisteredCustomerSummary[]}
@@ -389,7 +389,7 @@ export default function Customers() {
               locale={{ emptyText: "Không có khách hàng" }}
             />
           ) : (
-            <Table<GuestBuyerSummary>
+            <DataTable<GuestBuyerSummary>
               rowKey='email'
               columns={guestColumns}
               dataSource={result.data as GuestBuyerSummary[]}

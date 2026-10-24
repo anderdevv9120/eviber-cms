@@ -6,6 +6,7 @@ import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 
 import axiosRequest from "@/utils/request";
 import { order, response, deferred } from "@/test/order-fixtures";
 import type { AdminRefundOrderView } from "@/services/refunds";
+import { missingOrderData } from "./order-display";
 import OrderDetail from "./OrderDetail";
 
 type Adapter = (config: InternalAxiosRequestConfig) => Promise<AxiosResponse>;
@@ -255,10 +256,10 @@ describe("shared order detail", () => {
         paymentHistory: []
       });
     renderDetail();
-    await screen.findByRole("heading", { name: "Đơn hàng Chưa có dữ liệu" });
+    await screen.findByRole("heading", { name: `Đơn hàng ${missingOrderData}` });
     expect(screen.getByText("Khách vãng lai")).toBeTruthy();
-    expect(screen.queryByRole("img", { name: "Chưa có dữ liệu" })).toBeNull();
-    expect(screen.getAllByText("Chưa có dữ liệu").length).toBeGreaterThan(4);
+    expect(screen.queryByRole("img", { name: missingOrderData })).toBeNull();
+    expect(screen.getAllByText(missingOrderData).length).toBeGreaterThan(4);
     expect(screen.queryByText("SKU-S")).toBeNull();
     expect(screen.getAllByText("Chưa ghi nhận lịch sử")).toHaveLength(2);
   });

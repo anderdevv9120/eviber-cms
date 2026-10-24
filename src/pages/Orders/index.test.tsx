@@ -344,8 +344,8 @@ describe("Orders list", () => {
     setup();
     await screen.findByRole("link", { name: "Chi tiết" });
     // Mã đơn, ngày tạo, tổng tiền, trạng thái thanh toán; đơn chưa trả không có ngày thanh toán là bình thường
-    expect(screen.getAllByText("Chưa có dữ liệu")).toHaveLength(4);
-    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getAllByText("—")).toHaveLength(5);
+    expect(screen.queryByText("-")).toBeNull();
     expect(screen.queryByText("Chưa thanh toán")).toBeNull();
   });
 });

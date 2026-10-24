@@ -8,11 +8,11 @@ import {
   Pagination,
   Select,
   Spin,
-  Table,
   Tooltip,
   Typography
 } from "antd";
 import type { TableProps } from "antd";
+import DataTable from "@/components/DataTable";
 import { generatePath, Link, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
 import {
@@ -311,12 +311,11 @@ export default function Attributes() {
       ) : (
         result && (
           <>
-            <Table<AttributeSummary>
+            <DataTable<AttributeSummary>
               rowKey='_id'
               columns={columns}
               dataSource={result.data}
               pagination={false}
-              scroll={{ x: 900 }}
               locale={{ emptyText: "Chưa có thuộc tính" }}
             />
             <Pagination

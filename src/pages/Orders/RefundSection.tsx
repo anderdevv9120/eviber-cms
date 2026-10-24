@@ -6,12 +6,12 @@ import {
   Flex,
   Spin,
   Statistic,
-  Table,
   Tag,
   Timeline,
   Typography
 } from "antd";
 import dayjs from "dayjs";
+import DataTable from "@/components/DataTable";
 import {
   getOrderRefundsAPI,
   type AdminRefundOrderView,
@@ -26,6 +26,7 @@ import {
   displayOrderText,
   formatOrderAmount,
   formatOrderDate,
+  missingOrderData,
   refundReasonLabels,
   refundStatusLabels
 } from "./order-display";
@@ -294,13 +295,13 @@ export default function RefundSection({
       )}
       {/* The legacy form lists these same lines with editable amounts. */}
       {form?.type !== "legacy" && (
-        <Table<RefundOrderAllocationView>
+        <DataTable<RefundOrderAllocationView>
           className='mt-4'
           size='small'
           pagination={false}
           rowKey='allocationId'
           dataSource={view.allocations}
-          locale={{ emptyText: "Chưa có dữ liệu" }}
+          locale={{ emptyText: missingOrderData }}
           columns={[
             { title: "Sản phẩm mua", key: "product", render: (_, row) => labels[row.allocationId] },
             { title: "Đã mua", dataIndex: "purchasedQuantity", key: "purchased", align: "right" },

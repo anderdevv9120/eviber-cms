@@ -8,13 +8,13 @@ import {
   Popconfirm,
   Select,
   Spin,
-  Table,
   Tag,
   Tooltip,
   Checkbox
 } from "antd";
 import { Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
@@ -381,12 +381,11 @@ function CombosPage() {
         <Spin aria-label='Đang tải combo' />
       ) : (
         <>
-          <Table
+          <DataTable
             rowKey='_id'
             columns={columns}
             dataSource={result.data}
             pagination={false}
-            scroll={{ x: 1000 }}
             locale={{ emptyText: "Không có combo" }}
           />
           <Flex justify='space-between' wrap gap={12} className='mt-4'>

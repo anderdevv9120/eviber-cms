@@ -10,11 +10,11 @@ import {
   Row,
   Spin,
   Switch,
-  Table,
   Tag,
   Typography
 } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import { useSearchParams } from "react-router";
 import dayjs, { type Dayjs } from "dayjs";
 import {
@@ -383,7 +383,7 @@ function StatusTable({ title, rows }: { title: string; rows: { label: string; co
   return (
     <section aria-label={title}>
       <Typography.Title level={4}>{title}</Typography.Title>
-      <Table
+      <DataTable
         rowKey='label'
         size='small'
         pagination={false}
@@ -428,7 +428,7 @@ function BestSellers({
   return (
     <section aria-label={title} className='mb-6'>
       <Typography.Title level={3}>{title}</Typography.Title>
-      <Table
+      <DataTable
         rowKey={sellerId}
         size='small'
         pagination={false}

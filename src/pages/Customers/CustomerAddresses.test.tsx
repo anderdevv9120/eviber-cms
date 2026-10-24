@@ -41,7 +41,12 @@ beforeEach(() => {
 describe("Customer address book", () => {
   it("displays primary and sends full address input on PUT before reloading", async () => {
     render(<CustomerAddresses customerId='customer-id' />);
-    await waitFor(() => expect(screen.getAllByText("Địa chỉ chính")).toHaveLength(2));
+    // scroll.x của bảng sinh thêm dòng đo độ rộng ẩn (ant-table-measure-row) lặp lại tiêu đề.
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("Địa chỉ chính", { ignore: ".ant-table-measure-row *" })
+      ).toHaveLength(2)
+    );
     fireEvent.click(screen.getByRole("button", { name: "Sửa địa chỉ" }));
     fireEvent.change(screen.getByLabelText("Địa chỉ cụ thể"), {
       target: { value: " New street " }

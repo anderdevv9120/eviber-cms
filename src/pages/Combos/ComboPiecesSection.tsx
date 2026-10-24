@@ -118,7 +118,6 @@ export default function ComboPiecesSection({
               )
             )
           }
-          scrollX={800}
           columns={[
             {
               title: "Sản phẩm",

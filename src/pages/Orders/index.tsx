@@ -8,11 +8,11 @@ import {
   Segmented,
   Select,
   Spin,
-  Table,
   Tag,
   Typography
 } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useLocation } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -223,7 +223,7 @@ export default function Orders() {
       )}
       {!loading && result && (
         <>
-          <Table
+          <DataTable
             rowKey='_id'
             columns={columns}
             dataSource={result.data}

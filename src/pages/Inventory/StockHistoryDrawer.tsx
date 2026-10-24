@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Alert, Button, Descriptions, Drawer, Flex, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Drawer, Flex, Spin, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import { generatePath, Link } from "react-router";
 import { PATH } from "@/constants/paths";
 import {
@@ -145,11 +146,10 @@ export default function StockHistoryDrawer({ variantId, open, onClose, refreshKe
               }
             ]}
           />
-          <Table
+          <DataTable
             rowKey='id'
             columns={columns}
             dataSource={list.data}
-            scroll={{ x: 700 }}
             locale={{ emptyText: "Chưa có biến động tồn kho" }}
             pagination={{
               current: page,

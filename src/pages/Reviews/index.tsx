@@ -8,12 +8,12 @@ import {
   Rate,
   Select,
   Spin,
-  Table,
   Tabs,
   Tag,
   Typography
 } from "antd";
 import type { TableProps } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { useSearchParams } from "react-router";
 import {
@@ -163,13 +163,12 @@ export default function Reviews() {
         <Spin />
       ) : result ? (
         <>
-          <Table<AdminReview>
+          <DataTable<AdminReview>
             rowKey='_id'
             loading={loading}
             columns={columns}
             dataSource={result.data}
             pagination={false}
-            scroll={{ x: 1000 }}
             locale={{ emptyText: "Không có đánh giá" }}
             onRow={row => ({ onClick: () => setSelectedId(row._id), style: { cursor: "pointer" } })}
           />

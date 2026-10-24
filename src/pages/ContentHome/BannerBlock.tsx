@@ -197,7 +197,6 @@ export default function BannerBlock() {
         onMove={draft.move}
         onMoveTo={draft.moveTo}
         emptyText='Chưa có banner'
-        scrollX={800}
       />
       {editing && (
         <BannerForm

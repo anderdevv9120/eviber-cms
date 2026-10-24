@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Flex, Pagination, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Flex, Pagination, Spin, Tag, Typography } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useLocation } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -84,7 +85,7 @@ function OrderHistory({ kind, identity }: { kind: Buyer["kind"]; identity: strin
       )}
       {result && (
         <>
-          <Table<CustomerOrderRow>
+          <DataTable<CustomerOrderRow>
             rowKey='_id'
             dataSource={result.data}
             pagination={false}

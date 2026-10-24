@@ -1,7 +1,8 @@
-import { Button, Table, theme } from "antd";
+import { Button, theme } from "antd";
 import type { TableProps } from "antd";
 import { HolderOutlined } from "@ant-design/icons";
 import { useId, useLayoutEffect, useRef, useState } from "react";
+import DataTable from "@/components/DataTable";
 
 interface Props<T extends { _id: string }> {
   rows: T[];
@@ -14,7 +15,6 @@ interface Props<T extends { _id: string }> {
   onMove: (id: string, direction: "up" | "down") => void;
   onMoveTo: (id: string, targetId: string) => void;
   emptyText: string;
-  scrollX?: number;
 }
 
 /** Bảng kéo-thả + phím mũi tên để sắp xếp; thứ tự nháp do caller giữ (useOrderDraft). */
@@ -26,8 +26,7 @@ export default function SortableTable<T extends { _id: string }>({
   disabled,
   onMove,
   onMoveTo,
-  emptyText,
-  scrollX
+  emptyText
 }: Props<T>) {
   const { token } = theme.useToken();
   const instructionsId = useId();
@@ -99,7 +98,7 @@ export default function SortableTable<T extends { _id: string }>({
         Kéo tay nắm để sắp xếp. Khi tay nắm được chọn, dùng phím mũi tên lên hoặc xuống để di chuyển{" "}
         {itemNoun}.
       </p>
-      <Table<T>
+      <DataTable<T>
         rowKey='_id'
         columns={allColumns.map(column => ({
           ...column,
@@ -137,7 +136,6 @@ export default function SortableTable<T extends { _id: string }>({
           }
         })}
         pagination={false}
-        scroll={scrollX ? { x: scrollX } : undefined}
         locale={{ emptyText }}
       />
     </>

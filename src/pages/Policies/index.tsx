@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Flex, Result, Spin, Table, Tag, Typography } from "antd";
+import { Button, Flex, Result, Spin, Tag, Typography } from "antd";
+import DataTable from "@/components/DataTable";
 import { listPoliciesAPI, type PolicyPageSummary, type PolicySlug } from "@/services/storeContent";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import PolicyModal from "./PolicyModal";
@@ -41,7 +42,7 @@ export default function Policies() {
           <Spin />
         </Flex>
       ) : (
-        <Table<PolicyPageSummary>
+        <DataTable<PolicyPageSummary>
           rowKey='slug'
           dataSource={rows}
           pagination={false}

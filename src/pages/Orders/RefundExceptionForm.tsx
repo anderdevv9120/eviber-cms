@@ -10,11 +10,11 @@ import {
   InputNumber,
   Radio,
   Select,
-  Table,
   Tag,
   Typography
 } from "antd";
 import dayjs from "dayjs";
+import DataTable from "@/components/DataTable";
 import {
   createAdminRefundAPI,
   reviewLegacyRefundAPI,
@@ -344,7 +344,7 @@ function LegacyReview({ ctx, labels, onClose }: Props) {
         </Typography.Paragraph>
         <Step n={1} title='Dòng hàng'>
           <div role='group' aria-label='Dòng hàng cần đối soát'>
-            <Table<RefundOrderAllocationView>
+            <DataTable<RefundOrderAllocationView>
               size='small'
               pagination={false}
               rowKey='allocationId'

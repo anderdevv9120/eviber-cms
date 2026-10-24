@@ -1,4 +1,5 @@
-import { Table, Typography, type TableColumnsType } from "antd";
+import { Typography, type TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import type { AdminOrderDetail, PaymentHistoryEntry, StatusHistoryEntry } from "@/services/orders";
 import {
   displayOrderText,
@@ -36,7 +37,7 @@ export default function OrderHistory({ order }: { order: AdminOrderDetail }) {
       <section aria-label='Lịch sử đơn hàng' className='mt-6'>
         <Typography.Title level={3}>Lịch sử đơn hàng</Typography.Title>
         {order.statusHistory?.length ? (
-          <Table<StatusHistoryEntry>
+          <DataTable<StatusHistoryEntry>
             pagination={false}
             dataSource={order.statusHistory.map((entry, key) => ({ ...entry, key }))}
             columns={[
@@ -55,7 +56,7 @@ export default function OrderHistory({ order }: { order: AdminOrderDetail }) {
       <section aria-label='Lịch sử thanh toán' className='mt-6'>
         <Typography.Title level={3}>Lịch sử thanh toán</Typography.Title>
         {order.paymentHistory?.length ? (
-          <Table<PaymentHistoryEntry>
+          <DataTable<PaymentHistoryEntry>
             pagination={false}
             dataSource={order.paymentHistory.map((entry, key) => ({ ...entry, key }))}
             columns={[

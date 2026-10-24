@@ -10,6 +10,11 @@ body {
 
 /* Bảng đặt thẳng trên nền panel (không trong Card, không bordered) cần khung riêng để tách khỏi nền */
 @layer components {
+  .cms-data-table .ant-table-tbody > .ant-table-row > .ant-table-cell {
+    max-width: 420px;
+    overflow-wrap: anywhere;
+  }
+
   .ant-table-wrapper:not(.ant-card .ant-table-wrapper)
     .ant-table:not(.ant-table-bordered)
     > .ant-table-container {
