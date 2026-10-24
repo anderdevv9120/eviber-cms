@@ -1,4 +1,4 @@
-import { Card, Form, Input, Select } from "antd";
+import { Card, Form, Input, Select, Switch } from "antd";
 import { RichEditor } from "@/components/RichEditor";
 import type { CategoryOption } from "@/services/products";
 
@@ -67,6 +67,14 @@ export default function ProductInfoSection({
             onChange={onDescriptionChange}
           />
         </div>
+      </Form.Item>
+      <Form.Item
+        label='Cho phép hoàn tiền thông thường'
+        name='refundEnabled'
+        valuePropName='checked'
+        extra='Thay đổi chỉ áp dụng cho các đơn hàng mua sau. Khi tắt, khách vẫn có thể báo hàng thiếu hoặc giao sai để được xem xét.'
+      >
+        <Switch />
       </Form.Item>
     </Card>
   );

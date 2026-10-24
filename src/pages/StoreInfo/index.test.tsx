@@ -12,6 +12,13 @@ vi.mock("@/services/storeContent", () => ({
   getStoreInfoAPI: vi.fn(),
   saveStoreInfoAPI: vi.fn()
 }));
+vi.mock("@/services/refunds", () => ({
+  getRefundPolicyAPI: vi.fn().mockResolvedValue({
+    data: { enabled: true, windowDays: 7, revision: 0 },
+    message: "success"
+  }),
+  saveRefundPolicyAPI: vi.fn()
+}));
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
   errorNotification: vi.fn()

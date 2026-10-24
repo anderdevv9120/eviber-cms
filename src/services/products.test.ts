@@ -8,6 +8,7 @@ vi.mock("@/utils/notification", () => ({ errorNotification: vi.fn() }));
 
 const input: api.ProductWriteInput = {
   name: "Áo thun",
+  refundEnabled: false,
   images: ["/images/a.jpg"],
   categoryIds: ["c1"],
   options: [{ attributeId: "a1", optionValues: ["v1"] }],
