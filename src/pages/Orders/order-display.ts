@@ -1,5 +1,6 @@
 import type { RefundFilter, RefundReason } from "@/services/refunds";
 import type {
+  CancellationReason,
   OrderAttention,
   OrderStatus,
   PaymentStatus,
@@ -44,6 +45,14 @@ export const orderActorLabels: Record<OrderActorType, string> = {
   admin: "Quản trị viên",
   system: "Hệ thống",
   webhook: "Webhook"
+};
+export const cancellationReasonLabels: Record<CancellationReason, string> = {
+  changed_mind: "Không muốn mua nữa",
+  wrong_order: "Chọn nhầm sản phẩm / phân loại",
+  better_price: "Tìm được giá tốt hơn ở chỗ khác",
+  slow_shipping: "Thời gian giao hàng quá lâu",
+  payment_issue: "Gặp vấn đề khi thanh toán",
+  other: "Lý do khác"
 };
 export const missingOrderData = "—";
 export const legacyPaymentActionLabel = "Thay đổi cũ (chưa phân loại)";

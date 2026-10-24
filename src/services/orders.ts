@@ -9,6 +9,9 @@ export type WritablePaymentStatus = Exclude<PaymentStatus, "not_required">;
 export type PaymentAction = "receipt" | "refund" | "correction";
 export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "E_WALLET" | "NO_PAYMENT";
 export type OrderActorType = "customer" | "admin" | "system" | "webhook";
+/** BE: CancellationReason (order.model.ts) — chỉ có trên đơn khách TỰ hủy */
+export type CancellationReason =
+  "changed_mind" | "wrong_order" | "better_price" | "slow_shipping" | "payment_issue" | "other";
 /** Current-state queues shared with dashboard counts; ANDed with the other list filters. */
 export type OrderAttention = "awaiting-transfer" | "refund-needed";
 
@@ -104,6 +107,7 @@ export interface AdminOrderSummary {
   productInfo: OrderProduct[];
   statusHistory?: StatusHistoryEntry[];
   paymentHistory?: PaymentHistoryEntry[];
+  cancellation?: { reason: CancellationReason; note?: string };
 }
 export interface OrderActionEligibility {
   orderStatuses: {

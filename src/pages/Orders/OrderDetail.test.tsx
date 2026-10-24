@@ -637,3 +637,46 @@ describe("order detail actions", () => {
     expect(calls.filter(call => call.startsWith("patch") || call.includes("/payment"))).toEqual([]);
   });
 });
+
+describe("cancellation reason visibility", () => {
+  it("shows the customer-chosen reason and note on a customer-cancelled order", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        status: "cancelled",
+        cancellation: { reason: "wrong_order", note: "Chọn nhầm màu" }
+      });
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(
+      screen.getByText(/Lý do hủy \(khách chọn\): Chọn nhầm sản phẩm \/ phân loại — Chọn nhầm màu/)
+    ).toBeTruthy();
+  });
+
+  it("shows the plain reason when the customer did not add a note", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        status: "cancelled",
+        cancellation: { reason: "changed_mind" }
+      });
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.getByText(/Lý do hủy \(khách chọn\): Không muốn mua nữa$/)).toBeTruthy();
+  });
+
+  it("marks missing reason data on legacy cancelled orders and hides the line elsewhere", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, { ...order, status: "cancelled" });
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.getByText(/Lý do hủy \(khách chọn\): —$/)).toBeTruthy();
+  });
+
+  it("does not render a cancellation line for orders that are not cancelled", async () => {
+    axiosRequest.defaults.adapter = async config => response(config, order);
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.queryByText(/Lý do hủy/)).toBeNull();
+  });
+});

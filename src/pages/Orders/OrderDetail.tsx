@@ -9,6 +9,7 @@ import { PATH } from "@/constants/paths";
 import { readOrderReturnTo } from "./order-list-query";
 import { groupOrderLines, type OrderLineRow } from "./order-lines";
 import {
+  cancellationReasonLabels,
   displayOrderText,
   formatOrderAmount,
   formatOrderDate,
@@ -149,6 +150,19 @@ function OrderDetailRead({
                 {order.paymentStatus ? paymentStatusLabels[order.paymentStatus] : missingOrderData}
               </Tag>
             </Flex>
+            {order.status === "cancelled" && (
+              <p className='mb-4'>
+                Lý do hủy (khách chọn):{" "}
+                {order.cancellation
+                  ? [
+                      cancellationReasonLabels[order.cancellation.reason],
+                      order.cancellation.note?.trim()
+                    ]
+                      .filter(Boolean)
+                      .join(" — ")
+                  : missingOrderData}
+              </p>
+            )}
             <Flex gap={8} wrap>
               {order.actions.orderStatuses
                 .filter(action => action.enabled)
