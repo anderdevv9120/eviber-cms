@@ -138,7 +138,7 @@ describe("attribute list workflows", () => {
     change("Tên thuộc tính", "Dung lượng");
     change("Mã thuộc tính", "capacity");
     fireEvent.click(screen.getByRole("button", { name: "Tạo thuộc tính" }));
-    await screen.findByRole("link", { name: "Về danh sách thuộc tính" });
+    await screen.findByText("S");
     expect(router.state.location.pathname).toBe("/catalog/attributes/size-id");
     expect(calls.filter(c => c.method === "post").map(c => JSON.parse(c.data))).toEqual([
       { name: "Dung lượng", code: "capacity" }

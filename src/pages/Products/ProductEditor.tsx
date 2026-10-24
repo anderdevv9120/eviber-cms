@@ -403,7 +403,6 @@ function ProductEditorPage({ id }: { id?: string }) {
   const busy = saving || readOnly;
   return (
     <section className='min-w-0'>
-      <Link to={PATH.PRODUCTS}>Danh sách sản phẩm</Link>
       <Flex align='center' gap={12} className='mb-4'>
         <Typography.Title level={2} className='mb-0!'>
           {product ? product.name : "Thêm sản phẩm"}

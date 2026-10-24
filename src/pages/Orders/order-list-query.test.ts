@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseOrderListQuery,
+  readOrderReturnTo,
   serializeOrderListQuery,
   safeOrderReturnTo
 } from "./order-list-query";
@@ -187,6 +188,24 @@ describe("order list URLs", () => {
   ])("rejects unsafe or unrelated return destination %s", value => {
     expect(safeOrderReturnTo(value)).toBe("/orders");
   });
+  it.each([
+    ["", "/orders"],
+    ["?returnTo=https%3A%2F%2Fevil.test", "/orders"],
+    ["?returnTo=%2Forders%2Fother-id", "/orders"],
+    ["?returnTo=%2Fpayments&returnTo=%2Forders", "/orders"],
+    [
+      "?returnTo=%2Forders%3Fpage%3D3%26pageSize%3D20%26search%3DAn%26paymentStatus%3Dpaid",
+      "/orders?page=3&pageSize=20&search=An&paymentStatus=paid"
+    ],
+    ["?returnTo=%2Fpayments%3Fpage%3D3", "/orders"],
+    [
+      "?returnTo=%2Fcustomers%2Fguests%2Fdetail%3Femail%3Da%2540b.vn",
+      "/customers/guests/detail?email=a%40b.vn"
+    ]
+  ])("reads a safe persistent return destination from %s", (query, destination) => {
+    expect(readOrderReturnTo(query).returnTo).toBe(destination);
+  });
+
   it("preserves list context and cleans invalid queries", () => {
     expect(
       safeOrderReturnTo(

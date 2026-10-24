@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Descriptions, Flex, Result, Spin, Tag, Typography } from "antd";
 import DataTable from "@/components/DataTable";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { getOrderAPI, type AdminOrderDetail } from "@/services/orders";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { PATH } from "@/constants/paths";
-import { readOrderReturnTo } from "./order-list-query";
 import { groupOrderLines, type OrderLineRow } from "./order-lines";
 import {
   cancellationReasonLabels,
@@ -39,27 +38,10 @@ const couponDiscount = (
 
 export default function OrderDetail() {
   const { orderId = "" } = useParams();
-  const { search } = useLocation();
-  const { returnTo, fromCustomer } = readOrderReturnTo(search);
-  return (
-    <OrderDetailRead
-      key={orderId}
-      orderId={orderId}
-      returnTo={returnTo}
-      fromCustomer={fromCustomer}
-    />
-  );
+  return <OrderDetailRead key={orderId} orderId={orderId} />;
 }
 
-function OrderDetailRead({
-  orderId,
-  returnTo,
-  fromCustomer
-}: {
-  orderId: string;
-  returnTo: string;
-  fromCustomer: boolean;
-}) {
+function OrderDetailRead({ orderId }: { orderId: string }) {
   const [attempt, setAttempt] = useState(0);
   const [intent, setIntent] = useState<OrderActionIntent | null>(null);
   const [view, setView] = useState<{
@@ -109,8 +91,7 @@ function OrderDetailRead({
 
   return (
     <section className='min-w-0'>
-      <Flex justify='space-between' align='center'>
-        <Link to={returnTo}>{fromCustomer ? "Về khách hàng" : "Về danh sách"}</Link>
+      <Flex justify='flex-end' align='center'>
         <Button onClick={reload} disabled={view.loading}>
           Tải lại
         </Button>
@@ -187,7 +168,7 @@ function OrderDetailRead({
                 ))}
             </Flex>
           </section>
-          <section aria-label='Người nhận'>
+          <section aria-label='Người nhận' className='mt-6'>
             <Typography.Title level={3}>Người nhận</Typography.Title>
             <Descriptions
               bordered

@@ -23,10 +23,10 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
   [PATH.CONTENT_INFO]: ["Nội dung", "Thông tin cửa hàng"],
   [PATH.POLICIES]: ["Nội dung", "Trang chính sách"],
   [PATH.SETTINGS_CHECKOUT]: ["Cài đặt", "Đặt hàng"],
-  [PATH.REVIEWS]: ["Đánh giá"],
+  [PATH.REVIEWS]: ["Bán hàng", "Đánh giá"],
   [PATH.REPORTS]: ["Báo cáo bán hàng"],
-  [PATH.INVENTORY]: ["Tồn kho"],
-  [PATH.VOUCHERS]: ["Voucher"],
+  [PATH.INVENTORY]: ["Catalog", "Tồn kho"],
+  [PATH.VOUCHERS]: ["Bán hàng", "Voucher"],
   [PATH.DASHBOARD]: ["Tổng quan"]
 };
 
@@ -45,12 +45,17 @@ const MainLayout = () => {
   const breadcrumbs =
     pathname === PATH.CUSTOMERS || customerDetail || guestDetail
       ? [
+          { title: "Bán hàng" },
           {
             title:
               customerDetail || guestDetail ? (
                 <Link
                   to={safeCustomerReturnTo(
-                    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
+                    params.getAll("returnTo").length === 1
+                      ? params.get("returnTo")
+                      : guestDetail
+                        ? `${PATH.CUSTOMERS}?tab=guests`
+                        : null
                   )}
                 >
                   Khách hàng
@@ -72,6 +77,7 @@ const MainLayout = () => {
           ]
         : orderDetail || pathname === PATH.ORDER
           ? [
+              { title: "Bán hàng" },
               {
                 title: orderDetail ? (
                   <Link to={returnTo}>{customerOrigin ? "Khách hàng" : "Quản lý Đơn hàng"}</Link>
@@ -82,6 +88,26 @@ const MainLayout = () => {
               ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
             ]
           : (STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ?? []).map(title => ({ title }));
+  const productEditor = !!matchPath(PATH.PRODUCT_DETAIL, pathname);
+  const comboEditor = !!matchPath(PATH.COMBO_DETAIL, pathname);
+  if (productEditor || comboEditor) {
+    breadcrumbs[1] = {
+      title: (
+        <Link to={productEditor ? PATH.PRODUCTS : PATH.COMBOS}>
+          {productEditor ? "Sản phẩm" : "Combo"}
+        </Link>
+      )
+    };
+    breadcrumbs.push({
+      title: productEditor
+        ? pathname === PATH.PRODUCT_NEW
+          ? "Thêm sản phẩm"
+          : "Chi tiết sản phẩm"
+        : pathname === PATH.COMBO_NEW
+          ? "Thêm combo"
+          : "Chi tiết combo"
+    });
+  }
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 

@@ -1,7 +1,7 @@
 import "@/test/attribute-fixtures";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
@@ -622,7 +622,8 @@ describe("ProductEditor — existing product", () => {
   it("prompts when leaving with unsaved changes", async () => {
     const router = renderEditor();
     type(await loaded(), "Áo thun mới");
-    fireEvent.click(screen.getByRole("link", { name: "Danh sách sản phẩm" }));
+    expect(screen.queryByRole("link", { name: "Danh sách sản phẩm" })).toBeNull();
+    await act(() => router.navigate("/products"));
     expect((await screen.findByRole("dialog")).textContent).toContain("Sản phẩm chưa được lưu");
     fireEvent.click(button("Ở lại"));
     await waitFor(() => expect(router.state.location.pathname).toBe("/products/p1"));
@@ -632,7 +633,7 @@ describe("ProductEditor — existing product", () => {
     const router = renderEditor();
     await loaded();
     await new Promise(resolve => setTimeout(resolve, 350));
-    fireEvent.click(screen.getByRole("link", { name: "Danh sách sản phẩm" }));
+    await act(() => router.navigate("/products"));
     await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
     expect(screen.queryByRole("dialog")).toBeNull();
   });

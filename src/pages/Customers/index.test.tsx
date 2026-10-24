@@ -187,7 +187,7 @@ describe("Customers list and creation", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await screen.findByRole("heading", { name: "Khách hàng đã đăng ký" });
     expect(router.state.location.pathname).toBe("/customers/registered/customer-id");
-    fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
+    await act(() => router.navigate("/customers"));
     fireEvent.click(await screen.findByRole("button", { name: "Thêm khách hàng" }));
     expect((screen.getByLabelText("Mật khẩu") as HTMLInputElement).value).toBe("");
   });
@@ -319,9 +319,7 @@ describe("Customer detail integration", () => {
     expect(screen.getByText("Email / mật khẩu")).toBeTruthy();
     expect(screen.getByText("Chưa xác minh")).toBeTruthy();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Về danh sách khách hàng" }).getAttribute("href")).toBe(
-      "/customers?page=2"
-    );
+    expect(screen.queryByRole("link", { name: "Về danh sách khách hàng" })).toBeNull();
     expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
       `/orders/order-id?${new URLSearchParams({
         returnTo: "/customers/registered/customer-id?returnTo=%2Fcustomers%3Fpage%3D2"

@@ -357,26 +357,11 @@ describe("shared order detail", () => {
     await act(async () => delayed.resolve(response(nextConfig!, { ...order, _id: "b" })));
   });
 
-  it.each([
-    ["", "/orders"],
-    ["?returnTo=https%3A%2F%2Fevil.test", "/orders"],
-    ["?returnTo=%2Forders%2Fother-id", "/orders"],
-    ["?returnTo=%2Fpayments&returnTo=%2Forders", "/orders"],
-    [
-      "?returnTo=%2Forders%3Fpage%3D3%26pageSize%3D20%26search%3DAn%26paymentStatus%3Dpaid",
-      "/orders?page=3&pageSize=20&search=An&paymentStatus=paid"
-    ],
-    ["?returnTo=%2Fpayments%3Fpage%3D3", "/orders"],
-    [
-      "?returnTo=%2Fcustomers%2Fguests%2Fdetail%3Femail%3Da%2540b.vn",
-      "/customers/guests/detail?email=a%40b.vn"
-    ]
-  ])("uses safe persistent return destination %s", async (query, destination) => {
+  it("leaves return navigation to the layout breadcrumb", async () => {
     axiosRequest.defaults.adapter = async config => response(config, order);
-    renderDetail(`/orders/order-id${query}`);
+    renderDetail();
     await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
-    const backLabel = destination.startsWith("/customers/") ? "Về khách hàng" : "Về danh sách";
-    expect(screen.getByRole("link", { name: backLabel }).getAttribute("href")).toBe(destination);
+    expect(screen.queryByRole("link", { name: /Về khách hàng|Về danh sách/ })).toBeNull();
   });
 });
 
