@@ -19,6 +19,8 @@ const sales: api.SalesReport = {
   paidOrderCount: 1,
   unitsSold: 2,
   paidOrderValue: [{ currency: "VND", amount: 210000 }],
+  receivedOrderValue: [{ currency: "VND", amount: 210000 }],
+  netReceivedOrderValue: [{ currency: "VND", amount: 210000 }],
   refundedOrderCount: 0,
   refundedOrderValue: [],
   fulfillmentStatuses: {
@@ -33,6 +35,9 @@ const sales: api.SalesReport = {
   paymentStatuses: { unpaid: 2, paid: 1, refunded: 0, failed: 0, not_required: 0, unknown: 0 },
   daily: [
     {
+      receivedOrderValue: [],
+      refundedOrderValue: [],
+      netReceivedOrderValue: [],
       date: "2026-10-01",
       paidOrderCount: 1,
       unitsSold: 2,
@@ -49,7 +54,7 @@ const sales: api.SalesReport = {
     }
   ],
   topSkus: [{ variantId: "v1", label: "", missingLabel: true, unitsSold: 2, merchandiseValue: [] }],
-  excludedMonetaryData: { paidOrders: 0, refundedOrders: 0, items: 0 }
+  excludedMonetaryData: { paidOrders: 0, refundedOrders: 0, receivedOrders: 0, items: 0 }
 };
 const dashboard: api.DashboardSummary = {
   metadata: { lowStockThreshold: 7, generatedAt: "2026-10-07T03:00:00.000Z" },
@@ -64,8 +69,20 @@ describe("report transport through the shared Axios client", () => {
       ordersPlaced: 1,
       paidOrderCount: 0,
       paidOrderValue: [],
+      receivedOrderValue: [],
+      netReceivedOrderValue: [],
       paymentStatuses: { unpaid: 0, paid: 0, refunded: 0, failed: 0, not_required: 1, unknown: 0 },
-      daily: [{ date: "2026-10-01", paidOrderCount: 0, unitsSold: 2, paidOrderValue: [] }],
+      daily: [
+        {
+          receivedOrderValue: [],
+          refundedOrderValue: [],
+          netReceivedOrderValue: [],
+          date: "2026-10-01",
+          paidOrderCount: 0,
+          unitsSold: 2,
+          paidOrderValue: []
+        }
+      ],
       topProducts: [
         { ...sales.topProducts[0], merchandiseValue: [{ currency: "VND", amount: 80000 }] }
       ]

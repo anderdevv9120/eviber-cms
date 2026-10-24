@@ -9,6 +9,7 @@ import {
   Select,
   Spin,
   Table,
+  Tag,
   Typography
 } from "antd";
 import type { TableColumnsType } from "antd";
@@ -22,6 +23,7 @@ import type {
   PaymentStatus
 } from "@/services/orders";
 import { useOrdersList } from "./useOrdersList";
+import type { RefundFilter } from "@/services/refunds";
 import { safeOrderReturnTo } from "./order-list-query";
 import {
   displayOrderText,
@@ -31,7 +33,8 @@ import {
   orderAttentionLabels,
   orderStatusLabels,
   paymentMethodLabels,
-  paymentStatusLabels
+  paymentStatusLabels,
+  refundStatusLabels
 } from "./order-display";
 
 const ATTENTION_OPTIONS: { value: OrderAttention | ""; label: string }[] = [
@@ -84,6 +87,43 @@ export default function Orders() {
       key: "payment",
       render: (_, row) =>
         row.paymentStatus ? paymentStatusLabels[row.paymentStatus] : missingOrderData
+    },
+    {
+      title: "Hoàn tiền",
+      key: "refund",
+      render: (_, row) => {
+        const summary = row.refundSummary;
+        return (
+          <div>
+            {summary.activeStages.map(stage => (
+              <Tag key={stage}>{refundStatusLabels[stage]}</Tag>
+            ))}
+            {summary.coverage !== "none" && (
+              <Tag>
+                {
+                  refundStatusLabels[
+                    summary.coverage === "full" ? "fully_refunded" : "partially_refunded"
+                  ]
+                }
+              </Tag>
+            )}
+            {summary.requestCount === 0 && summary.coverage === "none" && (
+              <Tag>{refundStatusLabels.no_requests}</Tag>
+            )}
+            {summary.requestCount > 0 &&
+              summary.activeStages.length === 0 &&
+              summary.coverage === "none" && <Tag>{refundStatusLabels.rejected}</Tag>}
+            <div>
+              Đã hoàn:{" "}
+              {formatOrderAmount(
+                summary.paidAmount + summary.paidShippingAmount,
+                row.checkoutInfo.currency
+              )}
+            </div>
+            {summary.reviewRequired && <div>Cần kiểm tra dữ liệu hoàn tiền</div>}
+          </div>
+        );
+      }
     },
     {
       title: "Ngày thanh toán",
@@ -148,6 +188,16 @@ export default function Orders() {
               value: value as PaymentStatus,
               label
             }))
+          ]}
+        />
+        <Select<RefundFilter | "">
+          aria-label='Lọc trạng thái hoàn tiền'
+          style={{ minWidth: 220 }}
+          value={query.refundStatus ?? ""}
+          onChange={refundStatus => changeQuery({ refundStatus: refundStatus || undefined })}
+          options={[
+            { value: "", label: "Tất cả trạng thái hoàn tiền" },
+            ...Object.entries(refundStatusLabels).map(([value, label]) => ({ value, label }))
           ]}
         />
       </Flex>

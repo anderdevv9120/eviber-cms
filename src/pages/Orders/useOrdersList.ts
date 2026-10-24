@@ -75,7 +75,7 @@ export function useOrdersList() {
     setParams(previous => {
       const next = { ...parseOrderListQuery(previous), ...changes };
       if (
-        ["search", "status", "paymentStatus", "attention", "pageSize"].some(
+        ["search", "status", "paymentStatus", "attention", "refundStatus", "pageSize"].some(
           field => field in changes
         )
       )

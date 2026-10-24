@@ -13,6 +13,15 @@ export const order: AdminOrderDetail = {
   orderNumber: "ORD-SNAPSHOT",
   userId: "customer-id",
   revision: 4,
+  hasRefundLedger: true,
+  refundSummary: {
+    activeStages: [],
+    paidAmount: 0,
+    paidShippingAmount: 0,
+    coverage: "none",
+    requestCount: 0,
+    reviewRequired: false
+  },
   status: "pending",
   paymentStatus: "unpaid",
   created_at: "2026-10-04T00:00:00.000Z",

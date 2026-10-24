@@ -12,6 +12,9 @@ export interface DailySales {
   paidOrderCount: number;
   unitsSold: number;
   paidOrderValue: CurrencyTotal[];
+  receivedOrderValue: CurrencyTotal[];
+  refundedOrderValue: CurrencyTotal[];
+  netReceivedOrderValue: CurrencyTotal[];
 }
 interface BestSeller {
   label: string;
@@ -37,6 +40,8 @@ export interface SalesReport {
   paidOrderCount: number;
   unitsSold: number;
   paidOrderValue: CurrencyTotal[];
+  receivedOrderValue: CurrencyTotal[];
+  netReceivedOrderValue: CurrencyTotal[];
   refundedOrderCount: number;
   refundedOrderValue: CurrencyTotal[];
   fulfillmentStatuses: Record<OrderStatus | "unknown", number>;
@@ -44,7 +49,12 @@ export interface SalesReport {
   daily: DailySales[];
   topProducts: BestSellingProduct[];
   topSkus: BestSellingSku[];
-  excludedMonetaryData: { paidOrders: number; refundedOrders: number; items: number };
+  excludedMonetaryData: {
+    paidOrders: number;
+    refundedOrders: number;
+    receivedOrders: number;
+    items: number;
+  };
 }
 export interface DashboardSummary {
   metadata: { lowStockThreshold: number; generatedAt: string };

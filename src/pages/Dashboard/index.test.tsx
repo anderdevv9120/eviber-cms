@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import axiosRequest from "@/utils/request";
-import { deferred, response } from "@/test/order-fixtures";
+import { deferred, orderList, response } from "@/test/order-fixtures";
+import Orders from "../Orders";
 import type { DashboardSummary } from "@/services/reports";
 import Dashboard from "./index";
 
@@ -31,6 +32,29 @@ function setup() {
 const summaryRegion = () => screen.getByRole("region", { name: "Tình trạng hiện tại" });
 
 describe("Operational Dashboard", () => {
+  it("opens refund work in the existing order list through the shared attention query", async () => {
+    const requests: unknown[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/reports/dashboard") return response(config, summary());
+      expect(config.url).toBe("/orders");
+      requests.push(config.params);
+      return response(config, orderList());
+    };
+    const router = createMemoryRouter(
+      [
+        { path: "/dashboard", element: <Dashboard /> },
+        { path: "/orders", element: <Orders /> }
+      ],
+      { initialEntries: ["/dashboard"] }
+    );
+    render(<RouterProvider router={router} />);
+    fireEvent.click(await screen.findByRole("link", { name: "Cần hoàn tiền: 1" }));
+    await screen.findByRole("link", { name: "Chi tiết" });
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      "/orders?attention=refund-needed"
+    );
+    expect(requests).toEqual([{ page: 1, pageSize: 10, attention: "refund-needed" }]);
+  });
   it("shows current cards with exact drill-downs into Đơn hàng and Tồn kho", async () => {
     const calls = serve();
     setup();

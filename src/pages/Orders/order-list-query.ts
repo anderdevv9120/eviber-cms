@@ -1,7 +1,13 @@
+import type { RefundFilter } from "@/services/refunds";
 import { matchPath } from "react-router";
 import { PATH } from "@/constants/paths";
 import type { OrderAttention, OrderListQuery, OrderStatus, PaymentStatus } from "@/services/orders";
-import { orderAttentionLabels, orderStatusLabels, paymentStatusLabels } from "./order-display";
+import {
+  orderAttentionLabels,
+  orderStatusLabels,
+  paymentStatusLabels,
+  refundStatusLabels
+} from "./order-display";
 
 /** Repeated keys invalidate only that field; unknown keys never reach the API. */
 export function parseOrderListQuery(params: URLSearchParams): OrderListQuery {
@@ -12,6 +18,7 @@ export function parseOrderListQuery(params: URLSearchParams): OrderListQuery {
   const status = single("status");
   const paymentStatus = single("paymentStatus");
   const attention = single("attention");
+  const refundStatus = single("refundStatus");
   const query: OrderListQuery = {
     page:
       page && /^\d+$/.test(page) && Number.isSafeInteger(Number(page)) && Number(page) > 0
@@ -27,6 +34,8 @@ export function parseOrderListQuery(params: URLSearchParams): OrderListQuery {
     query.paymentStatus = paymentStatus as PaymentStatus;
   if (attention && Object.prototype.hasOwnProperty.call(orderAttentionLabels, attention))
     query.attention = attention as OrderAttention;
+  if (refundStatus && Object.prototype.hasOwnProperty.call(refundStatusLabels, refundStatus))
+    query.refundStatus = refundStatus as RefundFilter;
   return query;
 }
 
@@ -39,7 +48,8 @@ export function serializeOrderListQuery(query: OrderListQuery): URLSearchParams 
     "search",
     "status",
     "paymentStatus",
-    "attention"
+    "attention",
+    "refundStatus"
   ] as const) {
     const value = query[key];
     if (value !== undefined) params.set(key, String(value));
@@ -52,6 +62,7 @@ export function serializeOrderListQuery(query: OrderListQuery): URLSearchParams 
   if (normalized.status) result.set("status", normalized.status);
   if (normalized.paymentStatus) result.set("paymentStatus", normalized.paymentStatus);
   if (normalized.attention) result.set("attention", normalized.attention);
+  if (normalized.refundStatus) result.set("refundStatus", normalized.refundStatus);
   return result;
 }
 

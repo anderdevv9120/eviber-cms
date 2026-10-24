@@ -1,3 +1,4 @@
+import type { RefundFilter, RefundSummary } from "./refunds";
 import type { ApiResponse } from "./auth";
 import axiosRequest from "@/utils/request";
 
@@ -58,6 +59,8 @@ export interface AdminOrderSummary {
   _id: string;
   // List rows only: null when the stored version is malformed. Detail/mutations always carry a number.
   revision: number | null;
+  hasRefundLedger: boolean;
+  refundSummary: RefundSummary;
   userId?: string;
   sessionId?: string;
   orderNumber?: string;
@@ -130,6 +133,7 @@ export interface OrderListQuery {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
   attention?: OrderAttention;
+  refundStatus?: RefundFilter;
 }
 export interface OrderListResult {
   data: AdminOrderSummary[];

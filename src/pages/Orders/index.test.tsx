@@ -16,6 +16,123 @@ function setup(path = "/orders") {
 }
 
 describe("Orders list", () => {
+  it("distinguishes no requests, rejected work, full coverage and claims with no completed payout", async () => {
+    const summaries = [
+      { ...order.refundSummary },
+      { ...order.refundSummary, requestCount: 1 },
+      {
+        ...order.refundSummary,
+        requestCount: 1,
+        coverage: "full" as const,
+        paidAmount: 180000,
+        paidShippingAmount: 30000
+      },
+      {
+        ...order.refundSummary,
+        requestCount: 1,
+        activeStages: ["awaiting_payout", "payout_in_progress"] as const
+      }
+    ];
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        orderList(
+          summaries.map((summary, index) => ({
+            ...order,
+            _id: `o${index}`,
+            orderNumber: `ORD-${index}`,
+            refundSummary: { ...summary, activeStages: [...summary.activeStages] }
+          }))
+        )
+      );
+    setup();
+    await screen.findAllByRole("link", { name: "Chi tiết" });
+    expect(
+      within(screen.getByRole("row", { name: /ORD-0/ })).getByText("Chưa có yêu cầu")
+    ).toBeTruthy();
+    expect(within(screen.getByRole("row", { name: /ORD-1/ })).getByText("Đã từ chối")).toBeTruthy();
+    const full = within(screen.getByRole("row", { name: /ORD-2/ }));
+    expect(full.getByText("Đã hoàn toàn bộ")).toBeTruthy();
+    expect(full.getByText("Đã hoàn: 210.000 ₫")).toBeTruthy();
+    const claim = within(screen.getByRole("row", { name: /ORD-3/ }));
+    expect(claim.getByText("Chờ hoàn tiền")).toBeTruthy();
+    expect(claim.getByText("Đang hoàn tiền")).toBeTruthy();
+    expect(claim.getByText("Đã hoàn: 0 ₫")).toBeTruthy();
+  });
+  it("shows completed money alongside active work and restores every filter after detail navigation", async () => {
+    const requests: unknown[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      requests.push(config.params);
+      return response(
+        config,
+        orderList(
+          [
+            {
+              ...order,
+              status: "delivered",
+              paymentStatus: "paid",
+              refundSummary: {
+                activeStages: ["awaiting_review", "awaiting_return"],
+                paidAmount: 70000,
+                paidShippingAmount: 10000,
+                coverage: "partial",
+                requestCount: 3,
+                reviewRequired: false
+              }
+            }
+          ],
+          config.params.page,
+          100,
+          config.params.pageSize
+        )
+      );
+    };
+    const path =
+      "/orders?page=3&pageSize=20&search=An&status=delivered&paymentStatus=paid&attention=refund-needed&refundStatus=awaiting_review";
+    const router = createMemoryRouter(
+      [
+        { path: "/orders", element: <Orders /> },
+        { path: "/orders/:id", element: <div>Chi tiết đơn</div> }
+      ],
+      { initialEntries: [path] }
+    );
+    render(<RouterProvider router={router} />);
+    const link = await screen.findByRole("link", { name: "Chi tiết" });
+    const row = within(screen.getByRole("row", { name: /ORD-SNAPSHOT/ }));
+    for (const text of [
+      "Đã thanh toán",
+      "Đã giao hàng",
+      "Chờ duyệt",
+      "Chờ nhận hàng",
+      "Đã hoàn một phần",
+      "Đã hoàn: 80.000 ₫"
+    ])
+      expect(row.getByText(text)).toBeTruthy();
+    expect(
+      new URL(link.getAttribute("href")!, "http://test.local").searchParams.get("returnTo")
+    ).toBe(path);
+    fireEvent.click(link);
+    await screen.findByText("Chi tiết đơn");
+    await act(() => router.navigate(-1));
+    await screen.findByRole("link", { name: "Chi tiết" });
+    expect(router.state.location.pathname + router.state.location.search).toBe(path);
+    expect(requests[requests.length - 1]).toEqual({
+      page: 3,
+      pageSize: 20,
+      search: "An",
+      status: "delivered",
+      paymentStatus: "paid",
+      attention: "refund-needed",
+      refundStatus: "awaiting_review"
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lọc trạng thái hoàn tiền" }));
+    fireEvent.click(await screen.findByText("Đang hoàn tiền"));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(
+        "?pageSize=20&search=An&status=delivered&paymentStatus=paid&attention=refund-needed&refundStatus=payout_in_progress"
+      )
+    );
+  });
   it("reads free orders through their payment filter and displays zero and backend payment labels", async () => {
     const requests: unknown[] = [];
     const free = {

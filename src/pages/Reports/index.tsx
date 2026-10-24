@@ -296,10 +296,31 @@ function ReportBody({ report }: { report: SalesReport }) {
         <Metric title='Đơn đã đặt'>{report.ordersPlaced}</Metric>
         <Metric title='Đơn đã thanh toán'>{report.paidOrderCount}</Metric>
         <Metric title='Số lượng đã bán'>{report.unitsSold}</Metric>
-        <Metric title='Giá trị đơn đã thanh toán'>
+        <Metric title='Giá trị gộp đơn đã thanh toán'>
           <Money
             totals={report.paidOrderValue}
             count={report.paidOrderCount}
+            unavailable='Không có số liệu tiền hợp lệ'
+          />
+        </Metric>
+        <Metric title='Đã thu'>
+          <Money
+            totals={report.receivedOrderValue}
+            count={excluded.receivedOrders}
+            unavailable='Không có số liệu tiền hợp lệ'
+          />
+        </Metric>
+        <Metric title='Đã hoàn'>
+          <Money
+            totals={report.refundedOrderValue}
+            count={excluded.refundedOrders}
+            unavailable='Không có số liệu tiền hợp lệ'
+          />
+        </Metric>
+        <Metric title='Thực thu'>
+          <Money
+            totals={report.netReceivedOrderValue}
+            count={excluded.receivedOrders + excluded.refundedOrders}
             unavailable='Không có số liệu tiền hợp lệ'
           />
         </Metric>
@@ -315,21 +336,25 @@ function ReportBody({ report }: { report: SalesReport }) {
         </Metric>
       </Row>
       <Typography.Paragraph type='secondary'>
-        Giá trị đơn đã thanh toán là tổng tiền cuối của đơn (sau giảm giá, gồm phí vận chuyển). Đơn
-        đã hoàn tiền được tính riêng và đã không nằm trong giá trị đơn đã thanh toán; mỗi loại tiền
-        tệ được cộng riêng.
+        Giá trị gộp đơn đã thanh toán là tổng tiền cuối của các đơn đang ở trạng thái đã thanh toán
+        (sau giảm giá, gồm phí vận chuyển), chưa trừ hoàn một phần. Đã thu, Đã hoàn và Thực thu dùng
+        số tiền đã ghi nhận trên mọi đơn tạo trong khoảng, kể cả đơn hủy, trả hàng và hoàn tiền; bộ
+        lọc giao hàng không áp dụng cho ba tổng này. Mỗi loại tiền tệ được cộng riêng.
       </Typography.Paragraph>
-      {(excluded.paidOrders > 0 || excluded.refundedOrders > 0 || excluded.items > 0) && (
+      {(excluded.paidOrders > 0 ||
+        excluded.refundedOrders > 0 ||
+        excluded.receivedOrders > 0 ||
+        excluded.items > 0) && (
         <Alert
           className='mb-4'
           type='warning'
           showIcon
-          title={`Không tính vào tổng tiền do thiếu hoặc sai dữ liệu: ${excluded.paidOrders} đơn đã thanh toán, ${excluded.refundedOrders} đơn đã hoàn tiền, ${excluded.items} sản phẩm trong đơn.`}
+          title={`Không tính vào tổng tiền do thiếu hoặc sai dữ liệu: ${excluded.paidOrders} đơn đã thanh toán, ${excluded.refundedOrders} đơn đã hoàn tiền, ${excluded.receivedOrders} đơn thu tiền, ${excluded.items} sản phẩm trong đơn.`}
         />
       )}
 
       <section aria-label='Giá trị đơn đã thanh toán theo ngày' className='mb-6'>
-        <Typography.Title level={3}>Giá trị đơn đã thanh toán theo ngày</Typography.Title>
+        <Typography.Title level={3}>Giá trị gộp đơn đã thanh toán theo ngày</Typography.Title>
         <DailySalesChart daily={report.daily} />
       </section>
 
@@ -348,7 +373,8 @@ function ReportBody({ report }: { report: SalesReport }) {
 
       <Typography.Paragraph type='secondary'>
         Xếp theo số lượng bán, gồm đơn không cần thanh toán. Giá trị hàng hóa tính theo giá lúc đặt,
-        trước giảm giá voucher của đơn và không gồm phí vận chuyển.
+        trước giảm giá voucher của đơn và không gồm phí vận chuyển. Số lượng và giá trị hàng hóa gộp
+        chưa trừ các sản phẩm được hoàn tiền.
       </Typography.Paragraph>
       <BestSellers
         title='Sản phẩm bán chạy'
@@ -399,7 +425,7 @@ function BestSellers({
     { title: "Mã", key: "id", render: (_, row) => sellerId(row) },
     { title: "Số lượng", dataIndex: "unitsSold" },
     {
-      title: "Giá trị hàng hóa",
+      title: "Giá trị hàng hóa gộp",
       key: "value",
       render: (_, row) => (
         <Money totals={row.merchandiseValue} count={row.unitsSold} unavailable='Không có số liệu' />

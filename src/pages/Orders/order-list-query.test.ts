@@ -16,6 +16,51 @@ import {
 } from "./order-display";
 
 describe("order list URLs", () => {
+  it.each([
+    "awaiting_review",
+    "awaiting_return",
+    "awaiting_payout",
+    "payout_in_progress",
+    "refunded",
+    "rejected",
+    "partially_refunded",
+    "fully_refunded",
+    "no_requests"
+  ])("keeps valid refund filter %s", refundStatus => {
+    expect(parseOrderListQuery(new URLSearchParams(`refundStatus=${refundStatus}`))).toEqual({
+      page: 1,
+      pageSize: 10,
+      refundStatus
+    });
+  });
+  it("round trips refund work with all filters and the safe return destination", () => {
+    const url =
+      "page=3&pageSize=20&search=An&status=delivered&paymentStatus=paid&attention=refund-needed&refundStatus=awaiting_review";
+    const query = parseOrderListQuery(new URLSearchParams(url));
+    expect(query).toEqual({
+      page: 3,
+      pageSize: 20,
+      search: "An",
+      status: "delivered",
+      paymentStatus: "paid",
+      attention: "refund-needed",
+      refundStatus: "awaiting_review"
+    });
+    expect(serializeOrderListQuery(query).toString()).toBe(url);
+    expect(safeOrderReturnTo(`/orders?${url}`)).toBe(`/orders?${url}`);
+  });
+  it.each([
+    "unknown",
+    "Awaiting_review",
+    "awaiting_review&refundStatus=awaiting_review",
+    "awaiting_review&refundStatus=rejected"
+  ])("drops invalid or repeated refund status %s only", value => {
+    const query = parseOrderListQuery(
+      new URLSearchParams(`paymentStatus=paid&refundStatus=${value}`)
+    );
+    expect(query).toEqual({ page: 1, pageSize: 10, paymentStatus: "paid" });
+    expect(serializeOrderListQuery(query).toString()).toBe("paymentStatus=paid");
+  });
   it("preserves the read-only free-payment filter and detail return context", () => {
     const params = new URLSearchParams("page=2&paymentStatus=not_required");
     expect(parseOrderListQuery(params)).toEqual({
