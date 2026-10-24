@@ -160,7 +160,8 @@ function OrderDetailRead({
                   </Button>
                 ))}
               {order.actions.paymentActions
-                .filter(action => action.enabled)
+                // Refunds are handled by the refund section below, never by a payment dialog.
+                .filter(action => action.enabled && action.action !== "refund")
                 .map(action => (
                   <Button
                     key={action.action}
@@ -393,7 +394,11 @@ function OrderDetailRead({
               {order.actions.paymentActions.map(action => (
                 <li key={action.action}>
                   {paymentActionLabels[action.action]}:{" "}
-                  {action.enabled ? "Có thể thực hiện" : displayOrderText(action.reason)}
+                  {action.action === "refund" && action.enabled
+                    ? "Xử lý trong mục Hoàn tiền bên dưới"
+                    : action.enabled
+                      ? "Có thể thực hiện"
+                      : displayOrderText(action.reason)}
                 </li>
               ))}
             </ul>

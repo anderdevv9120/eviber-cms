@@ -498,7 +498,8 @@ describe("admin refund section", () => {
     });
     renderSection();
     await screen.findByRole("region", { name: "Hoàn tiền" });
-    expect(reviewButtons()).toEqual([]);
+    // Task 14: a payer gets the payout claim control, and still no review/inspection controls.
+    expect(reviewButtons()).toEqual(["Nhận xử lý hoàn tiền"]);
     expect(screen.queryByText("Cần quyền thanh toán để xử lý khoản hoàn tiền")).toBeNull();
   });
 

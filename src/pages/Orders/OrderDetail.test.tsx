@@ -538,4 +538,101 @@ describe("order detail actions", () => {
       "post /orders/order-id/refunds/r1/decision"
     ]);
   });
+
+  it("never offers the legacy refund payment action, even if a server lists it as enabled", async () => {
+    const calls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      return response(config, {
+        ...order,
+        paymentStatus: "paid",
+        actions: {
+          ...order.actions,
+          paymentActions: order.actions.paymentActions.map(action =>
+            action.action === "refund"
+              ? { ...action, enabled: true, reason: null, targets: ["refunded"] }
+              : action
+          )
+        }
+      });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.queryByRole("button", { name: "Ghi nhận hoàn tiền" })).toBeNull();
+    expect(screen.getByText(/Ghi nhận hoàn tiền: Xử lý trong mục Hoàn tiền bên dưới/)).toBeTruthy();
+    expect(screen.queryByText(/Ghi nhận hoàn tiền: Có thể thực hiện/)).toBeNull();
+    expect(calls.filter(call => call.startsWith("patch"))).toEqual([]);
+  });
+
+  it("refreshes the order after a payout claim and sends only refund-ledger writes", async () => {
+    const awaiting: AdminRefundOrderView = {
+      ...refundView,
+      canPay: true,
+      requests: [
+        {
+          requestId: "r1",
+          stage: "awaiting_payout",
+          submittedAt: "2026-10-22T03:00:00.000Z",
+          items: [],
+          shipping: { reservedAmount: 0, approvedAmount: 20000 },
+          history: [],
+          payout: null,
+          exceptionReason: null,
+          reviewRequired: false,
+          inspections: [],
+          approval: null,
+          claim: null
+        }
+      ]
+    };
+    const claimed: AdminRefundOrderView = {
+      ...awaiting,
+      revision: 5,
+      requests: [
+        {
+          ...awaiting.requests[0],
+          stage: "payout_in_progress",
+          approval: {
+            merchandiseAmount: 0,
+            shippingAmount: 20000,
+            amount: 20000,
+            frozenAt: "2026-10-23T00:00:00.000Z"
+          },
+          claim: {
+            claimId: "c1",
+            claimedAt: "2026-10-23T00:00:00.000Z",
+            merchandiseAmount: 0,
+            shippingAmount: 20000,
+            amount: 20000
+          }
+        }
+      ]
+    };
+    const calls: string[] = [];
+    let committed = false;
+    serveRefunds = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      if (config.method === "post") {
+        committed = true;
+        return response(config, claimed);
+      }
+      return response(config, awaiting);
+    };
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      return response(config, { ...order, revision: committed ? 5 : 4 });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    fireEvent.click(await screen.findByRole("button", { name: "Nhận xử lý hoàn tiền" }));
+
+    await screen.findByText("Số tiền đã cố định để hoàn: 20.000 ₫");
+    await waitFor(() =>
+      expect(calls.filter(call => call === "get /orders/order-id")).toHaveLength(2)
+    );
+    expect(calls.filter(call => call.startsWith("post"))).toEqual([
+      "post /orders/order-id/refunds/r1/payout-claim"
+    ]);
+    expect(calls.filter(call => call.startsWith("patch") || call.includes("/payment"))).toEqual([]);
+  });
 });

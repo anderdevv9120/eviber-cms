@@ -19,6 +19,7 @@ import {
 import RefundEvidence from "./RefundEvidence";
 import RefundExceptionForm from "./RefundExceptionForm";
 import RefundInspectionForm from "./RefundInspectionForm";
+import RefundPayoutForm from "./RefundPayoutForm";
 import RefundReviewForm from "./RefundReviewForm";
 import type { RefundContext } from "./useRefundCommand";
 
@@ -363,6 +364,19 @@ function RequestCard({
           {money(request.approval.shippingAmount)})
         </p>
       )}
+      {request.payout && (
+        <section aria-label={`Khoản hoàn tiền đã hoàn tất của yêu cầu ${number}`}>
+          <p>
+            Đã hoàn tiền: {money(request.payout.amount)} (hàng{" "}
+            {money(request.payout.merchandiseAmount)}, vận chuyển{" "}
+            {money(request.payout.shippingAmount)})
+          </p>
+          <p>
+            Chuyển lúc {formatOrderDate(request.payout.paidAt)} · Ghi nhận lúc{" "}
+            {formatOrderDate(request.payout.recordedAt)} · Mã tham chiếu: {request.payout.reference}
+          </p>
+        </section>
+      )}
       {request.history.length > 0 && (
         <ul aria-label={`Lịch sử yêu cầu ${number}`} className='list-disc pl-5'>
           {request.history.map((entry, position) => (
@@ -395,6 +409,7 @@ function RequestCard({
       {awaitingPayout && !view.canPay && (
         <Alert type='info' showIcon title={payoutPermissionText} />
       )}
+      {awaitingPayout && view.canPay && <RefundPayoutForm ctx={ctx} request={request} />}
       {activeForm &&
         (activeForm.type === "review" && request.stage === "awaiting_review" ? (
           <RefundReviewForm ctx={ctx} request={request} labels={labels} onClose={onClose} />

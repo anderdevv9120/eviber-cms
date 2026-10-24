@@ -23,9 +23,13 @@ const conflictText =
 const uncertainText =
   "Chưa xác định được kết quả thao tác trước. Dữ liệu hiện tại đã được tải lại; hãy kiểm tra trước khi gửi lại. Gửi lại dùng cùng mã lệnh nên không bị ghi nhận hai lần.";
 
+// REFUND_PAYOUT_CLAIM_CONFLICT: another admin holds the payout claim. Unlike a stale revision,
+// re-reading the order does not make the same command succeed.
+const CLAIM_CONFLICT_CODE = "refund00015";
+
 // One command = one idempotency key. The key only changes when the staff member edits the command,
 // never because a network call failed, so a lost response can be replayed safely.
-export function useRefundCommand(ctx: RefundContext) {
+export function useRefundCommand(ctx: RefundContext, options?: { onClaimConflict?: () => void }) {
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>();
@@ -62,6 +66,8 @@ export function useRefundCommand(ctx: RefundContext) {
         setNotice({ type: "error", text: getErrorMessage(cause) });
       } else {
         const conflict = status === 409;
+        if (cause instanceof ApiError && cause.errors?.code === CLAIM_CONFLICT_CODE)
+          options?.onClaimConflict?.();
         setNotice({
           type: conflict ? "conflict" : "uncertain",
           text: conflict ? conflictText : uncertainText
