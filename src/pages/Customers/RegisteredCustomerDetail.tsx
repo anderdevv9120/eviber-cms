@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Descriptions, Flex, Modal, Result, Spin, Typography } from "antd";
-import { Link, useParams, useSearchParams } from "react-router";
+import { useParams } from "react-router";
 import {
   getCustomerAPI,
   updateCustomerAPI,
@@ -10,22 +10,17 @@ import {
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { formatOrderDate } from "@/pages/Orders/order-display";
-import { safeCustomerReturnTo } from "./customer-list-query";
 import CustomerForm from "./CustomerForm";
 import CustomerAddresses from "./CustomerAddresses";
 import CustomerOrders from "./CustomerOrders";
 
 export default function RegisteredCustomerDetail() {
   const { customerId = "" } = useParams();
-  const [params] = useSearchParams();
-  const returnTo = safeCustomerReturnTo(
-    params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
-  );
-  return <CustomerRead key={customerId} customerId={customerId} returnTo={returnTo} />;
+  return <CustomerRead key={customerId} customerId={customerId} />;
 }
 
 // Keyed loading/cancellation follows OrderDetail; profile writes require a fresh detail read.
-function CustomerRead({ customerId, returnTo }: { customerId: string; returnTo: string }) {
+function CustomerRead({ customerId }: { customerId: string }) {
   const [view, setView] = useState<{ customer?: Customer; error?: string; unavailable?: boolean }>(
     {}
   );
@@ -98,8 +93,7 @@ function CustomerRead({ customerId, returnTo }: { customerId: string; returnTo: 
     value && !Number.isNaN(new Date(value).getTime()) ? formatOrderDate(value) : "—";
   return (
     <section className='min-w-0'>
-      <Flex justify='space-between' align='center' gap={8} wrap>
-        <Link to={returnTo}>Về danh sách khách hàng</Link>
+      <Flex justify='flex-end' align='center' gap={8} wrap>
         <Button disabled={saving || (!customer && !view.error)} onClick={retry}>
           Tải lại
         </Button>

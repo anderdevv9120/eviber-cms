@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Flex, Input, Pagination, Select, Spin, Table, Typography } from "antd";
+import { Alert, Button, Flex, Input, Pagination, Select, Spin, Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { useSearchParams } from "react-router";
 import {
@@ -190,12 +191,11 @@ function VoucherPage() {
         <Spin aria-label='Đang tải voucher' />
       ) : (
         <>
-          <Table
+          <DataTable
             rowKey='_id'
             columns={columns}
             dataSource={result.data}
             pagination={false}
-            scroll={{ x: 1000 }}
             locale={{ emptyText: "Không có voucher" }}
           />
           <Flex justify='space-between' wrap gap={12} className='mt-4'>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Flex, Input, Pagination, Select, Spin, Table, Tag } from "antd";
+import { Alert, App, Button, Flex, Input, Pagination, Select, Spin, Tag } from "antd";
 import { Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
@@ -367,12 +368,11 @@ function ProductsPage() {
         <Spin aria-label='Đang tải sản phẩm' />
       ) : (
         <>
-          <Table
+          <DataTable
             rowKey='_id'
             columns={columns}
             dataSource={result.data}
             pagination={false}
-            scroll={{ x: 1000 }}
             locale={{ emptyText: "Không có sản phẩm" }}
           />
           <Flex justify='space-between' wrap gap={12} className='mt-4'>

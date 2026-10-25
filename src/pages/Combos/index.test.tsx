@@ -160,9 +160,7 @@ describe("Combos list", () => {
     expect(cells.getByRole("link", { name: "Combo dạo phố" }).getAttribute("href")).toBe(
       "/catalog/combos/p1"
     );
-    expect(cells.getByRole("link", { name: "Sửa combo" }).getAttribute("href")).toBe(
-      "/catalog/combos/p1"
-    );
+    expect(cells.queryByRole("link", { name: "Sửa combo" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Thêm combo" }));
     expect(await screen.findByText("Tạo combo ở Task 10")).toBeTruthy();
   });

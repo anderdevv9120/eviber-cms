@@ -1,4 +1,6 @@
+import type { RefundFilter, RefundReason } from "@/services/refunds";
 import type {
+  CancellationReason,
   OrderAttention,
   OrderStatus,
   PaymentStatus,
@@ -44,7 +46,15 @@ export const orderActorLabels: Record<OrderActorType, string> = {
   system: "Hệ thống",
   webhook: "Webhook"
 };
-export const missingOrderData = "Chưa có dữ liệu";
+export const cancellationReasonLabels: Record<CancellationReason, string> = {
+  changed_mind: "Không muốn mua nữa",
+  wrong_order: "Chọn nhầm sản phẩm / phân loại",
+  better_price: "Tìm được giá tốt hơn ở chỗ khác",
+  slow_shipping: "Thời gian giao hàng quá lâu",
+  payment_issue: "Gặp vấn đề khi thanh toán",
+  other: "Lý do khác"
+};
+export const missingOrderData = "—";
 export const legacyPaymentActionLabel = "Thay đổi cũ (chưa phân loại)";
 export const displayOrderText = (value?: string | null): string =>
   value?.trim() || missingOrderData;
@@ -70,4 +80,23 @@ export const orderActionLabels: Record<OrderStatus, string> = {
   delivered: "Xác nhận đã giao",
   cancelled: "Hủy đơn hàng",
   returned: "Xác nhận trả hàng"
+};
+
+export const refundStatusLabels: Record<RefundFilter, string> = {
+  awaiting_review: "Chờ duyệt",
+  awaiting_return: "Chờ nhận hàng",
+  awaiting_payout: "Chờ hoàn tiền",
+  payout_in_progress: "Đang hoàn tiền",
+  refunded: "Có khoản đã hoàn",
+  partially_refunded: "Đã hoàn một phần",
+  fully_refunded: "Đã hoàn toàn bộ",
+  rejected: "Đã từ chối",
+  no_requests: "Chưa có yêu cầu"
+};
+
+export const refundReasonLabels: Record<RefundReason, string> = {
+  ordinary: "Hoàn tiền thông thường",
+  missing_item: "Thiếu hàng",
+  incorrect_item: "Giao sai hàng",
+  other: "Lý do khác"
 };

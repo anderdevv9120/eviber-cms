@@ -19,12 +19,6 @@ export interface PaymentFormProps {
   submitting?: boolean;
 }
 
-// Ordinary receipt/refund never offer a free status choice; only correction does.
-const fixedTargets: Partial<Record<PaymentAction, WritablePaymentStatus>> = {
-  receipt: "paid",
-  refund: "refunded"
-};
-
 export default function PaymentForm({
   order,
   action,
@@ -38,8 +32,12 @@ export default function PaymentForm({
   const referenceId = useId();
   const [attempted, setAttempted] = useState(false);
   const eligibility = order.actions.paymentActions.find(item => item.action === action);
-  const targets = eligibility?.targets ?? [];
-  const fixed = fixedTargets[action];
+  // Refunds only exist in the refund ledger; "refunded" is never a target this form can send.
+  const targets: WritablePaymentStatus[] = (eligibility?.targets ?? []).filter(
+    item => item !== "refunded"
+  );
+  // Ordinary receipt never offers a free status choice; only correction does.
+  const fixed: WritablePaymentStatus | undefined = action === "receipt" ? "paid" : undefined;
   const target =
     fixed ?? (draft.target && targets.includes(draft.target) ? draft.target : undefined);
   const blocked = !eligibility?.enabled || !target || !targets.includes(target);
@@ -61,6 +59,16 @@ export default function PaymentForm({
     });
   };
 
+  if (action === "refund")
+    return (
+      <Alert
+        type='info'
+        showIcon
+        className='mt-4'
+        title='Hoàn tiền được xử lý trong mục Hoàn tiền của đơn hàng, không ghi nhận qua thanh toán.'
+      />
+    );
+
   return (
     <form onSubmit={submit} noValidate className='mt-4'>
       {eligibility && !eligibility.enabled ? (
@@ -75,11 +83,9 @@ export default function PaymentForm({
           showIcon
           className='mb-3'
           title={
-            action === "refund"
-              ? "Chỉ ghi nhận đã hoàn tiền; hệ thống không chuyển tiền."
-              : action === "correction"
-                ? "Điều chỉnh trạng thái thanh toán không gửi email biên nhận và bắt buộc có lý do."
-                : "Ghi nhận khách đã thanh toán cho toàn bộ đơn hàng."
+            action === "correction"
+              ? "Điều chỉnh trạng thái thanh toán không gửi email biên nhận và bắt buộc có lý do."
+              : "Ghi nhận khách đã thanh toán cho toàn bộ đơn hàng."
           }
         />
       )}

@@ -8,10 +8,10 @@ import {
   Popconfirm,
   Select,
   Spin,
-  Table,
   Typography
 } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import { Link } from "react-router";
 import {
   createVoucherAPI,
@@ -165,12 +165,11 @@ function VoucherHistory({ voucherId }: { voucherId: string }) {
         <Spin aria-label='Đang tải lịch sử' />
       ) : (
         <>
-          <Table
+          <DataTable
             rowKey='_id'
             columns={columns}
             dataSource={current.result.data}
             pagination={false}
-            scroll={{ x: 1000 }}
             locale={{ emptyText: "Chưa có lượt sử dụng" }}
           />
           <Flex justify='space-between' wrap gap={12}>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, App, Button, Flex, Modal, Spin, Typography } from "antd";
-import { Link, useParams } from "react-router";
-import { PATH } from "@/constants/paths";
+import { useParams } from "react-router";
 import {
   createAttributeValueAPI,
   deleteAttributeValueAPI,
@@ -199,7 +198,6 @@ function DetailContent({ attributeId }: { attributeId: string }) {
   };
   return (
     <section className='min-w-0'>
-      <Link to={PATH.ATTRIBUTES}>Về danh sách thuộc tính</Link>
       {refreshRequired && (
         <Alert
           className='mt-4'

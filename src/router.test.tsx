@@ -222,8 +222,9 @@ describe("CMS data router", () => {
       expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
         `/orders/order-id?${new URLSearchParams({ returnTo: detailUrl })}`
       );
-      fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
-      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(screen.queryByRole("link", { name: "Về danh sách khách hàng" })).toBeNull();
+      fireEvent.click(crumbs.getByRole("link", { name: "Khách hàng" }));
+      await screen.findByRole("link", { name: path.includes("/guests/") ? guest.email : "—" });
       expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(returnTo);
       await act(() => router.navigate(-1));
       await screen.findByRole("heading", { name: label });
@@ -286,7 +287,7 @@ describe("CMS data router", () => {
     async (path, label, menuLabel, paymentStatus = "unpaid") => {
       const query = `?page=3&pageSize=20&search=An&status=pending&paymentStatus=${paymentStatus}`;
       const router = renderRoute(`${path}${query}`);
-      const link = await screen.findByRole("link", { name: "Chi tiết" });
+      const link = await screen.findByRole("link", { name: order.orderNumber });
       expect(screen.getByRole("heading", { name: label })).toBeTruthy();
       expect(screen.getByRole("menuitem", { name: new RegExp(menuLabel) }).className).toContain(
         "ant-menu-item-selected"
@@ -298,24 +299,23 @@ describe("CMS data router", () => {
       expect(new URLSearchParams(router.state.location.search).get("returnTo")).toBe(
         `${path}${query}`
       );
-      fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
-      await screen.findByRole("link", { name: "Chi tiết" });
+      expect(screen.queryByRole("link", { name: "Về danh sách" })).toBeNull();
+      fireEvent.click(within(screen.getByRole("navigation")).getByRole("link", { name: label }));
+      await screen.findByRole("link", { name: order.orderNumber });
       expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(
         `${path}${query}`
       );
       await act(() => router.navigate(-1));
       await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
       await act(() => router.navigate(-1));
-      await screen.findByRole("link", { name: "Chi tiết" });
+      await screen.findByRole("link", { name: order.orderNumber });
       expect(router.state.location.search).toBe(query);
       const fresh = createMemoryRouter(routes, { initialEntries: [detailLocation] });
       await act(() => router.navigate(detailLocation, { replace: true }));
       // A new router at the saved URL models a document reload, without navigation state.
       render(<RouterProvider router={fresh} />);
-      await waitFor(() =>
-        expect(screen.getAllByRole("link", { name: "Về danh sách" })).toHaveLength(2)
-      );
-      for (const back of screen.getAllByRole("link", { name: "Về danh sách" }))
+      await waitFor(() => expect(screen.getAllByRole("link", { name: label })).toHaveLength(2));
+      for (const back of screen.getAllByRole("link", { name: label }))
         expect(back.getAttribute("href")).toBe(`${path}${query}`);
     },
     20000
@@ -358,9 +358,9 @@ describe("CMS data router", () => {
       await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
       expect(router.state.location.search).toBe(query);
       const backLabel = destination.startsWith("/customers/") ? "Về khách hàng" : "Về danh sách";
-      expect(screen.getByRole("link", { name: backLabel }).getAttribute("href")).toBe(destination);
+      expect(screen.queryByRole("link", { name: backLabel })).toBeNull();
       if (destination === "/orders") {
-        fireEvent.click(screen.getByRole("link", { name: "Về danh sách" }));
+        fireEvent.click(crumbs.getByRole("link"));
         await waitFor(() => expect(router.state.location.pathname).toBe("/orders"));
         await act(() => router.navigate(-1));
         await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
@@ -459,18 +459,18 @@ describe("CMS data router", () => {
 
   it("supports direct detail, selected catalog menu, scoped breadcrumbs, list and back navigation", async () => {
     const router = renderRoute("/catalog/attributes/size-id");
-    await screen.findByRole("link", { name: "Về danh sách thuộc tính" });
     expect(await screen.findByText("S")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Về danh sách thuộc tính" })).toBeNull();
     expect(screen.getByText("size")).toBeTruthy();
     const menu = screen.getByRole("menuitem", { name: /Thuộc tính/ });
     expect(menu.className).toContain("ant-menu-item-selected");
     const crumbs = screen.getByRole("navigation");
     expect(within(crumbs).getByText("Chi tiết thuộc tính")).toBeTruthy();
     expect(within(crumbs).queryByText("Sản phẩm")).toBeNull();
-    fireEvent.click(screen.getByRole("link", { name: "Về danh sách thuộc tính" }));
+    fireEvent.click(within(crumbs).getByRole("link", { name: "Thuộc tính" }));
     await screen.findByRole("button", { name: "Thêm thuộc tính" });
     await act(() => router.navigate(-1));
-    await screen.findByRole("link", { name: "Về danh sách thuộc tính" });
+    await screen.findByText("S");
     expect(router.state.location.pathname).toBe("/catalog/attributes/size-id");
   });
 

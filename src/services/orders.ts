@@ -1,3 +1,4 @@
+import type { RefundFilter, RefundSummary } from "./refunds";
 import type { ApiResponse } from "./auth";
 import axiosRequest from "@/utils/request";
 
@@ -8,6 +9,9 @@ export type WritablePaymentStatus = Exclude<PaymentStatus, "not_required">;
 export type PaymentAction = "receipt" | "refund" | "correction";
 export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "E_WALLET" | "NO_PAYMENT";
 export type OrderActorType = "customer" | "admin" | "system" | "webhook";
+/** BE: CancellationReason (order.model.ts) — chỉ có trên đơn khách TỰ hủy */
+export type CancellationReason =
+  "changed_mind" | "wrong_order" | "better_price" | "slow_shipping" | "payment_issue" | "other";
 /** Current-state queues shared with dashboard counts; ANDed with the other list filters. */
 export type OrderAttention = "awaiting-transfer" | "refund-needed";
 
@@ -58,6 +62,8 @@ export interface AdminOrderSummary {
   _id: string;
   // List rows only: null when the stored version is malformed. Detail/mutations always carry a number.
   revision: number | null;
+  hasRefundLedger: boolean;
+  refundSummary: RefundSummary;
   userId?: string;
   sessionId?: string;
   orderNumber?: string;
@@ -101,6 +107,7 @@ export interface AdminOrderSummary {
   productInfo: OrderProduct[];
   statusHistory?: StatusHistoryEntry[];
   paymentHistory?: PaymentHistoryEntry[];
+  cancellation?: { reason: CancellationReason; note?: string };
 }
 export interface OrderActionEligibility {
   orderStatuses: {
@@ -130,6 +137,7 @@ export interface OrderListQuery {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
   attention?: OrderAttention;
+  refundStatus?: RefundFilter;
 }
 export interface OrderListResult {
   data: AdminOrderSummary[];

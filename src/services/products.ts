@@ -65,6 +65,7 @@ export interface ProductEditorView {
   name: string;
   slug: string;
   status: ProductStatus;
+  refundEnabled: boolean;
   description: string;
   images: string[];
   categoryIds: string[];
@@ -88,6 +89,7 @@ export interface ProductVariantInput {
 }
 export interface ProductWriteInput {
   name: string;
+  refundEnabled: boolean;
   slug?: string;
   description?: string | null;
   images: string[];

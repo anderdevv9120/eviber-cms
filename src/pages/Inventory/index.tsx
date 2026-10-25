@@ -1,18 +1,7 @@
 import { useCallback, useState } from "react";
-import {
-  Alert,
-  Button,
-  Flex,
-  Input,
-  Pagination,
-  Radio,
-  Select,
-  Spin,
-  Table,
-  Tag,
-  Typography
-} from "antd";
+import { Alert, Button, Flex, Input, Pagination, Radio, Select, Spin, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useSearchParams } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -325,12 +314,11 @@ export default function Inventory() {
       )}
       {data && (
         <>
-          <Table
+          <DataTable
             rowKey='variantId'
             columns={columns}
             dataSource={rows}
             pagination={false}
-            scroll={{ x: 1100 }}
             locale={{ emptyText: "Không có biến thể" }}
           />
           <Flex justify='space-between' align='center' wrap gap={12} className='mt-4'>

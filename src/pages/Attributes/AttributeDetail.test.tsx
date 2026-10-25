@@ -176,13 +176,13 @@ describe("attribute value detail", () => {
     );
   });
   it("protects actual list-back navigation while ordering is dirty", async () => {
-    setup();
+    const router = setup();
     await moveS();
-    fireEvent.click(screen.getByRole("link", { name: "Về danh sách thuộc tính" }));
+    await act(() => router.navigate("/catalog/attributes"));
     fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(order()).toEqual(["S", "M", "L", "XL"]);
-    fireEvent.click(screen.getByRole("link", { name: "Về danh sách thuộc tính" }));
+    await act(() => router.navigate("/catalog/attributes"));
     fireEvent.click(await screen.findByRole("button", { name: "Bỏ thay đổi và rời đi" }));
     await screen.findByText("Attribute list");
     expect(writes()).toEqual([]);
@@ -328,9 +328,6 @@ describe("attribute value detail", () => {
     await screen.findByText("Value 100");
     expect(rows()).toHaveLength(101);
     expect(screen.getByText("size")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Về danh sách thuộc tính" }).getAttribute("href")).toBe(
-      "/catalog/attributes"
-    );
     fireEvent.keyDown(screen.getByRole("button", { name: "Sắp xếp Value 0" }), { key: "ArrowUp" });
     fireEvent.keyDown(screen.getByRole("button", { name: "Sắp xếp Value 100" }), {
       key: "ArrowDown"
@@ -490,11 +487,11 @@ describe("attribute value detail", () => {
     expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Xóa" })).toBeNull();
     expect(writes()).toEqual([]);
   });
-  it("shows unavailable with list link when the parent was deleted", async () => {
+  it("shows unavailable when the parent was deleted", async () => {
     handle = c => fail(c, 404);
     setup();
     await screen.findByText("Thuộc tính không còn khả dụng.");
-    expect(screen.getByRole("link", { name: "Về danh sách thuộc tính" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Về danh sách thuộc tính" })).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
   });
   it("does not let attribute A's delayed read overwrite B", async () => {

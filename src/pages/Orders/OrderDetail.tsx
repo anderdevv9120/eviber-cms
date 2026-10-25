@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Descriptions, Flex, Result, Spin, Table, Tag, Typography } from "antd";
-import { Link, useLocation, useParams } from "react-router";
+import { Alert, Button, Descriptions, Flex, Result, Spin, Tag, Typography } from "antd";
+import DataTable from "@/components/DataTable";
+import { Link, useParams } from "react-router";
 import { getOrderAPI, type AdminOrderDetail } from "@/services/orders";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { PATH } from "@/constants/paths";
-import { readOrderReturnTo } from "./order-list-query";
 import { groupOrderLines, type OrderLineRow } from "./order-lines";
 import {
+  cancellationReasonLabels,
   displayOrderText,
   formatOrderAmount,
   formatOrderDate,
@@ -20,6 +21,7 @@ import {
 } from "./order-display";
 import OrderHistory from "./OrderHistory";
 import OrderActionDialog, { type OrderActionIntent } from "./OrderActionDialog";
+import RefundSection from "./RefundSection";
 
 // Stored purchase snapshot; legacy orders without a type keep the old percentage field.
 const couponDiscount = (
@@ -36,27 +38,10 @@ const couponDiscount = (
 
 export default function OrderDetail() {
   const { orderId = "" } = useParams();
-  const { search } = useLocation();
-  const { returnTo, fromCustomer } = readOrderReturnTo(search);
-  return (
-    <OrderDetailRead
-      key={orderId}
-      orderId={orderId}
-      returnTo={returnTo}
-      fromCustomer={fromCustomer}
-    />
-  );
+  return <OrderDetailRead key={orderId} orderId={orderId} />;
 }
 
-function OrderDetailRead({
-  orderId,
-  returnTo,
-  fromCustomer
-}: {
-  orderId: string;
-  returnTo: string;
-  fromCustomer: boolean;
-}) {
+function OrderDetailRead({ orderId }: { orderId: string }) {
   const [attempt, setAttempt] = useState(0);
   const [intent, setIntent] = useState<OrderActionIntent | null>(null);
   const [view, setView] = useState<{
@@ -93,14 +78,20 @@ function OrderDetailRead({
     setView({ loading: true });
     setAttempt(value => value + 1);
   };
+  // A committed refund changes the order's revision and action eligibility; read it quietly so the
+  // refund section keeps its place.
+  const refreshOrder = async () => {
+    const { data } = await getOrderAPI(orderId);
+    if (!data?._id) throw new Error("Không tải được dữ liệu đơn hàng");
+    setView({ loading: false, order: data });
+  };
   const order = view.order;
   const currency = order?.checkoutInfo.currency;
   const amount = (value?: number) => formatOrderAmount(value, currency);
 
   return (
     <section className='min-w-0'>
-      <Flex justify='space-between' align='center'>
-        <Link to={returnTo}>{fromCustomer ? "Về khách hàng" : "Về danh sách"}</Link>
+      <Flex justify='flex-end' align='center'>
         <Button onClick={reload} disabled={view.loading}>
           Tải lại
         </Button>
@@ -140,6 +131,19 @@ function OrderDetailRead({
                 {order.paymentStatus ? paymentStatusLabels[order.paymentStatus] : missingOrderData}
               </Tag>
             </Flex>
+            {order.status === "cancelled" && (
+              <p className='mb-4'>
+                Lý do hủy (khách chọn):{" "}
+                {order.cancellation
+                  ? [
+                      cancellationReasonLabels[order.cancellation.reason],
+                      order.cancellation.note?.trim()
+                    ]
+                      .filter(Boolean)
+                      .join(" — ")
+                  : missingOrderData}
+              </p>
+            )}
             <Flex gap={8} wrap>
               {order.actions.orderStatuses
                 .filter(action => action.enabled)
@@ -152,7 +156,8 @@ function OrderDetailRead({
                   </Button>
                 ))}
               {order.actions.paymentActions
-                .filter(action => action.enabled)
+                // Refunds are handled by the refund section below, never by a payment dialog.
+                .filter(action => action.enabled && action.action !== "refund")
                 .map(action => (
                   <Button
                     key={action.action}
@@ -163,7 +168,7 @@ function OrderDetailRead({
                 ))}
             </Flex>
           </section>
-          <section aria-label='Người nhận'>
+          <section aria-label='Người nhận' className='mt-6'>
             <Typography.Title level={3}>Người nhận</Typography.Title>
             <Descriptions
               bordered
@@ -219,10 +224,10 @@ function OrderDetailRead({
           </section>
           <section aria-label='Sản phẩm đã mua' className='mt-6'>
             <Typography.Title level={3}>Sản phẩm đã mua</Typography.Title>
-            <Table<OrderLineRow>
+            <DataTable<OrderLineRow>
               pagination={false}
               dataSource={groupOrderLines(order.productInfo, order.combos)}
-              locale={{ emptyText: "Chưa có dữ liệu" }}
+              locale={{ emptyText: missingOrderData }}
               columns={[
                 {
                   title: "Sản phẩm",
@@ -385,11 +390,21 @@ function OrderDetailRead({
               {order.actions.paymentActions.map(action => (
                 <li key={action.action}>
                   {paymentActionLabels[action.action]}:{" "}
-                  {action.enabled ? "Có thể thực hiện" : displayOrderText(action.reason)}
+                  {action.action === "refund" && action.enabled
+                    ? "Xử lý trong mục Hoàn tiền bên dưới"
+                    : action.enabled
+                      ? "Có thể thực hiện"
+                      : displayOrderText(action.reason)}
                 </li>
               ))}
             </ul>
           </section>
+          <RefundSection
+            orderId={orderId}
+            revision={order.revision}
+            order={order}
+            onCommitted={refreshOrder}
+          />
           <OrderHistory order={order} />
         </>
       )}

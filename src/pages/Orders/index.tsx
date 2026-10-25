@@ -8,10 +8,11 @@ import {
   Segmented,
   Select,
   Spin,
-  Table,
+  Tag,
   Typography
 } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import viVN from "antd/locale/vi_VN";
 import { Link, useLocation } from "react-router";
 import { PATH } from "@/constants/paths";
@@ -22,6 +23,7 @@ import type {
   PaymentStatus
 } from "@/services/orders";
 import { useOrdersList } from "./useOrdersList";
+import type { RefundFilter } from "@/services/refunds";
 import { safeOrderReturnTo } from "./order-list-query";
 import {
   displayOrderText,
@@ -31,7 +33,8 @@ import {
   orderAttentionLabels,
   orderStatusLabels,
   paymentMethodLabels,
-  paymentStatusLabels
+  paymentStatusLabels,
+  refundStatusLabels
 } from "./order-display";
 
 const ATTENTION_OPTIONS: { value: OrderAttention | ""; label: string }[] = [
@@ -52,7 +55,17 @@ export default function Orders() {
     });
   };
   const columns: TableColumnsType<AdminOrderSummary> = [
-    { title: "Mã đơn hàng", key: "number", render: (_, row) => displayOrderText(row.orderNumber) },
+    {
+      title: "Mã đơn hàng",
+      key: "number",
+      render: (_, row) => (
+        <Link
+          to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
+        >
+          {displayOrderText(row.orderNumber)}
+        </Link>
+      )
+    },
     { title: "Ngày tạo", key: "created", render: (_, row) => formatOrderDate(row.created_at) },
     {
       title: "Người nhận",
@@ -86,20 +99,53 @@ export default function Orders() {
         row.paymentStatus ? paymentStatusLabels[row.paymentStatus] : missingOrderData
     },
     {
+      title: "Hoàn tiền",
+      key: "refund",
+      render: (_, row) => {
+        const summary = row.refundSummary;
+        // Legacy full refunds carry no ledger amount; showing 0 ₫ would contradict "Đã hoàn toàn bộ".
+        const legacyFullRefund =
+          summary.coverage === "full" &&
+          summary.requestCount === 0 &&
+          summary.paidAmount + summary.paidShippingAmount === 0;
+        return (
+          <div>
+            {summary.activeStages.map(stage => (
+              <Tag key={stage}>{refundStatusLabels[stage]}</Tag>
+            ))}
+            {summary.coverage !== "none" && (
+              <Tag>
+                {
+                  refundStatusLabels[
+                    summary.coverage === "full" ? "fully_refunded" : "partially_refunded"
+                  ]
+                }
+              </Tag>
+            )}
+            {summary.requestCount === 0 && summary.coverage === "none" && (
+              <Tag>{refundStatusLabels.no_requests}</Tag>
+            )}
+            {summary.requestCount > 0 &&
+              summary.activeStages.length === 0 &&
+              summary.coverage === "none" && <Tag>{refundStatusLabels.rejected}</Tag>}
+            <div>
+              Đã hoàn:{" "}
+              {legacyFullRefund
+                ? missingOrderData
+                : formatOrderAmount(
+                    summary.paidAmount + summary.paidShippingAmount,
+                    row.checkoutInfo.currency
+                  )}
+            </div>
+            {summary.reviewRequired && <div>Cần kiểm tra dữ liệu hoàn tiền</div>}
+          </div>
+        );
+      }
+    },
+    {
       title: "Ngày thanh toán",
       key: "paid",
       render: (_, row) => (row.paidAt ? formatOrderDate(row.paidAt) : "—")
-    },
-    {
-      title: "Thao tác",
-      key: "actions",
-      render: (_, row) => (
-        <Link
-          to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
-        >
-          Chi tiết
-        </Link>
-      )
     }
   ];
 
@@ -118,7 +164,7 @@ export default function Orders() {
         onChange={attention => changeQuery({ attention: attention || undefined })}
         options={ATTENTION_OPTIONS}
       />
-      <Flex gap={12} className='mb-4'>
+      <Flex gap={12} wrap className='mb-4'>
         <OrderSearch
           key={query.search ?? ""}
           search={query.search ?? ""}
@@ -150,6 +196,16 @@ export default function Orders() {
             }))
           ]}
         />
+        <Select<RefundFilter | "">
+          aria-label='Lọc trạng thái hoàn tiền'
+          style={{ minWidth: 220 }}
+          value={query.refundStatus ?? ""}
+          onChange={refundStatus => changeQuery({ refundStatus: refundStatus || undefined })}
+          options={[
+            { value: "", label: "Tất cả trạng thái hoàn tiền" },
+            ...Object.entries(refundStatusLabels).map(([value, label]) => ({ value, label }))
+          ]}
+        />
       </Flex>
       {loading && (
         <Flex justify='center' className='py-8'>
@@ -166,7 +222,7 @@ export default function Orders() {
       )}
       {!loading && result && (
         <>
-          <Table
+          <DataTable
             rowKey='_id'
             columns={columns}
             dataSource={result.data}
@@ -198,6 +254,7 @@ function OrderSearch({ search, onSearch }: { search: string; onSearch: (value: s
   return (
     <Input.Search
       aria-label='Tìm đơn hàng'
+      style={{ flex: "1 1 320px", minWidth: "min(100%, 320px)" }}
       placeholder='Mã đơn, tên, email hoặc số điện thoại'
       value={draft}
       onChange={event => setDraft(event.target.value)}

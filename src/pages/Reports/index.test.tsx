@@ -23,6 +23,8 @@ const report = (query: SalesReportQuery, overrides: Partial<SalesReport> = {}): 
     { currency: "USD", amount: 25 },
     { currency: "VND", amount: 1500000 }
   ],
+  receivedOrderValue: [{ currency: "USD", amount: 25 }, ...vnd(1800000)],
+  netReceivedOrderValue: [{ currency: "USD", amount: 25 }, ...vnd(1500000)],
   refundedOrderCount: 1,
   refundedOrderValue: vnd(300000),
   fulfillmentStatuses: {
@@ -36,9 +38,28 @@ const report = (query: SalesReportQuery, overrides: Partial<SalesReport> = {}): 
   },
   paymentStatuses: { unpaid: 3, paid: 4, refunded: 1, failed: 0, not_required: 0, unknown: 1 },
   daily: [
-    { date: "2026-10-01", paidOrderCount: 2, unitsSold: 3, paidOrderValue: vnd(1000000) },
-    { date: "2026-10-02", paidOrderCount: 0, unitsSold: 0, paidOrderValue: [] },
     {
+      receivedOrderValue: [],
+      refundedOrderValue: [],
+      netReceivedOrderValue: [],
+      date: "2026-10-01",
+      paidOrderCount: 2,
+      unitsSold: 3,
+      paidOrderValue: vnd(1000000)
+    },
+    {
+      receivedOrderValue: [],
+      refundedOrderValue: [],
+      netReceivedOrderValue: [],
+      date: "2026-10-02",
+      paidOrderCount: 0,
+      unitsSold: 0,
+      paidOrderValue: []
+    },
+    {
+      receivedOrderValue: [],
+      refundedOrderValue: [],
+      netReceivedOrderValue: [],
       date: "2026-10-03",
       paidOrderCount: 2,
       unitsSold: 4,
@@ -70,7 +91,7 @@ const report = (query: SalesReportQuery, overrides: Partial<SalesReport> = {}): 
       merchandiseValue: vnd(900000)
     }
   ],
-  excludedMonetaryData: { paidOrders: 0, refundedOrders: 0, items: 0 },
+  excludedMonetaryData: { paidOrders: 0, refundedOrders: 0, receivedOrders: 0, items: 0 },
   ...overrides
 });
 
@@ -121,12 +142,51 @@ afterEach(() => {
 });
 
 describe("Sales reports", () => {
+  it("uses explicit receipts, completed refunds and net amounts without deriving them from gross sales", async () => {
+    serve(query =>
+      report(query, {
+        receivedOrderValue: [{ currency: "USD", amount: 40 }, ...vnd(210000)],
+        refundedOrderValue: [{ currency: "USD", amount: 10 }, ...vnd(80000)],
+        netReceivedOrderValue: [{ currency: "USD", amount: 30 }, ...vnd(130000)]
+      })
+    );
+    setup();
+    await loaded();
+    for (const [label, vndAmount, usdAmount] of [
+      ["Đã thu", 210000, 40],
+      ["Đã hoàn", 80000, 10],
+      ["Thực thu", 130000, 30]
+    ] as const) {
+      expect(group(label).getByText(money(vndAmount, "VND"))).toBeTruthy();
+      expect(group(label).getByText(money(usdAmount, "USD"))).toBeTruthy();
+    }
+    expect(group("Giá trị gộp đơn đã thanh toán").getByText(money(1500000, "VND"))).toBeTruthy();
+    expect(
+      region("Sản phẩm bán chạy").getByRole("columnheader", { name: "Giá trị hàng hóa gộp" })
+    ).toBeTruthy();
+  });
+  it("discloses excluded receipts instead of presenting unavailable net money as zero", async () => {
+    serve(query =>
+      report(query, {
+        receivedOrderValue: [],
+        netReceivedOrderValue: [],
+        excludedMonetaryData: { paidOrders: 0, refundedOrders: 0, receivedOrders: 1, items: 0 }
+      })
+    );
+    setup();
+    await loaded();
+    expect(group("Đã thu").getByText("Không có số liệu tiền hợp lệ")).toBeTruthy();
+    expect(group("Thực thu").getByText("Không có số liệu tiền hợp lệ")).toBeTruthy();
+    expect(screen.getByText(/1 đơn thu tiền/)).toBeTruthy();
+  });
   it("shows free-order volume and the undiscounted merchandise value without paid receipts", async () => {
     serve(query =>
       report(query, {
         ordersPlaced: 1,
         paidOrderCount: 0,
         paidOrderValue: [],
+        receivedOrderValue: [],
+        netReceivedOrderValue: [],
         unitsSold: 2,
         refundedOrderCount: 0,
         refundedOrderValue: [],
@@ -138,7 +198,17 @@ describe("Sales reports", () => {
           not_required: 1,
           unknown: 0
         },
-        daily: [{ date: "2026-10-01", paidOrderCount: 0, unitsSold: 2, paidOrderValue: [] }],
+        daily: [
+          {
+            receivedOrderValue: [],
+            refundedOrderValue: [],
+            netReceivedOrderValue: [],
+            date: "2026-10-01",
+            paidOrderCount: 0,
+            unitsSold: 2,
+            paidOrderValue: []
+          }
+        ],
         topProducts: [
           {
             productId: "free-product",
@@ -163,7 +233,10 @@ describe("Sales reports", () => {
     await loaded();
     expect(group("Số lượng đã bán").getByText("2")).toBeTruthy();
     expect(group("Đơn đã thanh toán").getByText("0")).toBeTruthy();
-    expect(group("Giá trị đơn đã thanh toán").getByText("0")).toBeTruthy();
+    expect(group("Giá trị gộp đơn đã thanh toán").getByText("0")).toBeTruthy();
+    expect(group("Đã thu").getByText("0")).toBeTruthy();
+    expect(group("Đã hoàn").getByText("0")).toBeTruthy();
+    expect(group("Thực thu").getByText("0")).toBeTruthy();
     expect(
       region("Trạng thái thanh toán").getByRole("row", { name: "Không cần thanh toán 1" })
     ).toBeTruthy();
@@ -185,12 +258,13 @@ describe("Sales reports", () => {
     expect(group("Đơn đã đặt").getByText("9")).toBeTruthy();
     expect(group("Đơn đã thanh toán").getByText("4")).toBeTruthy();
     expect(group("Số lượng đã bán").getByText("7")).toBeTruthy();
-    const paid = group("Giá trị đơn đã thanh toán");
+    const paid = group("Giá trị gộp đơn đã thanh toán");
     expect(paid.getByText(money(1500000, "VND"))).toBeTruthy();
     expect(paid.getByText(money(25, "USD"))).toBeTruthy();
-    const refunded = group("Đơn đã hoàn tiền");
-    expect(refunded.getByText("1")).toBeTruthy();
-    expect(refunded.getByText(money(300000, "VND"))).toBeTruthy();
+    const refundedOrders = group("Đơn đã hoàn tiền toàn bộ");
+    expect(refundedOrders.getByText("1")).toBeTruthy();
+    expect(refundedOrders.queryByText(money(300000, "VND"))).toBeNull();
+    expect(group("Đã hoàn").getByText(money(300000, "VND"))).toBeTruthy();
     expect(screen.queryByText(/doanh thu thuần/i)).toBeNull();
     expect(screen.getByText(/theo ngày tạo đơn/)).toBeTruthy();
     expect(screen.getByText(/01\/10\/2026 – 20\/10\/2026/)).toBeTruthy();
@@ -328,7 +402,17 @@ describe("Sales reports", () => {
         paidOrderValue: [],
         refundedOrderCount: 0,
         refundedOrderValue: [],
-        daily: [{ date: "2026-10-01", paidOrderCount: 0, unitsSold: 0, paidOrderValue: [] }],
+        daily: [
+          {
+            receivedOrderValue: [],
+            refundedOrderValue: [],
+            netReceivedOrderValue: [],
+            date: "2026-10-01",
+            paidOrderCount: 0,
+            unitsSold: 0,
+            paidOrderValue: []
+          }
+        ],
         topProducts: [],
         topSkus: []
       })
@@ -339,7 +423,7 @@ describe("Sales reports", () => {
     expect(daily.queryByRole("img")).toBeNull();
     expect(daily.getByText("Không có giá trị đơn đã thanh toán trong khoảng này")).toBeTruthy();
     expect(daily.getAllByRole("row")).toHaveLength(2);
-    expect(group("Giá trị đơn đã thanh toán").getByText("0")).toBeTruthy();
+    expect(group("Giá trị gộp đơn đã thanh toán").getByText("0")).toBeTruthy();
     expect(region("Sản phẩm bán chạy").getByText("Không có sản phẩm bán ra")).toBeTruthy();
     expect(region("SKU bán chạy").getByText("Không có SKU bán ra")).toBeTruthy();
   });
@@ -348,17 +432,17 @@ describe("Sales reports", () => {
     serve(query =>
       report(query, {
         paidOrderValue: [],
-        excludedMonetaryData: { paidOrders: 2, refundedOrders: 1, items: 3 }
+        excludedMonetaryData: { paidOrders: 2, refundedOrders: 1, receivedOrders: 0, items: 3 }
       })
     );
     setup();
     await loaded();
-    const paid = group("Giá trị đơn đã thanh toán");
+    const paid = group("Giá trị gộp đơn đã thanh toán");
     expect(paid.getByText("Không có số liệu tiền hợp lệ")).toBeTruthy();
     expect(paid.queryByText("0")).toBeNull();
     expect(
       screen.getByText(
-        "Không tính vào tổng tiền do thiếu hoặc sai dữ liệu: 2 đơn đã thanh toán, 1 đơn đã hoàn tiền, 3 sản phẩm trong đơn."
+        "Không tính vào tổng tiền do thiếu hoặc sai dữ liệu: 2 đơn đã thanh toán, 1 đơn đã hoàn tiền, 0 đơn thu tiền, 3 sản phẩm trong đơn."
       )
     ).toBeTruthy();
     const products = region("Sản phẩm bán chạy");
@@ -377,10 +461,26 @@ describe("Sales reports", () => {
     serve(query =>
       report(query, {
         daily: [
-          { date: "2026-10-01", paidOrderCount: 2, unitsSold: 3, paidOrderValue: vnd(1000000) },
-          { date: "2026-10-02", paidOrderCount: 1, unitsSold: 1, paidOrderValue: [] }
+          {
+            receivedOrderValue: [],
+            refundedOrderValue: [],
+            netReceivedOrderValue: [],
+            date: "2026-10-01",
+            paidOrderCount: 2,
+            unitsSold: 3,
+            paidOrderValue: vnd(1000000)
+          },
+          {
+            receivedOrderValue: [],
+            refundedOrderValue: [],
+            netReceivedOrderValue: [],
+            date: "2026-10-02",
+            paidOrderCount: 1,
+            unitsSold: 1,
+            paidOrderValue: []
+          }
         ],
-        excludedMonetaryData: { paidOrders: 1, refundedOrders: 0, items: 0 }
+        excludedMonetaryData: { paidOrders: 1, refundedOrders: 0, receivedOrders: 0, items: 0 }
       })
     );
     setup();

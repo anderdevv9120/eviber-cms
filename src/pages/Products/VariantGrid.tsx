@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Button, Card, Checkbox, Flex, Input, InputNumber, Select, Switch, Table } from "antd";
+import { Button, Card, Checkbox, Flex, Input, InputNumber, Select, Switch } from "antd";
 import { Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import type { ProductDimensions } from "@/services/products";
 import { suggestSku, type GridRow } from "./variant-grid";
 
@@ -226,12 +227,11 @@ export default function VariantGrid({
           Tạo SKU
         </Button>
       </Flex>
-      <Table
+      <DataTable
         rowKey={row => row.key || "default"}
         columns={columns}
         dataSource={rows}
         pagination={false}
-        scroll={{ x: 960 }}
         expandable={{ expandedRowRender: dimensions }}
         locale={{ emptyText: "Chọn giá trị tùy chọn để tạo biến thể" }}
       />

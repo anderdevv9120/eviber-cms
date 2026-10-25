@@ -1,31 +1,22 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Descriptions, Flex, Result, Spin, Typography } from "antd";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { getGuestBuyerAPI, type GuestBuyerDetail as Guest } from "@/services/customers";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { formatOrderDate } from "@/pages/Orders/order-display";
-import { safeCustomerReturnTo } from "./customer-list-query";
 import CustomerOrders from "./CustomerOrders";
 
 export default function GuestBuyerDetail() {
   const [params] = useSearchParams();
   const email =
     params.getAll("email").length === 1 ? params.get("email")!.trim().toLowerCase() : "";
-  const returnTo = safeCustomerReturnTo(
-    params.getAll("returnTo").length === 1 ? params.get("returnTo") : "/customers?tab=guests"
-  );
   if (!email || email.length > 255 || email.includes("\uFFFD"))
-    return (
-      <>
-        <Link to={returnTo}>Về danh sách khách hàng</Link>
-        <Result status='404' title='Khách vãng lai không còn khả dụng' />
-      </>
-    );
-  return <GuestRead key={email} email={email} returnTo={returnTo} />;
+    return <Result status='404' title='Khách vãng lai không còn khả dụng' />;
+  return <GuestRead key={email} email={email} />;
 }
 
-function GuestRead({ email, returnTo }: { email: string; returnTo: string }) {
+function GuestRead({ email }: { email: string }) {
   const [attempt, setAttempt] = useState(0);
   const [view, setView] = useState<{ guest?: Guest; error?: string; unavailable?: boolean }>({});
   useEffect(() => {
@@ -56,8 +47,7 @@ function GuestRead({ email, returnTo }: { email: string; returnTo: string }) {
     value && !Number.isNaN(new Date(value).getTime()) ? formatOrderDate(value) : "—";
   return (
     <section className='min-w-0'>
-      <Flex justify='space-between' align='center' gap={8} wrap>
-        <Link to={returnTo}>Về danh sách khách hàng</Link>
+      <Flex justify='flex-end' align='center' gap={8} wrap>
         <Button disabled={!guest && !view.error} onClick={reload}>
           Tải lại
         </Button>

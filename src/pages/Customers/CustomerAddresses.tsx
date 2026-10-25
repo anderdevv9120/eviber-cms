@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Flex, Modal, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Flex, Modal, Spin, Tag, Typography } from "antd";
+import DataTable from "@/components/DataTable";
 import {
   addCustomerAddressAPI,
   deleteCustomerAddressAPI,
@@ -129,7 +130,7 @@ function AddressBook({ customerId }: { customerId: string }) {
         />
       )}
       {view.addresses && (
-        <Table<CustomerAddress>
+        <DataTable<CustomerAddress>
           rowKey='_id'
           dataSource={view.addresses}
           pagination={false}

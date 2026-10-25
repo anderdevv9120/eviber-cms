@@ -216,7 +216,6 @@ function CategoriesContent() {
         onMove={draft.move}
         onMoveTo={draft.moveTo}
         emptyText='Chưa có danh mục'
-        scrollX={800}
       />
       {editing && (
         <CategoryForm

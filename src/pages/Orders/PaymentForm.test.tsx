@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type {
-  AdminOrderDetail,
-  PaymentAction,
-  PaymentStatus,
-  UpdatePaymentInput
-} from "@/services/orders";
+import type { AdminOrderDetail, PaymentAction, UpdatePaymentInput } from "@/services/orders";
 import { order } from "@/test/order-fixtures";
 import PaymentForm from "./PaymentForm";
 import type { ActionDraft } from "./order-action-input";
@@ -68,7 +63,7 @@ const targets = () =>
   screen.queryAllByRole("radio").map(radio => (radio as HTMLInputElement).value);
 
 describe("payment form", () => {
-  it.each<PaymentAction>(["receipt", "refund", "correction"])(
+  it.each<PaymentAction>(["receipt", "correction"])(
     "cannot submit %s for an order whose backend requires no payment",
     action => {
       const free = detail({
@@ -95,35 +90,53 @@ describe("payment form", () => {
     }
   );
 
-  it.each<[PaymentAction, AdminOrderDetail, PaymentStatus]>([
-    ["receipt", order, "paid"],
-    ["refund", refundable, "refunded"]
-  ])("uses a fixed target for ordinary %s and trims note/reference", (action, current, target) => {
+  it("uses a fixed target for ordinary receipt and trims note/reference", () => {
     const onSubmit = vi.fn();
-    render(<Harness action={action} order={current} onSubmit={onSubmit} />);
+    render(<Harness action='receipt' order={order} onSubmit={onSubmit} />);
     expect(targets()).toEqual([]);
     confirm();
     expect(onSubmit).toHaveBeenLastCalledWith({
-      paymentStatus: target,
-      action,
+      paymentStatus: "paid",
+      action: "receipt",
       expectedRevision: 4
     });
     fireEvent.change(note(), { target: { value: " đã đối chiếu " } });
     fireEvent.change(reference(), { target: { value: " REF-1 " } });
     confirm();
     expect(onSubmit).toHaveBeenLastCalledWith({
-      paymentStatus: target,
-      action,
+      paymentStatus: "paid",
+      action: "receipt",
       expectedRevision: 4,
       note: "đã đối chiếu",
       reference: "REF-1"
     });
   });
 
+  it("never sends a refunded payment status through the old payment form", () => {
+    const onSubmit = vi.fn();
+    const { unmount } = render(<Harness action='refund' order={refundable} onSubmit={onSubmit} />);
+    // Even when a server still lists the refund action as enabled, there is nothing to submit.
+    expect(screen.queryByRole("button", { name: "Xác nhận" })).toBeNull();
+    expect(screen.getByText(/xử lý trong mục Hoàn tiền/i)).toBeTruthy();
+    unmount();
+    render(<Harness action='correction' order={refundable} onSubmit={onSubmit} />);
+    // A correction target of "refunded" is stripped even if the server lists it.
+    expect(screen.queryByRole("radio", { name: "Đã hoàn tiền" })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Thanh toán thất bại" }));
+    fireEvent.change(note(), { target: { value: "Ghi nhầm" } });
+    confirm();
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+      paymentStatus: "failed",
+      action: "correction",
+      expectedRevision: 4,
+      note: "Ghi nhầm"
+    });
+  });
+
   it("offers only backend correction targets and requires target and reason", () => {
     const onSubmit = vi.fn();
     render(<Harness action='correction' order={refundable} onSubmit={onSubmit} />);
-    expect(targets()).toEqual(["unpaid", "failed", "refunded"]);
+    expect(targets()).toEqual(["unpaid", "failed"]);
     confirm();
     expect(onSubmit).not.toHaveBeenCalled();
     expect((screen.getByRole("button", { name: "Xác nhận" }) as HTMLButtonElement).disabled).toBe(
@@ -185,18 +198,15 @@ describe("payment form", () => {
     expect(screen.getByText(/vẫn ở trạng thái đã hủy.*tồn kho đã được hoàn lại/i)).toBeTruthy();
   });
 
-  it("says refund and correction do not move money or send a receipt email", () => {
-    const { unmount } = render(<Harness action='refund' order={refundable} onSubmit={vi.fn()} />);
-    expect(screen.getByText(/không chuyển tiền/i)).toBeTruthy();
-    unmount();
+  it("says correction does not send a receipt email", () => {
     render(<Harness action='correction' order={refundable} onSubmit={vi.fn()} />);
     expect(screen.getByText(/không gửi email biên nhận/i)).toBeTruthy();
   });
 
   it("cannot submit a disabled action and shows its reason", () => {
     const onSubmit = vi.fn();
-    render(<Harness action='refund' order={order} onSubmit={onSubmit} />);
-    expect(screen.getByText("Chưa thanh toán")).toBeTruthy();
+    render(<Harness action='receipt' order={refundable} onSubmit={onSubmit} />);
+    expect(screen.getByText("Đã thanh toán trước đó")).toBeTruthy();
     const button = screen.getByRole("button", { name: "Xác nhận" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.click(button);

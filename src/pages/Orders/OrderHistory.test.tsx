@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { order } from "@/test/order-fixtures";
+import { missingOrderData } from "./order-display";
 import OrderHistory from "./OrderHistory";
 
 describe("order histories", () => {
@@ -77,7 +78,7 @@ describe("order histories", () => {
       />
     );
     expect(screen.getByText("Thay đổi cũ (chưa phân loại)")).toBeTruthy();
-    expect(screen.getAllByText("Chưa có dữ liệu").length).toBeGreaterThan(3);
+    expect(screen.getAllByText(missingOrderData).length).toBeGreaterThan(3);
     expect(screen.queryByText("Ghi nhận thanh toán")).toBeNull();
     expect(screen.queryByText("Quản trị viên")).toBeNull();
     expect(screen.queryByText(/2026/)).toBeNull();

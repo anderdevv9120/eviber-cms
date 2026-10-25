@@ -57,6 +57,7 @@ const statusMessages: Partial<Record<ProductStatus, string>> = {
 
 interface FormValues {
   name: string;
+  refundEnabled: boolean;
   slug?: string;
   categoryIds?: string[];
   seo?: { metaTitle?: string; metaDescription?: string; metaKeywords?: string[] };
@@ -138,6 +139,7 @@ function ProductEditorPage({ id }: { id?: string }) {
       setRows(keep ? grid : grid.map(row => (row.saved ? row : { ...row, include: false })));
       form.setFieldsValue({
         name: view.name,
+        refundEnabled: view.refundEnabled,
         slug: view.slug,
         categoryIds: view.categoryIds,
         seo: view.seo
@@ -262,6 +264,7 @@ function ProductEditorPage({ id }: { id?: string }) {
     const typedSlug = values.slug?.trim();
     return {
       name: values.name.trim(),
+      refundEnabled: values.refundEnabled,
       // A new product's untouched slug is only a preview: the server picks a free one
       ...(slugTouched && typedSlug && { slug: typedSlug }),
       description: html.current,
@@ -400,7 +403,6 @@ function ProductEditorPage({ id }: { id?: string }) {
   const busy = saving || readOnly;
   return (
     <section className='min-w-0'>
-      <Link to={PATH.PRODUCTS}>Danh sách sản phẩm</Link>
       <Flex align='center' gap={12} className='mb-4'>
         <Typography.Title level={2} className='mb-0!'>
           {product ? product.name : "Thêm sản phẩm"}
@@ -438,6 +440,7 @@ function ProductEditorPage({ id }: { id?: string }) {
         <Form
           form={form}
           layout='vertical'
+          initialValues={{ refundEnabled: true }}
           disabled={busy}
           className='min-w-0 flex-1'
           onValuesChange={onValuesChange}

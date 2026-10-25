@@ -71,7 +71,8 @@ describe("order transport through the shared Axios client", () => {
       search: "An & Bình",
       status: "cancelled",
       paymentStatus: "paid",
-      attention: "refund-needed"
+      attention: "refund-needed",
+      refundStatus: "awaiting_review"
     } as const;
     expect(await api.listOrdersAPI(query, signal)).toEqual({
       data: orderList(),

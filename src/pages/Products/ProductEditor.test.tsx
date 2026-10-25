@@ -1,7 +1,7 @@
 import "@/test/attribute-fixtures";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
@@ -111,6 +111,7 @@ const product = (overrides: Partial<api.ProductEditorView> = {}): api.ProductEdi
   name: "Áo thun",
   slug: "ao-thun",
   status: "DRAFT",
+  refundEnabled: true,
   description: "<p>Mô tả</p>",
   images: [],
   categoryIds: [],
@@ -212,6 +213,54 @@ beforeEach(() => {
     );
 });
 
+describe("product refund eligibility", () => {
+  it("preserves a disabled refund policy through edit and save", async () => {
+    vi.mocked(api.getProductAPI).mockResolvedValue(ok(product({ refundEnabled: false })));
+    vi.mocked(api.updateProductAPI).mockResolvedValue(
+      ok(product({ refundEnabled: false, revision: 4 }))
+    );
+    renderEditor();
+    await loaded();
+    const toggle = screen.getByRole("switch", { name: "Cho phép hoàn tiền thông thường" });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    type(input("Tên sản phẩm"), "Áo sửa tên");
+    fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
+    expect(lastUpdate()[1]).toMatchObject({
+      name: "Áo sửa tên",
+      refundEnabled: false,
+      expectedRevision: 3
+    });
+    await waitFor(() => expect(button("Lưu").disabled).toBe(false));
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByText(/chỉ áp dụng cho các đơn hàng mua sau/i)).toBeTruthy();
+    expect(screen.getByText(/vẫn có thể báo hàng thiếu hoặc giao sai/i)).toBeTruthy();
+    expect(combosApi.listAffectedCombosAPI).not.toHaveBeenCalled();
+  });
+
+  it("sends an explicitly disabled product policy without changing variants", async () => {
+    renderEditor();
+    await loaded();
+    fireEvent.click(screen.getByRole("switch", { name: "Cho phép hoàn tiền thông thường" }));
+    fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
+    expect(lastUpdate()[1]).toMatchObject({ refundEnabled: false, expectedRevision: 3 });
+    expect(lastUpdate()[1].variants).toEqual([
+      {
+        _id: "v1",
+        sku: "AO-1",
+        price: 100000,
+        originalPrice: 120000,
+        image: null,
+        dimensions: {},
+        status: "ACTIVE",
+        attributeValues: ["red", "s"]
+      }
+    ]);
+    expect(combosApi.listAffectedCombosAPI).not.toHaveBeenCalled();
+  });
+});
+
 describe("ProductEditor — new product", () => {
   it("follows the name with the slug, builds the grid and sends the expected payload", async () => {
     const router = renderEditor("/products/new");
@@ -240,6 +289,7 @@ describe("ProductEditor — new product", () => {
     expect(payload).not.toHaveProperty("slug");
     expect(payload).toMatchObject({
       name: "Áo Thun Đỏ",
+      refundEnabled: true,
       images: [],
       categoryIds: [],
       options: [
@@ -572,7 +622,8 @@ describe("ProductEditor — existing product", () => {
   it("prompts when leaving with unsaved changes", async () => {
     const router = renderEditor();
     type(await loaded(), "Áo thun mới");
-    fireEvent.click(screen.getByRole("link", { name: "Danh sách sản phẩm" }));
+    expect(screen.queryByRole("link", { name: "Danh sách sản phẩm" })).toBeNull();
+    await act(() => router.navigate("/products"));
     expect((await screen.findByRole("dialog")).textContent).toContain("Sản phẩm chưa được lưu");
     fireEvent.click(button("Ở lại"));
     await waitFor(() => expect(router.state.location.pathname).toBe("/products/p1"));
@@ -582,7 +633,7 @@ describe("ProductEditor — existing product", () => {
     const router = renderEditor();
     await loaded();
     await new Promise(resolve => setTimeout(resolve, 350));
-    fireEvent.click(screen.getByRole("link", { name: "Danh sách sản phẩm" }));
+    await act(() => router.navigate("/products"));
     await waitFor(() => expect(router.state.location.pathname).toBe("/products"));
     expect(screen.queryByRole("dialog")).toBeNull();
   });

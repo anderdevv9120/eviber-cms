@@ -78,7 +78,6 @@ export default function AttributeValuesTable({
       onMove={onMove}
       onMoveTo={onMoveTo}
       emptyText='Chưa có giá trị'
-      scrollX={900}
     />
   );
 }

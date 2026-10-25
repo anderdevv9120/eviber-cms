@@ -1,5 +1,6 @@
-import { Flex, Table, Typography } from "antd";
+import { Flex, Typography } from "antd";
 import type { TableColumnsType } from "antd";
+import DataTable from "@/components/DataTable";
 import type { DailySales } from "@/services/reports";
 import { formatOrderAmount } from "../Orders/order-display";
 import { calendarLabel } from "./report-query";
@@ -85,7 +86,13 @@ export default function DailySalesChart({ daily }: { daily: DailySales[] }) {
           </figure>
         );
       })}
-      <Table rowKey='date' size='small' columns={columns} dataSource={daily} pagination={false} />
+      <DataTable
+        rowKey='date'
+        size='small'
+        columns={columns}
+        dataSource={daily}
+        pagination={false}
+      />
     </>
   );
 }

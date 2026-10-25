@@ -97,6 +97,13 @@ describe("Customers list and creation", () => {
     renderList("/customers?tab=guests&status=VERIFIED");
     expect(await screen.findByText("Latest Contact")).toBeTruthy();
     const table = within(screen.getByRole("table"));
+    const link = table.getByRole("link", { name: guest.email });
+    const url = new URL(link.getAttribute("href")!, "http://test.local");
+    expect(url.pathname).toBe("/customers/guests/detail");
+    expect(url.searchParams.get("email")).toBe(guest.email);
+    expect(url.searchParams.get("returnTo")).toBe("/customers?tab=guests");
+    expect(table.queryByRole("link", { name: "Chi tiết" })).toBeNull();
+    expect(table.queryByRole("columnheader", { name: "Thao tác" })).toBeNull();
     expect(table.getByText("7")).toBeTruthy();
     expect(table.getByText("0901234567")).toBeTruthy();
     expect(screen.getByText("Tổng 1 khách hàng")).toBeTruthy();
@@ -126,7 +133,12 @@ describe("Customers list and creation", () => {
       list([customer], query.page, 65, query.pageSize)
     );
     const { router } = renderList("/customers?page=3&status=VERIFIED");
-    await screen.findByText("an@example.test");
+    const link = await screen.findByRole("link", { name: "An" });
+    const url = new URL(link.getAttribute("href")!, "http://test.local");
+    expect(url.pathname).toBe("/customers/registered/customer-id");
+    expect(url.searchParams.get("returnTo")).toBe("/customers?page=3&status=VERIFIED");
+    expect(screen.queryByRole("link", { name: "Chi tiết" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Thao tác" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Tìm khách hàng"), { target: { value: "An" } });
     fireEvent.click(screen.getByRole("button", { name: "Tìm kiếm" }));
     await waitFor(() =>
@@ -175,7 +187,7 @@ describe("Customers list and creation", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await screen.findByRole("heading", { name: "Khách hàng đã đăng ký" });
     expect(router.state.location.pathname).toBe("/customers/registered/customer-id");
-    fireEvent.click(screen.getByRole("link", { name: "Về danh sách khách hàng" }));
+    await act(() => router.navigate("/customers"));
     fireEvent.click(await screen.findByRole("button", { name: "Thêm khách hàng" }));
     expect((screen.getByLabelText("Mật khẩu") as HTMLInputElement).value).toBe("");
   });
@@ -307,9 +319,7 @@ describe("Customer detail integration", () => {
     expect(screen.getByText("Email / mật khẩu")).toBeTruthy();
     expect(screen.getByText("Chưa xác minh")).toBeTruthy();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Về danh sách khách hàng" }).getAttribute("href")).toBe(
-      "/customers?page=2"
-    );
+    expect(screen.queryByRole("link", { name: "Về danh sách khách hàng" })).toBeNull();
     expect((await screen.findByRole("link", { name: "ORD-SNAPSHOT" })).getAttribute("href")).toBe(
       `/orders/order-id?${new URLSearchParams({
         returnTo: "/customers/registered/customer-id?returnTo=%2Fcustomers%3Fpage%3D2"

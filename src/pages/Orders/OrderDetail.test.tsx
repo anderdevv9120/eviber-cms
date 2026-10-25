@@ -1,13 +1,48 @@
 import "@/test/attribute-fixtures";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { AxiosError, type AxiosResponse } from "axios";
+import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import axiosRequest from "@/utils/request";
 import { order, response, deferred } from "@/test/order-fixtures";
+import type { AdminRefundOrderView } from "@/services/refunds";
+import { missingOrderData } from "./order-display";
 import OrderDetail from "./OrderDetail";
 
+type Adapter = (config: InternalAxiosRequestConfig) => Promise<AxiosResponse>;
+const refundView: AdminRefundOrderView = {
+  orderId: "order-id",
+  orderNumber: "ORD-SNAPSHOT",
+  revision: 4,
+  policy: { enabled: true, windowDays: 7 },
+  deadline: null,
+  eligibility: { eligible: false, reviewRequired: false, reason: null },
+  allocations: [],
+  remainingPaidShipping: 0,
+  summary: {
+    activeStages: [],
+    paidAmount: 0,
+    paidShippingAmount: 0,
+    coverage: "none",
+    requestCount: 0,
+    reviewRequired: false
+  },
+  requests: [],
+  canReview: false,
+  canPay: false
+};
+// The refund section reads its own endpoints; these tests count order reads and writes only.
+let serveRefunds: Adapter | undefined;
+afterEach(() => {
+  serveRefunds = undefined;
+});
+
 const renderDetail = (path = "/orders/order-id") => {
+  const orderAdapter = axiosRequest.defaults.adapter as Adapter;
+  axiosRequest.defaults.adapter = async config =>
+    config.url?.includes("/refunds")
+      ? (serveRefunds ?? (async () => response(config, refundView)))(config)
+      : orderAdapter(config);
   const router = createMemoryRouter([{ path: "/orders/:orderId", element: <OrderDetail /> }], {
     initialEntries: [path]
   });
@@ -221,10 +256,10 @@ describe("shared order detail", () => {
         paymentHistory: []
       });
     renderDetail();
-    await screen.findByRole("heading", { name: "Đơn hàng Chưa có dữ liệu" });
+    await screen.findByRole("heading", { name: `Đơn hàng ${missingOrderData}` });
     expect(screen.getByText("Khách vãng lai")).toBeTruthy();
-    expect(screen.queryByRole("img", { name: "Chưa có dữ liệu" })).toBeNull();
-    expect(screen.getAllByText("Chưa có dữ liệu").length).toBeGreaterThan(4);
+    expect(screen.queryByRole("img", { name: missingOrderData })).toBeNull();
+    expect(screen.getAllByText(missingOrderData).length).toBeGreaterThan(4);
     expect(screen.queryByText("SKU-S")).toBeNull();
     expect(screen.getAllByText("Chưa ghi nhận lịch sử")).toHaveLength(2);
   });
@@ -322,26 +357,11 @@ describe("shared order detail", () => {
     await act(async () => delayed.resolve(response(nextConfig!, { ...order, _id: "b" })));
   });
 
-  it.each([
-    ["", "/orders"],
-    ["?returnTo=https%3A%2F%2Fevil.test", "/orders"],
-    ["?returnTo=%2Forders%2Fother-id", "/orders"],
-    ["?returnTo=%2Fpayments&returnTo=%2Forders", "/orders"],
-    [
-      "?returnTo=%2Forders%3Fpage%3D3%26pageSize%3D20%26search%3DAn%26paymentStatus%3Dpaid",
-      "/orders?page=3&pageSize=20&search=An&paymentStatus=paid"
-    ],
-    ["?returnTo=%2Fpayments%3Fpage%3D3", "/orders"],
-    [
-      "?returnTo=%2Fcustomers%2Fguests%2Fdetail%3Femail%3Da%2540b.vn",
-      "/customers/guests/detail?email=a%40b.vn"
-    ]
-  ])("uses safe persistent return destination %s", async (query, destination) => {
+  it("leaves return navigation to the layout breadcrumb", async () => {
     axiosRequest.defaults.adapter = async config => response(config, order);
-    renderDetail(`/orders/order-id${query}`);
+    renderDetail();
     await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
-    const backLabel = destination.startsWith("/customers/") ? "Về khách hàng" : "Về danh sách";
-    expect(screen.getByRole("link", { name: backLabel }).getAttribute("href")).toBe(destination);
+    expect(screen.queryByRole("link", { name: /Về khách hàng|Về danh sách/ })).toBeNull();
   });
 });
 
@@ -401,5 +421,247 @@ describe("order detail actions", () => {
     expect((dialog.getByRole("button", { name: "Xác nhận" }) as HTMLButtonElement).disabled).toBe(
       true
     );
+  });
+
+  it("refreshes the order after a committed refund decision without reloading the page or moving the order status", async () => {
+    const itemLabel = "Áo tại thời điểm mua (SKU-S)";
+    const reviewed: AdminRefundOrderView = {
+      ...refundView,
+      canReview: true,
+      allocations: [
+        {
+          allocationId: "a1",
+          productInfoIndex: 0,
+          productName: "Áo tại thời điểm mua",
+          variantLabel: "SKU-S",
+          purchasedQuantity: 2,
+          availableQuantity: 0,
+          requestedQuantity: 2,
+          refundedQuantity: 0,
+          netAmount: 180000,
+          availableAmount: 0,
+          requestedAmount: 180000,
+          refundedAmount: 0,
+          productRefundEnabled: true
+        }
+      ],
+      requests: [
+        {
+          requestId: "r1",
+          stage: "awaiting_review",
+          submittedAt: "2026-10-22T03:00:00.000Z",
+          items: [
+            {
+              allocationId: "a1",
+              productInfoIndex: 0,
+              quantity: 2,
+              reason: "ordinary",
+              explanation: "Không vừa",
+              requestedReturn: "return",
+              evidenceIds: [],
+              approvedQuantity: 0,
+              approvedAmount: 0,
+              returnRequired: false,
+              receivedQuantity: 0,
+              netAmount: 180000,
+              decisionReason: null,
+              sellableQuantity: 0,
+              ranges: [{ allocationId: "a1", start: 0, quantity: 2 }]
+            }
+          ],
+          shipping: { reservedAmount: 0, approvedAmount: 0 },
+          history: [],
+          payout: null,
+          exceptionReason: null,
+          reviewRequired: false,
+          inspections: [],
+          approval: null,
+          claim: null
+        }
+      ]
+    };
+    const decided: AdminRefundOrderView = {
+      ...reviewed,
+      revision: 5,
+      requests: [
+        {
+          ...reviewed.requests[0],
+          stage: "awaiting_return",
+          items: [{ ...reviewed.requests[0].items[0], approvedQuantity: 2, returnRequired: true }]
+        }
+      ]
+    };
+    const calls: string[] = [];
+    let committed = false;
+    serveRefunds = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      if (config.method === "post") {
+        committed = true;
+        return response(config, decided);
+      }
+      return response(config, reviewed);
+    };
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      return response(config, { ...order, revision: committed ? 5 : 4 });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    fireEvent.click(await screen.findByRole("button", { name: "Duyệt yêu cầu" }));
+    fireEvent.change(screen.getByRole("textbox", { name: `Lý do quyết định ${itemLabel}` }), {
+      target: { value: "Hàng lỗi" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận duyệt" }));
+
+    const request = within(await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" }));
+    expect(await request.findByText("Chờ nhận hàng")).toBeTruthy();
+    await waitFor(() =>
+      expect(calls.filter(call => call === "get /orders/order-id")).toHaveLength(2)
+    );
+    expect(screen.queryByLabelText("Đang tải đơn hàng")).toBeNull();
+    expect(calls.filter(call => call.includes("/status"))).toEqual([]);
+    expect(calls.filter(call => call.startsWith("post"))).toEqual([
+      "post /orders/order-id/refunds/r1/decision"
+    ]);
+  });
+
+  it("never offers the legacy refund payment action, even if a server lists it as enabled", async () => {
+    const calls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      return response(config, {
+        ...order,
+        paymentStatus: "paid",
+        actions: {
+          ...order.actions,
+          paymentActions: order.actions.paymentActions.map(action =>
+            action.action === "refund"
+              ? { ...action, enabled: true, reason: null, targets: ["refunded"] }
+              : action
+          )
+        }
+      });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.queryByRole("button", { name: "Ghi nhận hoàn tiền" })).toBeNull();
+    expect(screen.getByText(/Ghi nhận hoàn tiền: Xử lý trong mục Hoàn tiền bên dưới/)).toBeTruthy();
+    expect(screen.queryByText(/Ghi nhận hoàn tiền: Có thể thực hiện/)).toBeNull();
+    expect(calls.filter(call => call.startsWith("patch"))).toEqual([]);
+  });
+
+  it("refreshes the order after a payout claim and sends only refund-ledger writes", async () => {
+    const awaiting: AdminRefundOrderView = {
+      ...refundView,
+      canPay: true,
+      requests: [
+        {
+          requestId: "r1",
+          stage: "awaiting_payout",
+          submittedAt: "2026-10-22T03:00:00.000Z",
+          items: [],
+          shipping: { reservedAmount: 0, approvedAmount: 20000 },
+          history: [],
+          payout: null,
+          exceptionReason: null,
+          reviewRequired: false,
+          inspections: [],
+          approval: null,
+          claim: null
+        }
+      ]
+    };
+    const claimed: AdminRefundOrderView = {
+      ...awaiting,
+      revision: 5,
+      requests: [
+        {
+          ...awaiting.requests[0],
+          stage: "payout_in_progress",
+          approval: {
+            merchandiseAmount: 0,
+            shippingAmount: 20000,
+            amount: 20000,
+            frozenAt: "2026-10-23T00:00:00.000Z"
+          },
+          claim: {
+            claimId: "c1",
+            claimedAt: "2026-10-23T00:00:00.000Z",
+            merchandiseAmount: 0,
+            shippingAmount: 20000,
+            amount: 20000
+          }
+        }
+      ]
+    };
+    const calls: string[] = [];
+    let committed = false;
+    serveRefunds = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      if (config.method === "post") {
+        committed = true;
+        return response(config, claimed);
+      }
+      return response(config, awaiting);
+    };
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(`${config.method} ${config.url}`);
+      return response(config, { ...order, revision: committed ? 5 : 4 });
+    };
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    fireEvent.click(await screen.findByRole("button", { name: "Nhận xử lý hoàn tiền" }));
+
+    await screen.findByText("Số tiền đã cố định để hoàn: 20.000 ₫");
+    await waitFor(() =>
+      expect(calls.filter(call => call === "get /orders/order-id")).toHaveLength(2)
+    );
+    expect(calls.filter(call => call.startsWith("post"))).toEqual([
+      "post /orders/order-id/refunds/r1/payout-claim"
+    ]);
+    expect(calls.filter(call => call.startsWith("patch") || call.includes("/payment"))).toEqual([]);
+  });
+});
+
+describe("cancellation reason visibility", () => {
+  it("shows the customer-chosen reason and note on a customer-cancelled order", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        status: "cancelled",
+        cancellation: { reason: "wrong_order", note: "Chọn nhầm màu" }
+      });
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(
+      screen.getByText(/Lý do hủy \(khách chọn\): Chọn nhầm sản phẩm \/ phân loại — Chọn nhầm màu/)
+    ).toBeTruthy();
+  });
+
+  it("shows the plain reason when the customer did not add a note", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, {
+        ...order,
+        status: "cancelled",
+        cancellation: { reason: "changed_mind" }
+      });
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.getByText(/Lý do hủy \(khách chọn\): Không muốn mua nữa$/)).toBeTruthy();
+  });
+
+  it("marks missing reason data on legacy cancelled orders and hides the line elsewhere", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, { ...order, status: "cancelled" });
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.getByText(/Lý do hủy \(khách chọn\): —$/)).toBeTruthy();
+  });
+
+  it("does not render a cancellation line for orders that are not cancelled", async () => {
+    axiosRequest.defaults.adapter = async config => response(config, order);
+    renderDetail();
+    await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
+    expect(screen.queryByText(/Lý do hủy/)).toBeNull();
   });
 });

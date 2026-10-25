@@ -13,7 +13,7 @@ import {
   Tag,
   Typography
 } from "antd";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { RichEditor } from "@/components/RichEditor";
 import { PATH } from "@/constants/paths";
 import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
@@ -371,7 +371,6 @@ function ComboEditorPage({ id }: { id?: string }) {
 
   return (
     <section className='min-w-0'>
-      <Link to={PATH.COMBOS}>Danh sách combo</Link>
       <Flex align='center' gap={12} className='mb-4'>
         <Typography.Title level={2} className='mb-0!'>
           {combo ? combo.name : "Thêm combo"}

@@ -4,6 +4,7 @@ import { CONFLICT_MESSAGE, required } from "@/components/StoreContent/rules";
 import { SOCIAL_PATTERN } from "@/constants/validate";
 import useRevisionedSettings from "@/components/StoreContent/useRevisionedSettings";
 import { getStoreInfoAPI, saveStoreInfoAPI, type StoreInfoSettings } from "@/services/storeContent";
+import RefundPolicySettings from "@/pages/StoreContent/RefundPolicySettings";
 
 export default function StoreInfo() {
   const [form] = Form.useForm<StoreInfoSettings>();
@@ -131,6 +132,7 @@ export default function StoreInfo() {
           Lưu thông tin
         </Button>
       </Flex>
+      <RefundPolicySettings />
     </Flex>
   );
 }

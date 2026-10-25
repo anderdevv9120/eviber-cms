@@ -18,6 +18,7 @@ import {
   displayOrderText,
   formatOrderAmount,
   formatOrderDate,
+  missingOrderData,
   orderActionLabels,
   orderStatusLabels,
   paymentActionLabels,
@@ -71,7 +72,7 @@ const describeChanges = (before: AdminOrderDetail, after: AdminOrderDetail): str
     );
   if (before.paymentStatus !== after.paymentStatus) {
     const label = (value: AdminOrderDetail["paymentStatus"]) =>
-      value ? paymentStatusLabels[value] : "Chưa có dữ liệu";
+      value ? paymentStatusLabels[value] : missingOrderData;
     changes.push(
       `Trạng thái thanh toán: ${label(before.paymentStatus)} → ${label(after.paymentStatus)}`
     );
@@ -282,7 +283,7 @@ export default function OrderActionDialog({
             }, ${
               view.committed.paymentStatus
                 ? paymentStatusLabels[view.committed.paymentStatus]
-                : "Chưa có dữ liệu"
+                : missingOrderData
             }.`}
           />
           {refreshAlert}
@@ -314,7 +315,7 @@ export default function OrderActionDialog({
                 label: "Trạng thái thanh toán",
                 children: order.paymentStatus
                   ? paymentStatusLabels[order.paymentStatus]
-                  : "Chưa có dữ liệu"
+                  : missingOrderData
               }
             ]}
           />
