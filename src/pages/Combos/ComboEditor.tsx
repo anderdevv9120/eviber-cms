@@ -52,6 +52,8 @@ import { productStatusLabels } from "./combo-list-query";
 
 const EDITOR_SETTLE_MS = 400;
 const CONFLICT_MESSAGE = "Combo đã thay đổi ở nơi khác. Tải lại để bỏ bản nháp trước khi lưu.";
+const SAVE_PERMISSION_CHANGED =
+  "Quyền lưu combo đã thay đổi. Bản nháp và các ảnh đã tải lên được giữ lại; hãy thử lại khi có quyền.";
 const UNSAVED_COPY = {
   title: "Combo chưa được lưu",
   content: "Rời trang sẽ bỏ các thay đổi chưa lưu."
@@ -280,7 +282,7 @@ function ComboEditorPage({ id }: { id?: string }) {
       if (publish && !canPublish) return setError("Chưa đủ điều kiện đăng bán combo.");
       const current = useAppStore.getState().profile;
       if (!current || !canAccess(current, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] }))
-        return;
+        return setError(SAVE_PERMISSION_CHANGED);
       const input = buildInput(values);
       const selectedImages = input.images.map(url => ({
         url,
@@ -294,7 +296,7 @@ function ComboEditorPage({ id }: { id?: string }) {
             !uploadProfile ||
             !canAccess(uploadProfile, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] })
           )
-            return;
+            return setError(SAVE_PERMISSION_CHANGED);
           if (!file) {
             uploadedImages.push(url);
             continue;
@@ -314,7 +316,7 @@ function ComboEditorPage({ id }: { id?: string }) {
         !writeProfile ||
         !canAccess(writeProfile, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] })
       )
-        return;
+        return setError(SAVE_PERMISSION_CHANGED);
       let view: ComboEditorView;
       try {
         view = combo
@@ -346,7 +348,10 @@ function ComboEditorPage({ id }: { id?: string }) {
               duration: 0
             });
         }
-      }
+      } else if (publish)
+        errorNotification("Đã lưu nháp nhưng chưa đăng bán được: quyền đăng bán đã thay đổi.", {
+          duration: 0
+        });
       successNotification(published ? "Đã lưu và đăng bán combo" : "Đã lưu combo");
       if (!combo) setCreatedId(view._id);
     } finally {
@@ -522,6 +527,7 @@ function ComboEditorPage({ id }: { id?: string }) {
             <ComboPiecesSection
               items={pieces}
               errors={pieceErrors}
+              canWrite={canWrite}
               disabled={busy}
               onChange={next => {
                 setPieces(next);

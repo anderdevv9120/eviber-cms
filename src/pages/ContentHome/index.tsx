@@ -80,6 +80,7 @@ function TileFields({
         <Input maxLength={300} placeholder='/collection' />
       </Form.Item>
       <ImageField
+        permission='CONTENT_HOME_UPDATE'
         name={tileImage(index)}
         alt={`Ảnh ô khuyến mãi ${index + 1}`}
         uploading={uploading}
@@ -122,12 +123,14 @@ function BrandStoryFields({
         <Input.TextArea maxLength={600} showCount autoSize={{ minRows: 4, maxRows: 10 }} />
       </Form.Item>
       <ImageField
+        permission='CONTENT_HOME_UPDATE'
         name={STORY_IMAGE}
         alt='Ảnh câu chuyện thương hiệu'
         uploading={uploading.includes(imageKey(STORY_IMAGE))}
         onUpload={file => onUpload(STORY_IMAGE, file)}
       />
       <ImageField
+        permission='CONTENT_HOME_UPDATE'
         name={STORY_IMAGE2}
         label='Ảnh thứ 2'
         optional

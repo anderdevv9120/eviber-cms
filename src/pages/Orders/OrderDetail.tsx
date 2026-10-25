@@ -51,7 +51,14 @@ function OrderDetailRead({ orderId }: { orderId: string }) {
     !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"] });
   const [refundMounted, setRefundMounted] = useState(canRefund);
   // Keep an existing draft mounted on revocation; the section blocks reads and writes itself.
-  if (canRefund && !refundMounted) setRefundMounted(true);
+  useEffect(
+    () =>
+      useAppStore.subscribe(({ profile: current }) => {
+        if (current && canAccess(current, { anyOf: ["ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"] }))
+          setRefundMounted(true);
+      }),
+    []
+  );
   const openAction = (next: OrderActionIntent) => {
     const current = useAppStore.getState().profile;
     if (
@@ -419,7 +426,7 @@ function OrderDetailRead({ orderId }: { orderId: string }) {
               ))}
             </ul>
           </section>
-          {(canRefund || refundMounted) && (
+          {refundMounted && (
             <RefundSection
               orderId={orderId}
               revision={order.revision}

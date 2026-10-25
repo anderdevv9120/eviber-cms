@@ -214,28 +214,86 @@ beforeEach(() => {
 });
 
 describe("product refund eligibility", () => {
-  it("stops a product image batch after revocation even when another feature can upload", async () => {
-    useAppStore
-      .getState()
-      .setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE", "CONTENT_HOME_UPDATE"]));
-    const first = deferred<Awaited<ReturnType<typeof imagesApi.uploadImageAPI>>>();
-    vi.mocked(imagesApi.uploadImageAPI)
-      .mockReset()
-      .mockReturnValueOnce(first.promise)
-      .mockResolvedValue(ok({ path: "/images/second.jpg" }));
+  it("retains newly selected value labels and variant drafts after permission revocation", async () => {
+    useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));
     renderEditor();
     await loaded();
-    fireEvent.change(screen.getByLabelText("Chọn ảnh sản phẩm"), {
-      target: { files: [new File(["a"], "a.png"), new File(["b"], "b.png")] }
-    });
-    await waitFor(() => expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1));
-    act(() =>
-      useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "CONTENT_HOME_UPDATE"]))
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Xanh" }));
+    type(number("Giá Xanh / S"), "123456");
+    act(() => useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ"])));
+    const selected = screen.getByRole("checkbox", { name: "Xanh" }) as HTMLInputElement;
+    expect(selected.checked).toBe(true);
+    expect(selected.disabled).toBe(true);
+    expect(number("Giá Xanh / S").value).toBe("123456");
+    expect(number("Giá Xanh / S").disabled).toBe(true);
+    expect(screen.queryByRole("spinbutton", { name: "Giá ? / S" })).toBeNull();
+    expect(api.updateProductAPI).not.toHaveBeenCalled();
+    vi.mocked(attributesApi.listAttributeOptionsAPI).mockResolvedValue(
+      ok([
+        {
+          ...attributes[0],
+          values: dictionary.color.map(value =>
+            value._id === "blue" ? { ...value, value: "Xanh mới" } : value
+          )
+        },
+        { ...attributes[1], values: dictionary.size }
+      ])
     );
-    await act(async () => first.resolve(ok({ path: "/images/first.jpg" })));
-    await screen.findByAltText("Ảnh 1");
-    expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1);
-    expect(screen.getByAltText("Ảnh 1").getAttribute("src")).toContain("first.jpg");
+    act(() => useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"])));
+    await screen.findByRole("checkbox", { name: "Xanh mới" });
+    expect(number("Giá Xanh mới / S").value).toBe("123456");
+  });
+  it.each([1, 2])(
+    "reports permission loss during a %i-file product upload and retains completed images",
+    async count => {
+      useAppStore
+        .getState()
+        .setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE", "CONTENT_HOME_UPDATE"]));
+      const first = deferred<Awaited<ReturnType<typeof imagesApi.uploadImageAPI>>>();
+      vi.mocked(imagesApi.uploadImageAPI)
+        .mockReset()
+        .mockReturnValueOnce(first.promise)
+        .mockResolvedValue(ok({ path: "/images/second.jpg" }));
+      renderEditor();
+      await loaded();
+      fireEvent.change(screen.getByLabelText("Chọn ảnh sản phẩm"), {
+        target: {
+          files: Array.from({ length: count }, (_, index) => new File(["image"], `${index}.png`))
+        }
+      });
+      await waitFor(() => expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1));
+      act(() =>
+        useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "CONTENT_HOME_UPDATE"]))
+      );
+      await act(async () => first.resolve(ok({ path: "/images/first.jpg" })));
+      await screen.findByAltText("Ảnh 1");
+      expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1);
+      expect(screen.getByAltText("Ảnh 1").getAttribute("src")).toContain("first.jpg");
+      expect(await screen.findByText(/quyền.*thay đổi/i)).toBeTruthy();
+      expect(api.updateProductAPI).not.toHaveBeenCalled();
+      act(() =>
+        useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]))
+      );
+      fireEvent.click(button("Lưu"));
+      await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1));
+      expect(lastUpdate()[1].images).toEqual(["/images/first.jpg"]);
+      expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("reports permission loss while product save settles and preserves the draft without impact reads", async () => {
+    useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));
+    renderEditor();
+    await loaded();
+    type(input("Tên sản phẩm"), "Bản nháp giữ lại");
+    type(number("Giá Đỏ / S"), "110000");
+    fireEvent.click(button("Lưu"));
+    act(() => useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ"])));
+    expect(await screen.findByText(/quyền.*thay đổi/i)).toBeTruthy();
+    expect(input("Tên sản phẩm").value).toBe("Bản nháp giữ lại");
+    expect(combosApi.listAffectedCombosAPI).not.toHaveBeenCalled();
+    expect(api.updateProductAPI).not.toHaveBeenCalled();
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
   });
 
   it("does not publish after product permission is revoked during the draft save", async () => {
@@ -250,6 +308,23 @@ describe("product refund eligibility", () => {
     act(() => useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ"])));
     await act(async () => saved.resolve(ok(product({ ...complete, revision: 4 }))));
     expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
+    expect(errorNotification).toHaveBeenCalledWith(
+      expect.stringMatching(/đã lưu nháp.*chưa đăng bán.*quyền/i),
+      expect.anything()
+    );
+  });
+  it("waits for the saved product IDs before loading attribute options", async () => {
+    const loadedProduct = deferred<Awaited<ReturnType<typeof api.getProductAPI>>>();
+    vi.mocked(api.getProductAPI).mockReturnValue(loadedProduct.promise);
+    renderEditor();
+    expect(attributesApi.listAttributeOptionsAPI).not.toHaveBeenCalled();
+    await act(async () => loadedProduct.resolve(ok(product())));
+    await loaded();
+    await waitFor(() => expect(attributesApi.listAttributeOptionsAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(attributesApi.listAttributeOptionsAPI).mock.calls[0][0]).toEqual([
+      "color",
+      "size"
+    ]);
   });
   it("keeps the draft and shows a backend access denial when a stale permitted form submits", async () => {
     useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));

@@ -126,11 +126,19 @@ export default function RefundReviewForm({
           return (
             <fieldset key={item.allocationId} className='mb-4'>
               <legend className='font-semibold'>{label}</legend>
-              <p>
-                Khách yêu cầu {item.quantity} · {refundReasonLabels[item.reason]}
-              </p>
-              <p>Giải thích của khách: {item.explanation}</p>
-              <RefundEvidence orderId={view.orderId} evidenceIds={item.evidenceIds} label={label} />
+              {ctx.readable !== false && (
+                <>
+                  <p>
+                    Khách yêu cầu {item.quantity} · {refundReasonLabels[item.reason]}
+                  </p>
+                  <p>Giải thích của khách: {item.explanation}</p>
+                  <RefundEvidence
+                    orderId={view.orderId}
+                    evidenceIds={item.evidenceIds}
+                    label={label}
+                  />
+                </>
+              )}
               <div className='mt-2'>
                 <InputNumber
                   aria-label={`Số lượng duyệt ${label}`}

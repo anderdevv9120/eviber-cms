@@ -24,11 +24,13 @@ const moveTo = (rows: ComboPieceRow[], from: number, to: number) => {
 export default function ComboPiecesSection({
   items,
   errors,
+  canWrite,
   disabled,
   onChange
 }: {
   items: ComboPieceRow[];
   errors: PieceErrors;
+  canWrite: boolean;
   disabled: boolean;
   onChange: (items: ComboPieceRow[]) => void;
 }) {
@@ -56,7 +58,7 @@ export default function ComboPiecesSection({
   return (
     <Card title={`Món trong combo (${items.length}/20)`}>
       <Flex vertical gap={12}>
-        {!disabled && (
+        {canWrite && (
           <Flex gap={8} align='start'>
             <div className='min-w-0 flex-1'>
               <RemoteSelect<ComboProductOption>

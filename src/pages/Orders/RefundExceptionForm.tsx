@@ -182,9 +182,11 @@ function ExceptionRequest({ ctx, labels, onClose }: Props) {
               return (
                 <fieldset key={allocation.allocationId} className='my-4'>
                   <legend className='font-semibold'>{label}</legend>
-                  <Typography.Text type='secondary'>
-                    Còn có thể hoàn: {allocation.availableQuantity}
-                  </Typography.Text>
+                  {ctx.readable !== false && (
+                    <Typography.Text type='secondary'>
+                      Còn có thể hoàn: {allocation.availableQuantity}
+                    </Typography.Text>
+                  )}
                   <Flex gap={12} wrap align='center' className='mt-2'>
                     <InputNumber
                       aria-label={`Số lượng hoàn ${label}`}
@@ -362,6 +364,7 @@ function LegacyReview({ ctx, labels, onClose }: Props) {
                   {
                     title: "Đã mua",
                     dataIndex: "purchasedQuantity",
+                    render: value => (ctx.readable !== false ? value : null),
                     key: "purchased",
                     align: "right"
                   },
@@ -372,7 +375,11 @@ function LegacyReview({ ctx, labels, onClose }: Props) {
                     render: (_, row) =>
                       known(row.netAmount) ? (
                         <>
-                          {money(row.netAmount)} <Tag className='m-0'>Đã xác định</Tag>
+                          {ctx.readable !== false && (
+                            <>
+                              {money(row.netAmount)} <Tag className='m-0'>Đã xác định</Tag>
+                            </>
+                          )}
                         </>
                       ) : (
                         <InputNumber
@@ -439,7 +446,7 @@ function LegacyReview({ ctx, labels, onClose }: Props) {
                 {error("received")}
               </div>
             </Flex>
-            {expected !== null && (
+            {ctx.readable !== false && expected !== null && (
               <Flex gap={8} wrap align='center' className='mt-2'>
                 <Typography.Text type='secondary'>
                   Cần thu: {money(lineTotal)} (các dòng) + {money(shipping as number)} (vận chuyển)

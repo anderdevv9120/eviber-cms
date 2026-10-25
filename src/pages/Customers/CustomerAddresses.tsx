@@ -27,6 +27,7 @@ function AddressBook({ customerId }: { customerId: string }) {
   const [deleting, setDeleting] = useState<CustomerAddress | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const [deleteError, setDeleteError] = useState<string>();
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const request = useRef<AbortController | null>(null);
@@ -36,7 +37,10 @@ function AddressBook({ customerId }: { customerId: string }) {
   };
   const openDelete = (next: CustomerAddress) => {
     const current = useAppStore.getState().profile;
-    if (current && canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] })) setDeleting(next);
+    if (current && canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] })) {
+      setDeleteError(undefined);
+      setDeleting(next);
+    }
   };
   // Stable callback is shared by initial network synchronization and mutation recovery.
   const reload = useCallback(() => {
@@ -119,13 +123,14 @@ function AddressBook({ customerId }: { customerId: string }) {
   };
   const remove = async () => {
     if (!deleting) return;
+    setDeleteError(undefined);
     try {
       await mutate(async () => {
         const { data } = await deleteCustomerAddressAPI(customerId, deleting._id);
         if (data?.success !== true) throw new Error("Chưa xác nhận được kết quả xóa địa chỉ");
       });
     } catch (cause) {
-      if (mounted.current) setNotice(getErrorMessage(cause));
+      if (mounted.current) setDeleteError(getErrorMessage(cause));
     }
   };
   return (
@@ -236,7 +241,7 @@ function AddressBook({ customerId }: { customerId: string }) {
             if (!inFlight.current) setDeleting(null);
           }}
         >
-          {notice && <Alert type='error' showIcon title={notice} />}
+          {deleteError && <Alert type='error' showIcon title={deleteError} />}
           <p>Xóa địa chỉ của {deleting.name}?</p>
         </Modal>
       )}

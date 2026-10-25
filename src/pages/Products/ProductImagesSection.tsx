@@ -55,11 +55,18 @@ export default function ProductImagesSection({
     setUploading(true);
     setError(null);
     const added: string[] = [];
+    const checkPermission = () => {
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: [permission] }))
+        throw new Error(
+          "Quyền tải ảnh đã thay đổi. Các ảnh đã tải lên được giữ trong bản nháp; hãy thử lại khi có quyền."
+        );
+    };
     try {
       for (const file of picked) {
-        const current = useAppStore.getState().profile;
-        if (!current || !canAccess(current, { anyOf: [permission] })) break;
+        checkPermission();
         added.push((await uploadImageAPI(file)).data.path);
+        checkPermission();
       }
     } catch (cause) {
       setError(getErrorMessage(cause));

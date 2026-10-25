@@ -36,10 +36,12 @@ type Foreign = { claimId?: string };
 
 export default function RefundPayoutForm({
   ctx,
-  request
+  request,
+  onDraftStarted
 }: {
   ctx: RefundContext;
   request: AdminRefundRequest;
+  onDraftStarted?: () => void;
 }) {
   const [foreign, setForeign] = useState<Foreign | null>(null);
   // Any command that commits means this admin holds, released or finished the claim.
@@ -62,6 +64,7 @@ export default function RefundPayoutForm({
         claim={claim}
         heldByOther={foreign !== null && (!foreign.claimId || foreign.claimId === claim.claimId)}
         onClaimConflict={() => setForeign({ claimId: claim.claimId })}
+        onDraftStarted={onDraftStarted}
       />
     );
   return null;
@@ -77,6 +80,7 @@ function ClaimStep({
   const merchandise = request.items.reduce((sum, item) => sum + item.approvedAmount, 0);
   const shipping = request.shipping.approvedAmount;
 
+  if (ctx.readable === false || !ctx.view.canPay) return null;
   return (
     <div className='mt-4'>
       <Alert
@@ -110,14 +114,18 @@ function ClaimedStep({
   request,
   claim,
   heldByOther,
-  onClaimConflict
+  onClaimConflict,
+  onDraftStarted
 }: {
   ctx: RefundContext;
   request: AdminRefundRequest;
   claim: RefundClaimView;
   heldByOther: boolean;
+  onDraftStarted?: () => void;
 } & ClaimConflict) {
   const [releasing, setReleasing] = useState(false);
+  const [draftStarted, setDraftStarted] = useState(false);
+  const readable = ctx.readable !== false && ctx.view.canPay;
   const profile = useAppStore(state => state.profile);
   const canPay =
     ctx.view.canPay && !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_PAY"] });
@@ -135,34 +143,50 @@ function ClaimedStep({
 
   return (
     <div className='mt-4'>
-      <p>Số tiền đã cố định để hoàn: {money(claim.amount)}</p>
-      <p>
-        Hàng {money(claim.merchandiseAmount)}, vận chuyển {money(claim.shippingAmount)} · Nhận xử lý
-        lúc {formatOrderDate(claim.claimedAt)}
-      </p>
-      <p>{notTransferredText}</p>
-      <p>
-        Chuyển khoản thủ công ngoài hệ thống, sau đó ghi nhận số tiền, thời điểm và mã tham chiếu
-        của giao dịch.
-      </p>
-      {heldByOther ? (
+      {readable && (
         <>
-          <Alert
-            type='warning'
-            showIcon
-            className='mb-3'
-            title='Yêu cầu đang được quản trị viên khác xử lý chi trả.'
-          />
-          <Flex gap={8}>
-            <Button type='primary' disabled>
-              Ghi nhận đã hoàn tiền
-            </Button>
-            <Button disabled>Hủy nhận xử lý</Button>
-          </Flex>
+          <p>Số tiền đã cố định để hoàn: {money(claim.amount)}</p>
+          <p>
+            Hàng {money(claim.merchandiseAmount)}, vận chuyển {money(claim.shippingAmount)} · Nhận
+            xử lý lúc {formatOrderDate(claim.claimedAt)}
+          </p>
+          <p>{notTransferredText}</p>
+          <p>
+            Chuyển khoản thủ công ngoài hệ thống, sau đó ghi nhận số tiền, thời điểm và mã tham
+            chiếu của giao dịch.
+          </p>
         </>
+      )}
+      {heldByOther ? (
+        readable && (
+          <>
+            <Alert
+              type='warning'
+              showIcon
+              className='mb-3'
+              title='Yêu cầu đang được quản trị viên khác xử lý chi trả.'
+            />
+            <Flex gap={8}>
+              <Button type='primary' disabled>
+                Ghi nhận đã hoàn tiền
+              </Button>
+              <Button disabled>Hủy nhận xử lý</Button>
+            </Flex>
+          </>
+        )
       ) : (
         <>
-          <RecordStep ctx={ctx} request={request} claim={claim} onClaimConflict={onClaimConflict} />
+          <RecordStep
+            ctx={ctx}
+            request={request}
+            claim={claim}
+            onClaimConflict={onClaimConflict}
+            draftStarted={draftStarted}
+            onEdited={() => {
+              setDraftStarted(true);
+              onDraftStarted?.();
+            }}
+          />
           {releasing ? (
             <ReleaseStep
               ctx={ctx}
@@ -172,30 +196,32 @@ function ClaimedStep({
               onClose={() => setReleasing(false)}
             />
           ) : (
-            <Button
-              className='mt-3'
-              disabled={!canPay}
-              onClick={() => {
-                const current = useAppStore.getState().profile;
-                if (
-                  ctx.view.canPay &&
-                  current &&
-                  canAccess(current, { anyOf: ["ORDER_REFUND_PAY"] })
-                )
-                  setReleasing(true);
-              }}
-            >
-              Hủy nhận xử lý
-            </Button>
+            readable && (
+              <Button
+                className='mt-3'
+                disabled={!canPay}
+                onClick={() => {
+                  const current = useAppStore.getState().profile;
+                  if (readable && current && canAccess(current, { anyOf: ["ORDER_REFUND_PAY"] })) {
+                    setReleasing(true);
+                    onDraftStarted?.();
+                  }
+                }}
+              >
+                Hủy nhận xử lý
+              </Button>
+            )
           )}
         </>
       )}
-      <Flex gap={8} align='center' className='mt-3'>
-        <Button loading={check.busy} onClick={checkStatus}>
-          Kiểm tra trạng thái
-        </Button>
-        {check.error && <span className='text-red-600'>{check.error}</span>}
-      </Flex>
+      {(readable || draftStarted || releasing) && (
+        <Flex gap={8} align='center' className='mt-3'>
+          <Button loading={check.busy} onClick={checkStatus}>
+            Kiểm tra trạng thái
+          </Button>
+          {check.error && <span className='text-red-600'>{check.error}</span>}
+        </Flex>
+      )}
     </div>
   );
 }
@@ -204,11 +230,15 @@ function RecordStep({
   ctx,
   request,
   claim,
-  onClaimConflict
+  onClaimConflict,
+  draftStarted,
+  onEdited
 }: {
   ctx: RefundContext;
   request: AdminRefundRequest;
   claim: RefundClaimView;
+  draftStarted: boolean;
+  onEdited: () => void;
 } & ClaimConflict) {
   const command = useRefundCommand(ctx, "ORDER_REFUND_PAY", { onClaimConflict });
   const [amount, setAmount] = useState<number | null>(null);
@@ -218,6 +248,7 @@ function RecordStep({
   const [checkedAt, setCheckedAt] = useState<number>();
 
   const edit = (patch: () => void) => {
+    onEdited();
     patch();
     command.edited();
   };
@@ -260,7 +291,13 @@ function RecordStep({
 
   return (
     <ConfigProvider componentDisabled={!command.canEdit}>
-      <form aria-label='Ghi nhận hoàn tiền đã chuyển' onSubmit={submit} noValidate className='mt-3'>
+      <form
+        aria-label='Ghi nhận hoàn tiền đã chuyển'
+        onSubmit={submit}
+        noValidate
+        className='mt-3'
+        hidden={(ctx.readable === false || !ctx.view.canPay) && !draftStarted}
+      >
         <div className='mt-2'>
           <InputNumber
             aria-label='Số tiền đã hoàn'

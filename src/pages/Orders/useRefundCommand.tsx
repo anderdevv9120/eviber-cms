@@ -9,6 +9,8 @@ import { canAccess } from "@/utils/access";
 
 export interface RefundContext {
   view: AdminRefundOrderView;
+  /** False while the retained snapshot belongs to an earlier read authority. */
+  readable?: boolean;
   /** Re-reads the refund view (and the order); rejects when the newest state cannot be read. */
   reload: () => Promise<void>;
   /** Adopts the committed view and refreshes the order actions. Never rejects. */
@@ -38,7 +40,11 @@ export function useRefundCommand(
 ) {
   const profile = useAppStore(state => state.profile);
   const capability = permission === "ORDER_REFUND_REVIEW" ? ctx.view.canReview : ctx.view.canPay;
-  const allowed = !!profile && canAccess(profile, { anyOf: [permission] }) && capability;
+  const allowed =
+    ctx.readable !== false &&
+    !!profile &&
+    canAccess(profile, { anyOf: [permission] }) &&
+    capability;
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>();
@@ -60,6 +66,7 @@ export function useRefundCommand(
     if (
       !current ||
       !canAccess(current, { anyOf: [permission] }) ||
+      ctx.readable === false ||
       !capability ||
       inFlight.current ||
       reloadError ||
@@ -119,7 +126,11 @@ export function useRefundCommand(
           showIcon
           className='mt-3'
           title={`Không tải được dữ liệu mới nhất: ${reloadError}`}
-          action={<Button onClick={refresh}>Tải lại dữ liệu</Button>}
+          action={
+            <Button disabled={false} onClick={refresh}>
+              Tải lại dữ liệu
+            </Button>
+          }
         />
       )}
       {needsAck && (

@@ -56,6 +56,7 @@ const renderDetail = (path = "/orders/order-id") => {
 
 describe("shared order detail", () => {
   it("RBAC preserves an already-open refund draft when both refund grants are removed", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ"]));
     axiosRequest.defaults.adapter = async config => response(config, order);
     serveRefunds = async config =>
       response(config, {
@@ -64,6 +65,11 @@ describe("shared order detail", () => {
         eligibility: { eligible: false, reviewRequired: true, reason: null }
       });
     renderDetail();
+    await screen.findByRole("region", { name: "Thông tin đơn hàng" });
+    expect(screen.queryByRole("region", { name: "Hoàn tiền" })).toBeNull();
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]))
+    );
     fireEvent.click(
       await screen.findByRole("button", { name: "Đối soát đơn cũ" }, { timeout: 5000 })
     );

@@ -11,7 +11,7 @@ import type { ComboEditorView, ComboProductOption } from "@/services/combos";
 import * as combos from "@/services/combos";
 import * as categoriesApi from "@/services/categories";
 import { uploadImageAPI } from "@/services/images";
-import { successNotification } from "@/utils/notification";
+import { errorNotification, successNotification } from "@/utils/notification";
 import ComboEditor from "./ComboEditor";
 import { comboPublishMissing, validateComboPieces } from "./combo-publish";
 
@@ -113,6 +113,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(ok({ path: "/images/combo.png" }));
   vi.mocked(successNotification).mockClear();
+  vi.mocked(errorNotification).mockClear();
   useAppStore.getState().setProfile({
     _id: "admin",
     email: "admin@example.test",
@@ -154,6 +155,9 @@ describe("ComboEditor", () => {
       vi.mocked(uploadImageAPI).mockReturnValueOnce(upload.promise);
       renderEditor();
       await screen.findByDisplayValue("Combo mùa hè");
+      fireEvent.change(screen.getByRole("textbox", { name: "Tên combo" }), {
+        target: { value: "Bản nháp giữ lại" }
+      });
       fireEvent.change(screen.getByLabelText(/Chọn ảnh (combo|sản phẩm)/), {
         target: {
           files: Array.from(
@@ -171,6 +175,20 @@ describe("ComboEditor", () => {
       expect(uploadImageAPI).toHaveBeenCalledTimes(1);
       expect(combos.updateComboAPI).not.toHaveBeenCalled();
       expect(screen.getByAltText("Ảnh 1").getAttribute("src")).toContain("first.jpg");
+      expect(await screen.findByText(/quyền.*thay đổi/i)).toBeTruthy();
+      expect(screen.getByDisplayValue("Bản nháp giữ lại")).toBeTruthy();
+      expect(screen.queryByRole("combobox", { name: "Thêm sản phẩm combo" })).toBeNull();
+      expect(successNotification).not.toHaveBeenCalled();
+      act(() => useAppStore.getState().setProfile(staffProfile(["COMBO_READ", "COMBO_UPDATE"])));
+      fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+      await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(uploadImageAPI).mock.calls.map(([file]) => file.name)).toEqual(
+        count === 1 ? ["0.png"] : ["0.png", "1.png"]
+      );
+      expect(vi.mocked(combos.updateComboAPI).mock.calls[0][1]).toMatchObject({
+        name: "Bản nháp giữ lại",
+        images: count === 1 ? ["/images/first.jpg"] : ["/images/first.jpg", "/images/combo.png"]
+      });
     }
   );
 
@@ -187,6 +205,57 @@ describe("ComboEditor", () => {
     act(() => useAppStore.getState().setProfile(staffProfile(["COMBO_READ"])));
     await act(async () => saved.resolve(ok(combo({ revision: 4 }))));
     expect(combos.changeComboStatusAPI).not.toHaveBeenCalled();
+    expect(errorNotification).toHaveBeenCalledWith(
+      expect.stringMatching(/đã lưu nháp.*chưa đăng bán.*quyền/i),
+      expect.anything()
+    );
+  });
+
+  it("reports permission loss while combo save settles and preserves the draft without uploads", async () => {
+    useAppStore.getState().setProfile(staffProfile(["COMBO_READ", "COMBO_UPDATE"]));
+    renderEditor();
+    fireEvent.change(await screen.findByRole("textbox", { name: "Tên combo" }), {
+      target: { value: "Bản nháp giữ lại" }
+    });
+    fireEvent.change(screen.getByLabelText("Chọn ảnh combo"), {
+      target: { files: [new File(["image"], "combo.png", { type: "image/png" })] }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    act(() => useAppStore.getState().setProfile(staffProfile(["COMBO_READ"])));
+    expect(await screen.findByText(/quyền.*thay đổi/i)).toBeTruthy();
+    expect(screen.getByDisplayValue("Bản nháp giữ lại")).toBeTruthy();
+    expect(screen.getByAltText("Ảnh 1").getAttribute("src")).toBe(
+      "blob:http://localhost/combo.png"
+    );
+    expect(uploadImageAPI).not.toHaveBeenCalled();
+    expect(combos.updateComboAPI).not.toHaveBeenCalled();
+    expect(combos.changeComboStatusAPI).not.toHaveBeenCalled();
+  });
+
+  it("keeps the combo product picker mounted and disabled while saving without reloading options", async () => {
+    const saved = deferred<Awaited<ReturnType<typeof combos.updateComboAPI>>>();
+    vi.mocked(combos.updateComboAPI).mockReturnValueOnce(saved.promise);
+    renderEditor();
+    await screen.findByDisplayValue("Combo mùa hè");
+    const picker = screen.getByRole("combobox", { name: "Thêm sản phẩm combo" });
+    fireEvent.mouseDown(picker);
+    fireEvent.click(
+      await screen.findByText("Món p3", { selector: ".ant-select-item-option-content" })
+    );
+    const loads = vi.mocked(combos.listComboProductOptionsAPI).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(screen.getByRole("combobox", { name: "Thêm sản phẩm combo" })).toBe(picker);
+    expect((picker as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Thêm món" }) as HTMLButtonElement).disabled).toBe(
+      true
+    );
+    await waitFor(() => expect(combos.updateComboAPI).toHaveBeenCalledTimes(1));
+    await act(async () => saved.resolve(ok(combo({ revision: 4 }))));
+    expect(screen.getByRole("combobox", { name: "Thêm sản phẩm combo" })).toBe(picker);
+    expect((picker as HTMLInputElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Thêm món" }));
+    expect(screen.getByRole("button", { name: "Xóa Món p3" })).toBeTruthy();
+    expect(combos.listComboProductOptionsAPI).toHaveBeenCalledTimes(loads);
   });
   it("creates a combo from selected products with server-owned prices", async () => {
     const router = renderEditor("/catalog/combos/new");

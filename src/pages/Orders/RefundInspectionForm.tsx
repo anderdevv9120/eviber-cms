@@ -118,9 +118,11 @@ export default function RefundInspectionForm({
           return (
             <fieldset key={item.allocationId} className='mb-4'>
               <legend className='font-semibold'>{label}</legend>
-              <p>
-                Đã duyệt trả {item.approvedQuantity} · Đã nhận {item.receivedQuantity}
-              </p>
+              {ctx.readable !== false && (
+                <p>
+                  Đã duyệt trả {item.approvedQuantity} · Đã nhận {item.receivedQuantity}
+                </p>
+              )}
               <div className='mt-2'>
                 <InputNumber
                   aria-label={`Số lượng đã nhận ${label}`}

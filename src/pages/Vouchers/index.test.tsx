@@ -606,6 +606,81 @@ describe("voucher list, revision recovery and history", () => {
 });
 
 describe("voucher permission actions", () => {
+  it.each([
+    ["products", "create"],
+    ["categories", "create"],
+    ["products", "update"],
+    ["categories", "update"]
+  ] as const)(
+    "retains unsaved %s labels and IDs across %s permission refresh",
+    async (scope, action) => {
+      const permission = action === "create" ? "COUPON_CREATE" : "COUPON_UPDATE";
+      const writer = staffProfile(["COUPON_READ", permission]);
+      useAppStore.getState().setProfile(writer);
+      const targets =
+        scope === "products" ? api.listVoucherProductTargetsAPI : api.listVoucherCategoryTargetsAPI;
+      const otherTargets =
+        scope === "products" ? api.listVoucherCategoryTargetsAPI : api.listVoucherProductTargetsAPI;
+      const label = scope === "products" ? "Sản phẩm áp dụng" : "Danh mục áp dụng";
+      const name = scope === "products" ? "Shirt" : "Clothes";
+      const id = scope === "products" ? productId : categoryId;
+      const save = vi.fn(async (_input: api.CouponInput) => {});
+      render(
+        <VoucherForm voucher={action === "create" ? null : voucher} busy={false} onSubmit={save} />
+      );
+      if (action === "create") {
+        change("Mã voucher", "DRAFT");
+        pickDate("Thời điểm có hiệu lực", "09/10/2026 00:00:00");
+        pickDate("Thời điểm kết thúc", "10/10/2026 00:00:00");
+      }
+      change("Tên voucher", "Unsaved target draft");
+      await select("Phạm vi", scope === "products" ? "Sản phẩm đã chọn" : "Danh mục đã chọn");
+      await select(label, name);
+      const pending = deferred<Awaited<ReturnType<typeof targets>>>();
+      vi.mocked(targets).mockReturnValueOnce(pending.promise).mockResolvedValue(list([]));
+      search(label, "unrelated");
+      await waitFor(() => expect(targets).toHaveBeenCalledTimes(2));
+      await act(async () => useAppStore.getState().setProfile(staffProfile(["COUPON_READ"])));
+      expect(vi.mocked(targets).mock.calls[1][1]?.aborted).toBe(true);
+      await act(async () =>
+        pending.resolve(list([{ _id: "000000000000000000000003", name: "Late target" }]))
+      );
+      expect(
+        screen.queryByText(name, { selector: ".ant-select-selection-item-content" })?.textContent
+      ).toBe(name);
+      expect(screen.queryByText("Late target")).toBeNull();
+      expect((screen.getByLabelText("Tên voucher") as HTMLInputElement).value).toBe(
+        "Unsaved target draft"
+      );
+      const submit = screen.getByRole("button", {
+        name: action === "create" ? "Tạo voucher" : "Lưu voucher"
+      });
+      expect(submit.hasAttribute("disabled")).toBe(true);
+      const selector = screen.getByRole("combobox", { name: label });
+      expect(selector.hasAttribute("disabled")).toBe(true);
+      // Bypass disabled controls to exercise the request and submit guards.
+      fireEvent.change(selector, { target: { value: "forced search" } });
+      fireEvent.submit(submit.closest("form")!);
+      await act(async () => {});
+      expect(targets).toHaveBeenCalledTimes(2);
+      expect(otherTargets).not.toHaveBeenCalled();
+      expect(save).not.toHaveBeenCalled();
+      await act(async () => useAppStore.getState().setProfile(writer));
+      await waitFor(() => expect(targets).toHaveBeenCalledTimes(3));
+      expect(
+        screen.getByText(name, { selector: ".ant-select-selection-item-content" }).textContent
+      ).toBe(name);
+      fireEvent.click(submit);
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      expect(save.mock.calls[0][0]).toMatchObject({
+        name: "Unsaved target draft",
+        scopeType: scope,
+        scopeProductIds: scope === "products" ? [id] : [],
+        scopeCategoryIds: scope === "categories" ? [id] : []
+      });
+    },
+    15000
+  );
   it("keeps voucher detail/history readable and disables create/edit/toggle", async () => {
     useAppStore.getState().setProfile(staffProfile(["COUPON_READ"]));
     renderList();
