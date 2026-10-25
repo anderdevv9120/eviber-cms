@@ -120,9 +120,11 @@ const toApiError = (error: AxiosError): ApiError => {
   const data = error.response?.data as
     { message?: string | string[]; errors?: unknown } | undefined;
   const errors =
-    data?.errors && typeof data.errors === "object" && !Array.isArray(data.errors)
-      ? (data.errors as ApiErrorDetails)
-      : undefined;
+    typeof data?.errors === "string"
+      ? { code: data.errors }
+      : data?.errors && typeof data.errors === "object" && !Array.isArray(data.errors)
+        ? (data.errors as ApiErrorDetails)
+        : undefined;
   return new ApiError(data?.message ?? error.message, error.response?.status, errors);
 };
 

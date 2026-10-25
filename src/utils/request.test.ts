@@ -61,6 +61,21 @@ describe("request interceptor", () => {
     axios.defaults.adapter = originalAdapter;
   });
 
+  it("normalizes Nest string conflict codes without dropping the revision error", async () => {
+    apiHandler = async config => {
+      throw new AxiosError("conflict", "409", config, null, {
+        ...ok(config, { message: "Vai trò vừa được thay đổi", errors: "ROLE_STALE_REVISION" }),
+        status: 409
+      });
+    };
+    await expect(axiosRequest.put("/roles/admin", {}, { toastError: false })).rejects.toMatchObject(
+      {
+        status: 409,
+        errors: { code: "ROLE_STALE_REVISION" }
+      }
+    );
+  });
+
   it("refreshes profile once after concurrent feature denial without retrying writes or losing session", async () => {
     useAppStore.getState().setProfile(ownerProfile);
     const denied = (config: InternalAxiosRequestConfig) =>

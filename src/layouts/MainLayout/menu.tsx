@@ -23,7 +23,6 @@ import { PATH } from "@/constants/paths";
 
 type MenuItem = { key: string; icon: ReactNode; label: string };
 
-// Cài đặt › Thanh toán và Tài khoản & phân quyền chưa có màn: không render để tránh link chết
 export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   {
     title: null,
@@ -61,7 +60,10 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   },
   {
     title: "Cài đặt",
-    items: [{ key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" }]
+    items: [
+      { key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" },
+      { key: PATH.SETTINGS_ROLES, icon: <TeamOutlined />, label: "Vai trò" }
+    ]
   }
 ];
 

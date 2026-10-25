@@ -10,6 +10,7 @@ import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
 import { order, orderList } from "@/test/order-fixtures";
 import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { roleList } from "@/test/role-fixtures";
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
@@ -43,6 +44,33 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens owner role settings from its menu with the access-area breadcrumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? ownerProfile : roleList());
+    renderRoute("/settings/access/roles");
+    await screen.findByRole("heading", { name: "Vai trò" });
+    expect(screen.getByRole("menuitem", { name: /Vai trò/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    const breadcrumb = document.querySelector(".ant-breadcrumb")!;
+    expect(breadcrumb.textContent).toContain("Cài đặt");
+    expect(breadcrumb.textContent).toContain("Tài khoản & phân quyền");
+    expect(breadcrumb.textContent).toContain("Vai trò");
+  });
+
+  it("blocks the direct role-settings URL for a delegated creator without loading its data", async () => {
+    const roleEditorLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, staffProfile(["USER_CREATE"]));
+      roleEditorLoad();
+      return response(config, roleList());
+    };
+    renderRoute("/settings/access/roles");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(roleEditorLoad).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menuitem", { name: /Vai trò/ })).toBeNull();
+  });
+
   it("opens the first permitted route from home and filters menu groups", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(

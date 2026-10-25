@@ -25,7 +25,8 @@ export const NAVIGATION_POLICIES: Record<string, CmsAccessPolicy> = {
   [PATH.CONTENT_HOME]: { anyOf: ["CONTENT_HOME_READ"] },
   [PATH.CONTENT_INFO]: { anyOf: ["STORE_INFO_READ"] },
   [PATH.POLICIES]: { anyOf: ["POLICY_READ"] },
-  [PATH.SETTINGS_CHECKOUT]: { anyOf: ["CHECKOUT_SETTINGS_READ"] }
+  [PATH.SETTINGS_CHECKOUT]: { anyOf: ["CHECKOUT_SETTINGS_READ"] },
+  [PATH.SETTINGS_ROLES]: { ownerOnly: true }
 };
 
 export const ROUTE_POLICIES: Record<string, CmsAccessPolicy> = {

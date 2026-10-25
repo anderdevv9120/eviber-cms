@@ -31,6 +31,7 @@ const Vouchers = lazy(() => import("./pages/Vouchers"));
 const ContentHome = lazy(() => import("./pages/ContentHome"));
 const StoreInfo = lazy(() => import("./pages/StoreInfo"));
 const CheckoutSettings = lazy(() => import("./pages/Settings/CheckoutSettings"));
+const RoleSettings = lazy(() => import("./pages/Staff/RoleSettings"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
@@ -58,6 +59,14 @@ export const routes: RouteObject[] = [
     ),
     children: [
       { path: PATH.HOME, element: <PermissionGuard /> },
+      {
+        path: PATH.SETTINGS_ROLES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_ROLES]}>
+            <RoleSettings />
+          </PermissionGuard>
+        )
+      },
       {
         path: PATH.DASHBOARD,
         element: (
