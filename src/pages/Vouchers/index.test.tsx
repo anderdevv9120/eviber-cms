@@ -1,4 +1,4 @@
-import { ownerProfile } from "@/test/access-fixtures";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -603,4 +603,66 @@ describe("voucher list, revision recovery and history", () => {
     rendered.unmount();
     expect(vi.mocked(api.listVoucherRedemptionsAPI).mock.calls[1][2]?.aborted).toBe(true);
   });
+});
+
+describe("voucher permission actions", () => {
+  it("keeps voucher detail/history readable and disables create/edit/toggle", async () => {
+    useAppStore.getState().setProfile(staffProfile(["COUPON_READ"]));
+    renderList();
+    expect(screen.getByRole("button", { name: "Thêm voucher" }).hasAttribute("disabled")).toBe(
+      true
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "SAVE_20" }));
+    const save = await screen.findByRole("button", { name: "Lưu voucher" });
+    expect(save.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Tắt voucher" }).hasAttribute("disabled")).toBe(true);
+    expect(await screen.findByText("ORD-1")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "ORD-1" })).toBeNull();
+  });
+  it("preserves the voucher draft and blocks forced form submit after refresh", async () => {
+    drawer();
+    await screen.findByRole("button", { name: "Lưu voucher" });
+    change("Tên voucher", "Unsaved voucher");
+    act(() => useAppStore.getState().setProfile(staffProfile(["COUPON_READ"])));
+    expect((screen.getByLabelText("Tên voucher") as HTMLInputElement).value).toBe(
+      "Unsaved voucher"
+    );
+    expect(screen.getByRole("button", { name: "Lưu voucher" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.submit(screen.getByLabelText("Tên voucher").closest("form")!);
+    await act(async () => {});
+    expect(api.updateVoucherAPI).not.toHaveBeenCalled();
+  });
+  it("rechecks authority when a pending activation confirmation is accepted", async () => {
+    drawer();
+    fireEvent.click(await screen.findByRole("button", { name: "Tắt voucher" }));
+    const confirm = await screen.findByRole("button", { name: "Xác nhận" });
+    act(() => useAppStore.getState().setProfile(staffProfile(["COUPON_READ"])));
+    fireEvent.click(confirm);
+    expect(api.updateVoucherAPI).not.toHaveBeenCalled();
+  });
+  it("does not fetch write-only target selectors in a readonly scoped voucher", async () => {
+    vi.mocked(api.getVoucherAPI).mockResolvedValue({
+      data: {
+        ...voucher,
+        scopeType: "products",
+        scopeProductIds: [productId],
+        selectedProducts: [{ _id: productId, name: "Shirt", unavailable: false }]
+      },
+      message: "success"
+    });
+    useAppStore.getState().setProfile(staffProfile(["COUPON_READ"]));
+    drawer();
+    await screen.findByRole("button", { name: "Lưu voucher" });
+    expect(screen.getByText("Shirt")).toBeTruthy();
+    expect(api.listVoucherProductTargetsAPI).not.toHaveBeenCalled();
+  });
+});
+
+it("COUPON_CREATE does not allow updating or activating an existing voucher", async () => {
+  useAppStore.getState().setProfile(staffProfile(["COUPON_READ", "COUPON_CREATE"]));
+  drawer();
+  expect(
+    (await screen.findByRole("button", { name: "Lưu voucher" })).hasAttribute("disabled")
+  ).toBe(true);
+  expect(screen.getByRole("button", { name: "Tắt voucher" }).hasAttribute("disabled")).toBe(true);
 });

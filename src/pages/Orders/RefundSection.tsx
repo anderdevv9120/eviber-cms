@@ -36,6 +36,8 @@ import RefundInspectionForm from "./RefundInspectionForm";
 import RefundPayoutForm from "./RefundPayoutForm";
 import RefundReviewForm from "./RefundReviewForm";
 import type { RefundContext } from "./useRefundCommand";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 export interface RefundSectionProps {
   orderId: string;
@@ -98,26 +100,42 @@ export default function RefundSection({
   onCommitted,
   order
 }: RefundSectionProps) {
+  const profile = useAppStore(state => state.profile);
+  const canReview = !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_REVIEW"] });
+  const canPay = !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_PAY"] });
+  const canRead = canReview || canPay;
+  const authority = `${profile?._id ?? ""}:${canReview}:${canPay}`;
   const [state, setState] = useState<{ view?: AdminRefundOrderView; error?: string }>({});
   const [attempt, setAttempt] = useState(0);
   const [form, setForm] = useState<ActiveForm | null>(null);
   const [refreshError, setRefreshError] = useState<string>();
   const latestOrderId = useRef(orderId);
-  const seen = useRef<{ orderId: string; revision: number } | undefined>(undefined);
+  const seen = useRef<{ orderId: string; revision: number; authority: string } | undefined>(
+    undefined
+  );
 
   // Results are only adopted for the order currently on screen.
   const view = state.view?.orderId === orderId ? state.view : undefined;
 
   useEffect(() => {
     latestOrderId.current = orderId;
+    if (!canRead) {
+      seen.current = undefined;
+      return;
+    }
     // Skip when the committed view already matches the order revision the page reports.
-    if (seen.current?.orderId === orderId && seen.current.revision === revision) return;
+    if (
+      seen.current?.orderId === orderId &&
+      seen.current.revision === revision &&
+      seen.current.authority === authority
+    )
+      return;
     const controller = new AbortController();
     let active = true;
     readRefunds(orderId, controller.signal)
       .then(data => {
         if (!active) return;
-        seen.current = { orderId, revision: data.revision };
+        seen.current = { orderId, revision: data.revision, authority };
         setState({ view: data });
       })
       .catch(cause => {
@@ -127,10 +145,10 @@ export default function RefundSection({
       active = false;
       controller.abort();
     };
-  }, [orderId, revision, attempt]);
+  }, [orderId, revision, attempt, canRead, authority]);
 
   const adopt = (next: AdminRefundOrderView) => {
-    seen.current = { orderId: next.orderId, revision: next.revision };
+    seen.current = { orderId: next.orderId, revision: next.revision, authority };
     setState({ view: next });
   };
   const refreshOrder = async () => {
@@ -174,6 +192,9 @@ export default function RefundSection({
   const ctx: RefundContext = {
     view,
     reload: async () => {
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: ["ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"] }))
+        throw new Error("Bạn không có quyền xem hoàn tiền");
       const next = await readRefunds(orderId);
       if (latestOrderId.current !== next.orderId) return;
       adopt(next);
@@ -194,6 +215,11 @@ export default function RefundSection({
   );
   const { eligibility } = view;
   const closeForm = () => setForm(null);
+  const openForm = (next: ActiveForm) => {
+    const current = useAppStore.getState().profile;
+    if (view.canReview && current && canAccess(current, { anyOf: ["ORDER_REFUND_REVIEW"] }))
+      setForm(next);
+  };
   const pending = view.requests.filter(request => actionStages.includes(request.stage)).length;
   const refundedTotal = view.summary.paidAmount + view.summary.paidShippingAmount;
 
@@ -207,12 +233,13 @@ export default function RefundSection({
           {pending > 0 && <Tag color='warning'>{pending} yêu cầu chờ xử lý</Tag>}
         </Flex>
         {view.canReview &&
+          canReview &&
           (eligibility.reviewRequired ? (
-            <Button type='primary' onClick={() => setForm({ type: "legacy" })}>
+            <Button type='primary' onClick={() => openForm({ type: "legacy" })}>
               Đối soát đơn cũ
             </Button>
           ) : (
-            <Button onClick={() => setForm({ type: "exception" })}>Tạo yêu cầu ngoại lệ</Button>
+            <Button onClick={() => openForm({ type: "exception" })}>Tạo yêu cầu ngoại lệ</Button>
           ))}
       </Flex>
       {refreshError && (
@@ -336,7 +363,7 @@ export default function RefundSection({
           labels={labels}
           form={form}
           ctx={ctx}
-          onOpen={setForm}
+          onOpen={openForm}
           onClose={closeForm}
         />
       ))}
@@ -376,6 +403,8 @@ function RequestCard({
   onOpen: (form: ActiveForm) => void;
   onClose: () => void;
 }) {
+  const profile = useAppStore(state => state.profile);
+  const canReview = !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_REVIEW"] });
   const number = index + 1;
   const decided = request.stage !== "awaiting_review";
   const activeForm =
@@ -416,7 +445,7 @@ function RequestCard({
             Gửi lúc: {formatOrderDate(request.submittedAt)}
           </Typography.Text>
         </Flex>
-        {view.canReview && request.stage === "awaiting_review" && !activeForm && (
+        {view.canReview && canReview && request.stage === "awaiting_review" && !activeForm && (
           <Button
             type='primary'
             onClick={() => onOpen({ type: "review", requestId: request.requestId })}
@@ -424,7 +453,7 @@ function RequestCard({
             Duyệt yêu cầu
           </Button>
         )}
-        {view.canReview && request.stage === "awaiting_return" && !activeForm && (
+        {view.canReview && canReview && request.stage === "awaiting_return" && !activeForm && (
           <Button
             type='primary'
             onClick={() => onOpen({ type: "inspect", requestId: request.requestId })}

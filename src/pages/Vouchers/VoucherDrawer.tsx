@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -62,6 +64,8 @@ function checkVoucher(voucher: AdminCouponDetail, id?: string | null): AdminCoup
 }
 
 function VoucherHistory({ voucherId }: { voucherId: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canReadOrder = !!profile && canAccess(profile, { anyOf: ["ORDER_READ"] });
   const [query, setQuery] = useState<VoucherRedemptionQuery>({ page: 1, pageSize: 10 });
   const [attempt, setAttempt] = useState(0);
   const key = JSON.stringify(query);
@@ -86,9 +90,12 @@ function VoucherHistory({ voucherId }: { voucherId: string }) {
     {
       title: "Đơn hàng",
       key: "order",
-      render: (_, row) => (
-        <Link to={`/orders/${encodeURIComponent(row.orderId)}`}>{row.orderNumber}</Link>
-      )
+      render: (_, row) =>
+        canReadOrder ? (
+          <Link to={`/orders/${encodeURIComponent(row.orderId)}`}>{row.orderNumber}</Link>
+        ) : (
+          row.orderNumber
+        )
     },
     {
       title: "Khách hàng",
@@ -200,6 +207,9 @@ export default function VoucherDrawer({
   onClose(): void;
   onChanged(): void;
 }) {
+  const profile = useAppStore(state => state.profile);
+  const canWrite =
+    !!profile && canAccess(profile, { anyOf: [voucherId ? "COUPON_UPDATE" : "COUPON_CREATE"] });
   const [voucher, setVoucher] = useState<AdminCouponDetail | null>(null);
   const [fresh, setFresh] = useState<AdminCouponDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +234,9 @@ export default function VoucherDrawer({
   }, [voucherId, attempt]);
 
   const write = async (input: CouponInput | CouponPatchInput) => {
+    const latest = useAppStore.getState().profile;
+    if (!latest || !canAccess(latest, { anyOf: [voucherId ? "COUPON_UPDATE" : "COUPON_CREATE"] }))
+      return;
     const controller = lifetime.current;
     if (!controller || controller.signal.aborted || saving.current || conflict) return;
     saving.current = true;
@@ -308,6 +321,8 @@ export default function VoucherDrawer({
               {fresh && <Typography.Text>Tên hiện tại: {fresh.name}</Typography.Text>}
               <Flex gap={8} wrap>
                 <Popconfirm
+                  disabled={!canWrite || busy || conflict}
+                  okButtonProps={{ disabled: !canWrite || busy || conflict }}
                   title={metadata.isActive ? "Tắt voucher này?" : "Bật voucher này?"}
                   okText='Xác nhận'
                   cancelText='Hủy'
@@ -326,7 +341,7 @@ export default function VoucherDrawer({
                     }
                   }}
                 >
-                  <Button disabled={busy || conflict}>
+                  <Button disabled={busy || conflict || !canWrite}>
                     {metadata.isActive ? "Tắt voucher" : "Bật voucher"}
                   </Button>
                 </Popconfirm>
@@ -341,7 +356,7 @@ export default function VoucherDrawer({
           <VoucherForm
             key={`form:${voucher?._id ?? "new"}:${formVersion}`}
             voucher={voucher}
-            busy={busy || conflict}
+            busy={busy || conflict || !canWrite}
             onSubmit={submit}
           />
           {voucherId && (

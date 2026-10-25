@@ -1,3 +1,5 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import "@/test/attribute-fixtures";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -325,4 +327,19 @@ describe("Inventory history", () => {
     await waitFor(() => expect(cellOf("SKU-20").getByText("25")).toBeTruthy());
     expect(api.getInventoryMovementsAPI).toHaveBeenCalledTimes(1);
   });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+it("keeps inventory and history readable while denying adjustment", async () => {
+  useAppStore.getState().setProfile(staffProfile(["INVENTORY_READ"]));
+  renderPage();
+  const adjust = await screen.findByRole("button", { name: "Điều chỉnh SKU-0" });
+  expect(adjust.hasAttribute("disabled")).toBe(true);
+  expect(screen.getByRole("button", { name: "Lịch sử SKU-0" }).hasAttribute("disabled")).toBe(
+    false
+  );
+  expect(screen.queryByRole("link", { name: "Áo thun" })).toBeNull();
 });

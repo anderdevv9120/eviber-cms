@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useEffect, useState } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Switch, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
@@ -21,7 +23,11 @@ interface Props {
   onSubmit: (input: BannerInput) => Promise<void>;
 }
 
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["CONTENT_HOME_UPDATE"] });
+
 export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
   const [form] = Form.useForm<Values>();
   const image = Form.useWatch("image", form);
   const [selectedImage, setSelectedImage] = useState<{ file: File; preview: string } | null>(null);
@@ -35,9 +41,9 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
   }, [selectedImage]);
 
   const submit = async () => {
-    if (saving) return;
+    if (saving || !mayUpdate(useAppStore.getState().profile)) return;
     const values = await form.validateFields().catch(() => null);
-    if (!values) return;
+    if (!values || !mayUpdate(useAppStore.getState().profile)) return;
     setSaving(true);
     setError(null);
     try {
@@ -48,6 +54,7 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
         form.setFieldValue("image", imagePath);
         setSelectedImage(null);
       }
+      if (!mayUpdate(useAppStore.getState().profile)) return;
       await onSubmit({
         image: imagePath,
         title: values.title!.trim(),
@@ -74,7 +81,7 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
         <Button key='cancel' onClick={onCancel} disabled={saving}>
           Hủy
         </Button>,
-        <Button key='save' type='primary' loading={saving} onClick={submit}>
+        <Button key='save' type='primary' loading={saving} disabled={!canUpdate} onClick={submit}>
           Lưu banner
         </Button>
       ]}
@@ -82,7 +89,7 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
       <Form<Values>
         form={form}
         layout='vertical'
-        disabled={saving}
+        disabled={saving || !canUpdate}
         initialValues={{
           image: banner?.image,
           title: banner?.title,
@@ -109,10 +116,11 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
               />
             )}
             <Upload
-              disabled={saving}
+              disabled={saving || !canUpdate}
               accept='image/png,image/jpeg,image/webp,image/gif'
               showUploadList={false}
               beforeUpload={file => {
+                if (saving || !mayUpdate(useAppStore.getState().profile)) return false;
                 const preview = URL.createObjectURL(file);
                 setSelectedImage({ file, preview });
                 form.setFieldValue("image", preview);
@@ -120,7 +128,7 @@ export default function BannerForm({ banner, onCancel, onSubmit }: Props) {
                 return false;
               }}
             >
-              <Button icon={<UploadOutlined />} disabled={saving}>
+              <Button icon={<UploadOutlined />} disabled={saving || !canUpdate}>
                 {image ? "Đổi ảnh" : "Tải ảnh lên"}
               </Button>
             </Upload>

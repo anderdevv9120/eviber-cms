@@ -1,3 +1,6 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
+import RefundPolicySettings from "@/pages/StoreContent/RefundPolicySettings";
 import { useEffect, useState } from "react";
 import { Button, Flex, Result, Spin, Tag, Typography } from "antd";
 import DataTable from "@/components/DataTable";
@@ -6,12 +9,17 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import PolicyModal from "./PolicyModal";
 
 export default function Policies() {
+  const profile = useAppStore(state => state.profile);
+  const canRead = !!profile && canAccess(profile, { anyOf: ["POLICY_READ"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["POLICY_UPDATE"] });
+  const canReadRefund = !!profile && canAccess(profile, { anyOf: ["REFUND_POLICY_READ"] });
   const [rows, setRows] = useState<PolicyPageSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [editing, setEditing] = useState<PolicySlug | null>(null);
 
   useEffect(() => {
+    if (!canRead) return;
     const controller = new AbortController();
     listPoliciesAPI(controller.signal)
       .then(({ data }) => {
@@ -23,55 +31,60 @@ export default function Policies() {
         if (!controller.signal.aborted) setError(getErrorMessage(cause));
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, canRead]);
 
   const refresh = () => setAttempt(value => value + 1);
 
   return (
     <Flex vertical gap={16}>
       <Typography.Title level={2}>Trang chính sách</Typography.Title>
-      {error && !rows ? (
-        <Result
-          status='error'
-          title='Không tải được danh sách trang'
-          subTitle={error}
-          extra={<Button onClick={refresh}>Thử lại</Button>}
-        />
-      ) : !rows ? (
-        <Flex justify='center' className='py-16'>
-          <Spin />
-        </Flex>
-      ) : (
-        <DataTable<PolicyPageSummary>
-          rowKey='slug'
-          dataSource={rows}
-          pagination={false}
-          columns={[
-            { title: "Trang", dataIndex: "title" },
-            {
-              title: "Trạng thái",
-              dataIndex: "isPublished",
-              render: (isPublished: boolean) =>
-                isPublished ? <Tag color='green'>Đã xuất bản</Tag> : <Tag>Nháp</Tag>
-            },
-            {
-              title: "Cập nhật",
-              dataIndex: "updatedAt",
-              render: (updatedAt: string | null) =>
-                updatedAt ? new Date(updatedAt).toLocaleString("vi-VN") : "Chưa lưu"
-            },
-            {
-              title: "",
-              key: "actions",
-              render: (_, row) => (
-                <Button aria-label={`Sửa ${row.title}`} onClick={() => setEditing(row.slug)}>
-                  Sửa
-                </Button>
-              )
-            }
-          ]}
-        />
-      )}
+      {canRead &&
+        (error && !rows ? (
+          <Result
+            status='error'
+            title='Không tải được danh sách trang'
+            subTitle={error}
+            extra={<Button onClick={refresh}>Thử lại</Button>}
+          />
+        ) : !rows ? (
+          <Flex justify='center' className='py-16'>
+            <Spin />
+          </Flex>
+        ) : (
+          <DataTable<PolicyPageSummary>
+            rowKey='slug'
+            dataSource={rows}
+            pagination={false}
+            columns={[
+              { title: "Trang", dataIndex: "title" },
+              {
+                title: "Trạng thái",
+                dataIndex: "isPublished",
+                render: (isPublished: boolean) =>
+                  isPublished ? <Tag color='green'>Đã xuất bản</Tag> : <Tag>Nháp</Tag>
+              },
+              {
+                title: "Cập nhật",
+                dataIndex: "updatedAt",
+                render: (updatedAt: string | null) =>
+                  updatedAt ? new Date(updatedAt).toLocaleString("vi-VN") : "Chưa lưu"
+              },
+              {
+                title: "",
+                key: "actions",
+                render: (_, row) => (
+                  <Button
+                    aria-label={`${canUpdate ? "Sửa" : "Xem"} ${row.title}`}
+                    onClick={() => setEditing(row.slug)}
+                  >
+                    {canUpdate ? "Sửa" : "Xem"}
+                  </Button>
+                )
+              }
+            ]}
+          />
+        ))}
+      {canReadRefund && <RefundPolicySettings />}
       {editing && <PolicyModal slug={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
     </Flex>
   );

@@ -13,6 +13,8 @@ import { formatOrderDate } from "@/pages/Orders/order-display";
 import CustomerForm from "./CustomerForm";
 import CustomerAddresses from "./CustomerAddresses";
 import CustomerOrders from "./CustomerOrders";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 export default function RegisteredCustomerDetail() {
   const { customerId = "" } = useParams();
@@ -21,6 +23,8 @@ export default function RegisteredCustomerDetail() {
 
 // Keyed loading/cancellation follows OrderDetail; profile writes require a fresh detail read.
 function CustomerRead({ customerId }: { customerId: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["CUSTOMER_UPDATE"] });
   const [view, setView] = useState<{ customer?: Customer; error?: string; unavailable?: boolean }>(
     {}
   );
@@ -66,26 +70,37 @@ function CustomerRead({ customerId }: { customerId: string }) {
     });
   };
   const save = async (input: UpdateCustomerInput) => {
-    if (inFlight.current || !view.customer) return;
+    const current = useAppStore.getState().profile;
+    if (
+      !current ||
+      !canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] }) ||
+      inFlight.current ||
+      !view.customer
+    )
+      return;
     inFlight.current = true;
     setSaving(true);
     setNotice(undefined);
     try {
-      const { data } = await updateCustomerAPI(customerId, input);
-      if (data?._id !== customerId) throw new Error("Chưa xác nhận được kết quả lưu hồ sơ");
-    } catch (cause) {
-      if (mounted.current)
-        setNotice(
-          `${getErrorMessage(cause)}. Kết quả lưu chưa được xác nhận; kiểm tra hồ sơ đã tải lại trước khi thao tác tiếp.`
-        );
+      try {
+        const { data } = await updateCustomerAPI(customerId, input);
+        if (data?._id !== customerId) throw new Error("Chưa xác nhận được kết quả lưu hồ sơ");
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 403) throw cause;
+        if (mounted.current)
+          setNotice(
+            `${getErrorMessage(cause)}. Kết quả lưu chưa được xác nhận; kiểm tra hồ sơ đã tải lại trước khi thao tác tiếp.`
+          );
+      }
+      if (mounted.current) {
+        setEditing(false);
+        setView({});
+        await reload();
+      }
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setSaving(false);
     }
-    if (mounted.current) {
-      setEditing(false);
-      setView({});
-      await reload();
-    }
-    inFlight.current = false;
-    if (mounted.current) setSaving(false);
   };
   const customer = view.customer;
   const text = (value?: string) => value?.trim() || "—";
@@ -116,7 +131,13 @@ function CustomerRead({ customerId }: { customerId: string }) {
         <>
           <Flex justify='space-between' align='center' gap={8} wrap>
             <Typography.Title level={2}>Khách hàng đã đăng ký</Typography.Title>
-            <Button disabled={saving} onClick={() => setEditing(true)}>
+            <Button
+              disabled={!canUpdate || saving}
+              onClick={() => {
+                const current = useAppStore.getState().profile;
+                if (current && canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] })) setEditing(true);
+              }}
+            >
               Sửa hồ sơ
             </Button>
           </Flex>
@@ -175,7 +196,7 @@ function CustomerRead({ customerId }: { customerId: string }) {
             >
               <CustomerForm
                 customer={customer}
-                disabled={saving}
+                disabled={!canUpdate || saving}
                 onSubmit={save}
                 onCancel={() => {
                   if (!inFlight.current) setEditing(false);

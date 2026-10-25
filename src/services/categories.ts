@@ -1,5 +1,6 @@
 import axiosRequest from "@/utils/request";
 import type { ApiResponse } from "./auth";
+import type { CategoryOption } from "./products";
 
 export interface Category {
   _id: string;
@@ -27,6 +28,10 @@ const categoryPath = (id: string) => `/categories/${encodeURIComponent(id)}`;
 
 export const listCategoriesAPI = (signal?: AbortSignal): Promise<ApiResponse<Category[]>> =>
   axiosRequest.get("/categories", { ...inlineErrors, signal });
+export const listCategoryOptionsAPI = (
+  signal?: AbortSignal
+): Promise<ApiResponse<CategoryOption[]>> =>
+  axiosRequest.get("/categories/options", { ...inlineErrors, signal });
 export const createCategoryAPI = (input: CategoryInput): Promise<ApiResponse<Category>> =>
   axiosRequest.post("/categories", input, inlineErrors);
 export const updateCategoryAPI = (

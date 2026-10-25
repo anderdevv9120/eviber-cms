@@ -1,6 +1,8 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, type ComponentProps } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
@@ -174,5 +176,54 @@ describe("category form", () => {
     upload();
     expect(await screen.findByText("File too large")).toBeTruthy();
     expect(preview()).toBe("http://api.test:8001/images/a.jpg");
+  });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+describe("category form authority", () => {
+  beforeEach(() => {
+    vi.mocked(api.updateCategoryAPI).mockReset().mockResolvedValue(ok(shirts));
+    vi.mocked(imagesApi.uploadImageAPI)
+      .mockReset()
+      .mockResolvedValue(ok({ path: "/images/new.jpg" }));
+  });
+  it.each([null, staffProfile(["CATEGORY_READ"])])(
+    "denies saving and uploading without write authority: %s",
+    profile => {
+      useAppStore.setState({ profile });
+      renderForm({ category: shirts });
+      expect(saveDisabled()).toBe(true);
+      expect(screen.getByRole("button", { name: /Đổi ảnh/ }).hasAttribute("disabled")).toBe(true);
+      const saveButton = screen.getByRole("button", { name: "Lưu danh mục" });
+      saveButton.removeAttribute("disabled");
+      fireEvent.click(saveButton);
+      upload();
+      expect(api.updateCategoryAPI).not.toHaveBeenCalled();
+      expect(imagesApi.uploadImageAPI).not.toHaveBeenCalled();
+    }
+  );
+  it("preserves an open draft and blocks forced submit after authority refresh", async () => {
+    renderForm({ category: shirts });
+    type("Tên danh mục", "Unsaved category");
+    act(() => useAppStore.getState().setProfile(staffProfile(["CATEGORY_READ"])));
+    expect(field("Tên danh mục").value).toBe("Unsaved category");
+    expect(field("Tên danh mục").disabled).toBe(true);
+    expect(saveDisabled()).toBe(true);
+    screen.getByRole("button", { name: "Lưu danh mục" }).removeAttribute("disabled");
+    save();
+    await act(async () => {});
+    expect(api.updateCategoryAPI).not.toHaveBeenCalled();
+  });
+  it("category update alone does not authorize the image endpoint", () => {
+    useAppStore.getState().setProfile(staffProfile(["CATEGORY_READ", "CATEGORY_UPDATE"]));
+    renderForm({ category: shirts });
+    expect(saveDisabled()).toBe(false);
+    expect(screen.getByRole("button", { name: /Đổi ảnh/ }).hasAttribute("disabled")).toBe(true);
+    expect(
+      screen.getByText("Bạn chưa có quyền tải ảnh danh mục. Liên hệ chủ cửa hàng để được hỗ trợ.")
+    ).toBeTruthy();
   });
 });

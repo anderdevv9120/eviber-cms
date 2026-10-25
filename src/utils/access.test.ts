@@ -17,6 +17,10 @@ describe("CMS access", () => {
     expect(canAccess(emptyProfile, { authenticated: true })).toBe(true);
   });
 
+  it("routes refund policy readers to their independent settings without policy-page access", () => {
+    expect(firstAllowedPath(staffProfile(["REFUND_POLICY_READ"]))).toBe("/policies");
+  });
+
   it("grants owners all explicit policies but denies absent membership", () => {
     expect(firstAllowedPath(ownerProfile)).toBe("/dashboard");
     expect(canAccess(ownerProfile, { ownerOnly: true })).toBe(true);

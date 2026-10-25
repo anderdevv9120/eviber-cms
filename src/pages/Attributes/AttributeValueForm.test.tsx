@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { ownerProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import type { ComponentProps } from "react";
@@ -97,4 +99,8 @@ describe("value form", () => {
       })
     );
   });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
 });

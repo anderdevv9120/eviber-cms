@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useRef, useState } from "react";
 import { Alert, Button, ColorPicker, Flex, Form, Input, Switch } from "antd";
 import type { AttributeValueSummary, CreateAttributeValueInput } from "@/services/attributes";
@@ -19,11 +21,20 @@ export default function AttributeValueForm({
 }: Props) {
   const [colorEnabled, setColorEnabled] = useState(!!value?.meta);
   const [color, setColor] = useState(value?.meta ?? "#000000");
+  const profile = useAppStore(state => state.profile);
+  const permitted = !!profile && canAccess(profile, { anyOf: ["ATTRIBUTE_UPDATE"] });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
   const submit = async ({ label }: { label: string }) => {
-    if (disabled || submittingRef.current) return;
+    const latest = useAppStore.getState().profile;
+    if (
+      !latest ||
+      !canAccess(latest, { anyOf: ["ATTRIBUTE_UPDATE"] }) ||
+      disabled ||
+      submittingRef.current
+    )
+      return;
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);
@@ -45,7 +56,7 @@ export default function AttributeValueForm({
       layout='vertical'
       initialValues={{ label: value?.value }}
       onFinish={submit}
-      disabled={disabled || submitting}
+      disabled={disabled || submitting || !permitted}
     >
       {error && <Alert type='error' showIcon title={error} className='mb-4' />}
       {value && (
@@ -79,12 +90,15 @@ export default function AttributeValueForm({
         <Flex align='center' gap={12} className='mb-4'>
           <ColorPicker
             value={color}
-            disabled={disabled || submitting}
+            disabled={disabled || submitting || !permitted}
             disabledAlpha
             format='hex'
             onChange={selected => setColor(selected.toHexString().toUpperCase())}
           >
-            <Button disabled={disabled || submitting} aria-label={`Chọn màu ${color}`}>
+            <Button
+              disabled={disabled || submitting || !permitted}
+              aria-label={`Chọn màu ${color}`}
+            >
               {color}
             </Button>
           </ColorPicker>

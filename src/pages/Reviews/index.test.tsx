@@ -1,5 +1,7 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import "@/test/attribute-fixtures";
@@ -289,5 +291,48 @@ describe("reviews page", () => {
     expect((within(drawer).getByLabelText("Nội dung phản hồi") as HTMLTextAreaElement).value).toBe(
       ""
     );
+  });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+describe("review permission actions", () => {
+  beforeEach(() => {
+    vi.mocked(api.listReviewsAPI)
+      .mockReset()
+      .mockResolvedValue(page([review()]));
+    vi.mocked(api.getReviewAPI).mockReset().mockResolvedValue(ok(review()));
+    vi.mocked(api.updateReviewStatusAPI)
+      .mockReset()
+      .mockResolvedValue(ok(review({ status: "approved" })));
+    vi.mocked(api.saveReviewReplyAPI).mockReset().mockResolvedValue(ok(review()));
+  });
+  it("keeps review information but blocks moderation/reply and forbidden links", async () => {
+    useAppStore.getState().setProfile(staffProfile(["REVIEW_READ"]));
+    setup();
+    const dialog = await openDrawer();
+    await within(dialog).findByText("Áo đẹp, giao nhanh");
+    for (const name of ["Duyệt", "Từ chối", "Lưu phản hồi"])
+      expect(within(dialog).getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
+    expect(within(dialog).queryAllByRole("link")).toHaveLength(0);
+  });
+  it("preserves a reply draft and guards moderation and reply handlers after refresh", async () => {
+    setup();
+    const dialog = await openDrawer();
+    const field = await within(dialog).findByLabelText("Nội dung phản hồi");
+    fireEvent.change(field, { target: { value: "Unsaved reply" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["REVIEW_READ"])));
+    expect((field as HTMLTextAreaElement).value).toBe("Unsaved reply");
+    expect((field as HTMLTextAreaElement).disabled).toBe(true);
+    for (const name of ["Duyệt", "Lưu phản hồi"]) {
+      const button = within(dialog).getByRole("button", { name });
+      expect(button.hasAttribute("disabled")).toBe(true);
+      button.removeAttribute("disabled");
+      fireEvent.click(button);
+    }
+    expect(api.updateReviewStatusAPI).not.toHaveBeenCalled();
+    expect(api.saveReviewReplyAPI).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,8 @@
 import "@/test/attribute-fixtures";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import type { PermissionCode } from "@/constants/permissions";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
@@ -33,6 +36,7 @@ const refundView: AdminRefundOrderView = {
 };
 // The refund section reads its own endpoints; these tests count order reads and writes only.
 let serveRefunds: Adapter | undefined;
+beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
 afterEach(() => {
   serveRefunds = undefined;
 });
@@ -51,6 +55,64 @@ const renderDetail = (path = "/orders/order-id") => {
 };
 
 describe("shared order detail", () => {
+  it("RBAC preserves an already-open refund draft when both refund grants are removed", async () => {
+    axiosRequest.defaults.adapter = async config => response(config, order);
+    serveRefunds = async config =>
+      response(config, {
+        ...refundView,
+        canReview: true,
+        eligibility: { eligible: false, reviewRequired: true, reason: null }
+      });
+    renderDetail();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Đối soát đơn cũ" }, { timeout: 5000 })
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Lý do đối soát" }), {
+      target: { value: "Unsaved refund reason" }
+    });
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+    expect(
+      (screen.getByRole("textbox", { name: "Lý do đối soát" }) as HTMLInputElement).value
+    ).toBe("Unsaved refund reason");
+    expect(
+      (
+        within(screen.getByRole("form", { name: "Đối soát đơn cũ" })).getByRole("button", {
+          name: "Xác nhận đối soát"
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+  });
+  it.each<[PermissionCode[], boolean, boolean]>([
+    [["ORDER_READ"], false, false],
+    [["ORDER_READ", "ORDER_UPDATE"], true, false],
+    [["ORDER_READ", "ORDER_PAYMENT_UPDATE"], false, true]
+  ])(
+    "RBAC separates fulfillment/payment grants %j and never fetches refunds",
+    async (permissions, fulfillment, payment) => {
+      useAppStore.getState().setProfile(staffProfile(permissions));
+      axiosRequest.defaults.adapter = async config => response(config, order);
+      const refundFetch = vi.fn(async config => response(config, refundView));
+      serveRefunds = refundFetch;
+      renderDetail();
+      await screen.findByRole("region", { name: "Thông tin đơn hàng" });
+      expect(Boolean(screen.queryByRole("button", { name: "Hủy đơn hàng" }))).toBe(fulfillment);
+      expect(Boolean(screen.queryByRole("button", { name: "Ghi nhận thanh toán" }))).toBe(payment);
+      expect(screen.queryByRole("button", { name: "Xác nhận đơn hàng" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Hoàn tiền" })).toBeNull();
+      expect(refundFetch).not.toHaveBeenCalled();
+      expect(screen.queryByRole("link", { name: "Khách hàng đăng ký" })).toBeNull();
+    }
+  );
+  it("RBAC denies null profile actions and refund reads", async () => {
+    useAppStore.getState().clearProfile();
+    axiosRequest.defaults.adapter = async config => response(config, order);
+    const refundFetch = vi.fn(async config => response(config, refundView));
+    serveRefunds = refundFetch;
+    renderDetail();
+    await screen.findByRole("region", { name: "Thông tin đơn hàng" });
+    expect(screen.queryByRole("button", { name: "Hủy đơn hàng" })).toBeNull();
+    expect(refundFetch).not.toHaveBeenCalled();
+  });
   it("expands a combo snapshot into merged pieces with exact totals and no split unit price", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(config, {

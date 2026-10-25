@@ -1,5 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Button, Checkbox, DatePicker, Flex, Input, InputNumber } from "antd";
+import {
+  ConfigProvider,
+  Alert,
+  Button,
+  Checkbox,
+  DatePicker,
+  Flex,
+  Input,
+  InputNumber
+} from "antd";
 import dayjs from "dayjs";
 import {
   claimRefundPayoutAPI,
@@ -11,6 +20,8 @@ import {
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { formatOrderAmount, formatOrderDate } from "./order-display";
 import { isWholeNumber, useRefundCommand, type RefundContext } from "./useRefundCommand";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 const REFERENCE_MAX = 100;
 const REASON_MAX = 500;
@@ -61,7 +72,7 @@ function ClaimStep({
   request,
   onClaimConflict
 }: { ctx: RefundContext; request: AdminRefundRequest } & ClaimConflict) {
-  const command = useRefundCommand(ctx, { onClaimConflict });
+  const command = useRefundCommand(ctx, "ORDER_REFUND_PAY", { onClaimConflict });
   // The approval is frozen by the claim itself; until then the amount is what was approved.
   const merchandise = request.items.reduce((sum, item) => sum + item.approvedAmount, 0);
   const shipping = request.shipping.approvedAmount;
@@ -107,6 +118,9 @@ function ClaimedStep({
   heldByOther: boolean;
 } & ClaimConflict) {
   const [releasing, setReleasing] = useState(false);
+  const profile = useAppStore(state => state.profile);
+  const canPay =
+    ctx.view.canPay && !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_PAY"] });
   const [check, setCheck] = useState<{ busy: boolean; error?: string }>({ busy: false });
   // A plain GET: if a lost response actually committed, this shows the completed payout.
   const checkStatus = async () => {
@@ -158,7 +172,19 @@ function ClaimedStep({
               onClose={() => setReleasing(false)}
             />
           ) : (
-            <Button className='mt-3' onClick={() => setReleasing(true)}>
+            <Button
+              className='mt-3'
+              disabled={!canPay}
+              onClick={() => {
+                const current = useAppStore.getState().profile;
+                if (
+                  ctx.view.canPay &&
+                  current &&
+                  canAccess(current, { anyOf: ["ORDER_REFUND_PAY"] })
+                )
+                  setReleasing(true);
+              }}
+            >
               Hủy nhận xử lý
             </Button>
           )}
@@ -184,7 +210,7 @@ function RecordStep({
   request: AdminRefundRequest;
   claim: RefundClaimView;
 } & ClaimConflict) {
-  const command = useRefundCommand(ctx, { onClaimConflict });
+  const command = useRefundCommand(ctx, "ORDER_REFUND_PAY", { onClaimConflict });
   const [amount, setAmount] = useState<number | null>(null);
   const [paidAt, setPaidAt] = useState("");
   const [reference, setReference] = useState("");
@@ -233,49 +259,51 @@ function RecordStep({
   };
 
   return (
-    <form aria-label='Ghi nhận hoàn tiền đã chuyển' onSubmit={submit} noValidate className='mt-3'>
-      <div className='mt-2'>
-        <InputNumber
-          aria-label='Số tiền đã hoàn'
-          placeholder='Số tiền đã hoàn'
-          precision={0}
-          value={amount}
-          onChange={value => edit(() => setAmount(value))}
-        />
-        {error("amount")}
-      </div>
-      <div className='mt-2'>
-        <DatePicker
-          aria-label='Thời điểm đã chuyển tiền'
-          format='DD/MM/YYYY HH:mm'
-          showTime
-          needConfirm={false}
-          placeholder='Chọn thời điểm đã chuyển tiền'
-          value={paidAt ? dayjs(paidAt) : null}
-          onChange={value => edit(() => setPaidAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))}
-        />
-        {error("paidAt")}
-      </div>
-      <div className='mt-2'>
-        <Input
-          aria-label='Mã tham chiếu giao dịch'
-          placeholder='Mã tham chiếu giao dịch ngân hàng'
-          value={reference}
-          onChange={event => edit(() => setReference(event.target.value))}
-        />
-        {error("reference")}
-      </div>
-      {command.notices}
-      <Button
-        type='primary'
-        htmlType='submit'
-        className='mt-3'
-        loading={command.busy}
-        disabled={!command.canSubmit}
-      >
-        Ghi nhận đã hoàn tiền
-      </Button>
-    </form>
+    <ConfigProvider componentDisabled={!command.canEdit}>
+      <form aria-label='Ghi nhận hoàn tiền đã chuyển' onSubmit={submit} noValidate className='mt-3'>
+        <div className='mt-2'>
+          <InputNumber
+            aria-label='Số tiền đã hoàn'
+            placeholder='Số tiền đã hoàn'
+            precision={0}
+            value={amount}
+            onChange={value => edit(() => setAmount(value))}
+          />
+          {error("amount")}
+        </div>
+        <div className='mt-2'>
+          <DatePicker
+            aria-label='Thời điểm đã chuyển tiền'
+            format='DD/MM/YYYY HH:mm'
+            showTime
+            needConfirm={false}
+            placeholder='Chọn thời điểm đã chuyển tiền'
+            value={paidAt ? dayjs(paidAt) : null}
+            onChange={value => edit(() => setPaidAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))}
+          />
+          {error("paidAt")}
+        </div>
+        <div className='mt-2'>
+          <Input
+            aria-label='Mã tham chiếu giao dịch'
+            placeholder='Mã tham chiếu giao dịch ngân hàng'
+            value={reference}
+            onChange={event => edit(() => setReference(event.target.value))}
+          />
+          {error("reference")}
+        </div>
+        {command.notices}
+        <Button
+          type='primary'
+          htmlType='submit'
+          className='mt-3'
+          loading={command.busy}
+          disabled={!command.canSubmit}
+        >
+          Ghi nhận đã hoàn tiền
+        </Button>
+      </form>
+    </ConfigProvider>
   );
 }
 
@@ -291,7 +319,7 @@ function ReleaseStep({
   claim: RefundClaimView;
   onClose: () => void;
 } & ClaimConflict) {
-  const command = useRefundCommand(ctx, { onClaimConflict });
+  const command = useRefundCommand(ctx, "ORDER_REFUND_PAY", { onClaimConflict });
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
   const [attempted, setAttempted] = useState(false);
@@ -318,44 +346,46 @@ function ReleaseStep({
   };
 
   return (
-    <form aria-label='Giải phóng nhận xử lý' onSubmit={submit} noValidate className='mt-3'>
-      <Alert
-        type='warning'
-        showIcon
-        className='mb-3'
-        title='Chỉ giải phóng khi đã đối chiếu ngân hàng và xác nhận chưa có khoản chuyển nào được thực hiện. Nếu chưa chắc chắn, hãy giữ nhận xử lý và dùng "Kiểm tra trạng thái". Hệ thống không tự giải phóng theo thời gian.'
-      />
-      <Checkbox
-        checked={confirmed}
-        onChange={event => {
-          setConfirmed(event.target.checked);
-          command.edited();
-        }}
-      >
-        Tôi đã đối chiếu ngân hàng và xác nhận chưa chuyển khoản
-      </Checkbox>
-      {error("confirmed")}
-      <Input.TextArea
-        aria-label='Lý do giải phóng'
-        placeholder='Lý do giải phóng (nội bộ)'
-        rows={2}
-        className='mt-2'
-        value={reason}
-        onChange={event => {
-          setReason(event.target.value);
-          command.edited();
-        }}
-      />
-      {error("reason")}
-      {command.notices}
-      <Flex gap={8} className='mt-3'>
-        <Button htmlType='submit' loading={command.busy} disabled={!command.canSubmit}>
-          Xác nhận giải phóng
-        </Button>
-        <Button onClick={onClose} disabled={command.busy}>
-          Đóng
-        </Button>
-      </Flex>
-    </form>
+    <ConfigProvider componentDisabled={!command.canEdit}>
+      <form aria-label='Giải phóng nhận xử lý' onSubmit={submit} noValidate className='mt-3'>
+        <Alert
+          type='warning'
+          showIcon
+          className='mb-3'
+          title='Chỉ giải phóng khi đã đối chiếu ngân hàng và xác nhận chưa có khoản chuyển nào được thực hiện. Nếu chưa chắc chắn, hãy giữ nhận xử lý và dùng "Kiểm tra trạng thái". Hệ thống không tự giải phóng theo thời gian.'
+        />
+        <Checkbox
+          checked={confirmed}
+          onChange={event => {
+            setConfirmed(event.target.checked);
+            command.edited();
+          }}
+        >
+          Tôi đã đối chiếu ngân hàng và xác nhận chưa chuyển khoản
+        </Checkbox>
+        {error("confirmed")}
+        <Input.TextArea
+          aria-label='Lý do giải phóng'
+          placeholder='Lý do giải phóng (nội bộ)'
+          rows={2}
+          className='mt-2'
+          value={reason}
+          onChange={event => {
+            setReason(event.target.value);
+            command.edited();
+          }}
+        />
+        {error("reason")}
+        {command.notices}
+        <Flex gap={8} className='mt-3'>
+          <Button htmlType='submit' loading={command.busy} disabled={!command.canSubmit}>
+            Xác nhận giải phóng
+          </Button>
+          <Button onClick={onClose} disabled={command.busy}>
+            Đóng
+          </Button>
+        </Flex>
+      </form>
+    </ConfigProvider>
   );
 }

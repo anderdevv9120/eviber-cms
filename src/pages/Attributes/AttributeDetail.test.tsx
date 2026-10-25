@@ -1,3 +1,5 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
@@ -514,5 +516,32 @@ describe("attribute value detail", () => {
     });
     expect(screen.queryByText("Kích thước")).toBeNull();
     expect(screen.getByText("Attribute B")).toBeTruthy();
+  });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+describe("attribute value permission actions", () => {
+  it("requires ATTRIBUTE_UPDATE for value create/edit/delete/reorder", async () => {
+    useAppStore
+      .getState()
+      .setProfile(staffProfile(["ATTRIBUTE_READ", "ATTRIBUTE_CREATE", "ATTRIBUTE_DELETE"]));
+    setup();
+    await screen.findByText("Kích thước");
+    for (const name of ["Thêm giá trị", "Sửa M", "Xóa M", "Sắp xếp M", "Lưu thứ tự"])
+      expect(screen.getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
+  });
+  it("keeps an open value draft while disabling its controls after refresh", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa M" }));
+    fireEvent.change(screen.getByLabelText("Tên giá trị"), { target: { value: "Unsaved value" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["ATTRIBUTE_READ"])));
+    expect((screen.getByLabelText("Tên giá trị") as HTMLInputElement).value).toBe("Unsaved value");
+    expect(screen.getByRole("button", { name: "Lưu giá trị" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.submit(screen.getByLabelText("Tên giá trị").closest("form")!);
+    await act(async () => {});
+    expect(writes()).toHaveLength(0);
   });
 });

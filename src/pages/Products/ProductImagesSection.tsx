@@ -4,6 +4,9 @@ import SortableTable from "@/components/SortableTable";
 import { uploadImageAPI } from "@/services/images";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
+import type { PermissionCode } from "@/constants/permissions";
 
 const MAX_IMAGES = 20; // backend ProductAdminWriteDto bound
 
@@ -11,6 +14,7 @@ interface Props {
   title?: string;
   images: string[];
   disabled: boolean;
+  permission: PermissionCode;
   onChange: (images: string[]) => void;
   /** Appends to the latest list, so a remove/reorder made during the upload survives */
   onAdd: (urls: string[]) => void;
@@ -27,6 +31,7 @@ export default function ProductImagesSection({
   title = "Ảnh sản phẩm",
   images,
   disabled,
+  permission,
   onChange,
   onAdd,
   onSelectFiles,
@@ -51,7 +56,11 @@ export default function ProductImagesSection({
     setError(null);
     const added: string[] = [];
     try {
-      for (const file of picked) added.push((await uploadImageAPI(file)).data.path);
+      for (const file of picked) {
+        const current = useAppStore.getState().profile;
+        if (!current || !canAccess(current, { anyOf: [permission] })) break;
+        added.push((await uploadImageAPI(file)).data.path);
+      }
     } catch (cause) {
       setError(getErrorMessage(cause));
     } finally {

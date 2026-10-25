@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useRef, useState } from "react";
 import { Alert, Button, Flex, Input, InputNumber, Modal, Segmented, Typography } from "antd";
 import { adjustStockAPI, type AdjustStockResult, type InventoryRow } from "@/services/inventory";
@@ -44,6 +46,8 @@ export default function AdjustStockModal({
   onGone,
   onUnknownResult
 }: Props) {
+  const profile = useAppStore(state => state.profile);
+  const canAdjust = !!profile && canAccess(profile, { anyOf: ["INVENTORY_ADJUST"] });
   const [mode, setMode] = useState<AdjustMode>("in");
   const [amount, setAmount] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -58,7 +62,14 @@ export default function AdjustStockModal({
   const after = previewAfter(mode, amount, current);
 
   const submit = async () => {
-    if (!request || inFlight.current) return;
+    const latest = useAppStore.getState().profile;
+    if (
+      !latest ||
+      !canAccess(latest, { anyOf: ["INVENTORY_ADJUST"] }) ||
+      !request ||
+      inFlight.current
+    )
+      return;
     inFlight.current = true;
     setPending(true);
     setNotice(null);
@@ -111,7 +122,13 @@ export default function AdjustStockModal({
         <Button key='cancel' onClick={onClose} disabled={pending}>
           Hủy
         </Button>,
-        <Button key='save' type='primary' loading={pending} disabled={!request} onClick={submit}>
+        <Button
+          key='save'
+          type='primary'
+          loading={pending}
+          disabled={!request || pending || !canAdjust}
+          onClick={submit}
+        >
           Lưu điều chỉnh
         </Button>
       ]}
@@ -125,6 +142,7 @@ export default function AdjustStockModal({
           </Typography.Text>
         </div>
         <Segmented
+          disabled={pending || !canAdjust}
           block
           options={modes}
           value={mode}
@@ -135,6 +153,7 @@ export default function AdjustStockModal({
         />
         <Flex gap={16} align='center' wrap>
           <InputNumber
+            disabled={pending || !canAdjust}
             aria-label={amountLabels[mode]}
             addonBefore={amountLabels[mode]}
             min={mode === "count" ? 0 : 1}
@@ -151,6 +170,7 @@ export default function AdjustStockModal({
           {`${current} → ${after ?? "—"}`}
         </Typography.Text>
         <Input.TextArea
+          disabled={pending || !canAdjust}
           aria-label='Ghi chú'
           placeholder='Lý do điều chỉnh (không bắt buộc)'
           maxLength={MAX_NOTE}

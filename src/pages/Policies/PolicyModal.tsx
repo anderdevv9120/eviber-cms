@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Input, Modal, Result, Spin, Switch, Typography } from "antd";
 import { RichEditor } from "@/components/RichEditor";
@@ -25,7 +27,11 @@ interface Props {
   onSaved(): void;
 }
 
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["POLICY_UPDATE"] });
+
 export default function PolicyModal({ slug, onClose, onSaved }: Props) {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
   const [page, setPage] = useState<PolicyPage | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -93,11 +99,12 @@ export default function PolicyModal({ slug, onClose, onSaved }: Props) {
   };
 
   const save = async () => {
-    if (!page || saving || conflict) return;
+    if (!mayUpdate(useAppStore.getState().profile) || !page || saving || conflict) return;
     setSaving(true);
     setSaveError(null);
     await new Promise(resolve => setTimeout(resolve, EDITOR_SETTLE_MS));
     try {
+      if (!mayUpdate(useAppStore.getState().profile)) return;
       const { data } = await savePolicyAPI(slug, {
         title: title.trim(),
         contentHtml: html.current ?? page.contentHtml,
@@ -119,7 +126,7 @@ export default function PolicyModal({ slug, onClose, onSaved }: Props) {
     <Modal
       open
       width={MODAL_WIDTH}
-      title={page ? `Sửa: ${page.title}` : "Trang chính sách"}
+      title={page ? `${canUpdate ? "Sửa" : "Xem"}: ${page.title}` : "Trang chính sách"}
       onCancel={close}
       footer={[
         <Button key='cancel' onClick={close} disabled={saving}>
@@ -129,7 +136,7 @@ export default function PolicyModal({ slug, onClose, onSaved }: Props) {
           key='save'
           type='primary'
           loading={saving}
-          disabled={!page || conflict || !title.trim()}
+          disabled={!canUpdate || !page || conflict || !title.trim()}
           onClick={save}
         >
           Lưu
@@ -168,7 +175,7 @@ export default function PolicyModal({ slug, onClose, onSaved }: Props) {
               aria-label='Tiêu đề'
               value={title}
               maxLength={120}
-              disabled={saving}
+              disabled={saving || !canUpdate}
               onChange={event => setTitle(event.target.value)}
             />
           </label>
@@ -176,7 +183,7 @@ export default function PolicyModal({ slug, onClose, onSaved }: Props) {
             <Switch
               aria-label='Xuất bản'
               checked={isPublished}
-              disabled={saving}
+              disabled={saving || !canUpdate}
               onChange={setIsPublished}
             />
             <Typography.Text>Xuất bản</Typography.Text>
@@ -187,7 +194,7 @@ export default function PolicyModal({ slug, onClose, onSaved }: Props) {
             )}
           </Flex>
           {/* Khóa editor khi đang lưu — lưu xong editor mount lại với HTML server, phím gõ thêm sẽ mất */}
-          <div inert={saving} aria-busy={saving}>
+          <div inert={saving || !canUpdate} aria-busy={saving}>
             <RichEditor key={editorKey} initialHtml={page.contentHtml} onChange={onEditorChange} />
           </div>
         </Flex>

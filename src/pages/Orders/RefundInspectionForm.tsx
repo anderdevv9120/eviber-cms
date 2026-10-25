@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Button, Checkbox, Flex, Input, InputNumber } from "antd";
+import { ConfigProvider, Alert, Button, Checkbox, Flex, Input, InputNumber } from "antd";
 import {
   inspectRefundAPI,
   type AdminRefundRequest,
@@ -26,7 +26,7 @@ export default function RefundInspectionForm({
   labels: Record<string, string>;
   onClose: () => void;
 }) {
-  const command = useRefundCommand(ctx);
+  const command = useRefundCommand(ctx, "ORDER_REFUND_REVIEW");
   const [attempted, setAttempted] = useState(false);
   // Only approved returns that still have goods outstanding can be inspected.
   const pending = request.items.filter(
@@ -104,74 +104,76 @@ export default function RefundInspectionForm({
     attempted && errors[name] ? <div className='mt-1 text-red-600'>{errors[name]}</div> : null;
 
   return (
-    <form aria-label='Kiểm tra hàng trả' onSubmit={submit} noValidate className='mt-4'>
-      <Alert
-        type='info'
-        showIcon
-        className='mb-3'
-        title='Nhận hàng không tự động nhập lại kho. Chỉ số lượng "có thể bán lại" đã xác nhận đúng biến thể mới được nhập kho.'
-      />
-      {pending.map(item => {
-        const label = labels[item.allocationId];
-        const row = rows[item.allocationId];
-        return (
-          <fieldset key={item.allocationId} className='mb-4'>
-            <legend className='font-semibold'>{label}</legend>
-            <p>
-              Đã duyệt trả {item.approvedQuantity} · Đã nhận {item.receivedQuantity}
-            </p>
-            <div className='mt-2'>
-              <InputNumber
-                aria-label={`Số lượng đã nhận ${label}`}
-                precision={0}
-                value={row.received}
-                onChange={value => editRow(item.allocationId, { received: value })}
-              />
-              {error(`received:${item.allocationId}`)}
-            </div>
-            <div className='mt-2'>
-              <InputNumber
-                aria-label={`Số lượng có thể bán lại ${label}`}
-                precision={0}
-                value={row.sellable}
-                onChange={value => editRow(item.allocationId, { sellable: value })}
-              />
-              {error(`sellable:${item.allocationId}`)}
-            </div>
-            <Checkbox
-              className='mt-2'
-              checked={row.confirmed}
-              onChange={event => editRow(item.allocationId, { confirmed: event.target.checked })}
-            >
-              {`Xác nhận hàng nhận về đúng biến thể đã mua ${label}`}
-            </Checkbox>
-            {error(`confirmed:${item.allocationId}`)}
-          </fieldset>
-        );
-      })}
-      {error("items")}
-      <Input.TextArea
-        aria-label='Ghi chú kiểm tra'
-        placeholder='Ghi chú kiểm tra (nội bộ)'
-        rows={2}
-        value={note}
-        onChange={event => edit(() => setNote(event.target.value))}
-      />
-      {error("note")}
-      {command.notices}
-      <Flex gap={8} className='mt-4'>
-        <Button
-          type='primary'
-          htmlType='submit'
-          loading={command.busy}
-          disabled={!command.canSubmit}
-        >
-          Ghi nhận kiểm tra
-        </Button>
-        <Button onClick={onClose} disabled={command.busy}>
-          Đóng
-        </Button>
-      </Flex>
-    </form>
+    <ConfigProvider componentDisabled={!command.canEdit}>
+      <form aria-label='Kiểm tra hàng trả' onSubmit={submit} noValidate className='mt-4'>
+        <Alert
+          type='info'
+          showIcon
+          className='mb-3'
+          title='Nhận hàng không tự động nhập lại kho. Chỉ số lượng "có thể bán lại" đã xác nhận đúng biến thể mới được nhập kho.'
+        />
+        {pending.map(item => {
+          const label = labels[item.allocationId];
+          const row = rows[item.allocationId];
+          return (
+            <fieldset key={item.allocationId} className='mb-4'>
+              <legend className='font-semibold'>{label}</legend>
+              <p>
+                Đã duyệt trả {item.approvedQuantity} · Đã nhận {item.receivedQuantity}
+              </p>
+              <div className='mt-2'>
+                <InputNumber
+                  aria-label={`Số lượng đã nhận ${label}`}
+                  precision={0}
+                  value={row.received}
+                  onChange={value => editRow(item.allocationId, { received: value })}
+                />
+                {error(`received:${item.allocationId}`)}
+              </div>
+              <div className='mt-2'>
+                <InputNumber
+                  aria-label={`Số lượng có thể bán lại ${label}`}
+                  precision={0}
+                  value={row.sellable}
+                  onChange={value => editRow(item.allocationId, { sellable: value })}
+                />
+                {error(`sellable:${item.allocationId}`)}
+              </div>
+              <Checkbox
+                className='mt-2'
+                checked={row.confirmed}
+                onChange={event => editRow(item.allocationId, { confirmed: event.target.checked })}
+              >
+                {`Xác nhận hàng nhận về đúng biến thể đã mua ${label}`}
+              </Checkbox>
+              {error(`confirmed:${item.allocationId}`)}
+            </fieldset>
+          );
+        })}
+        {error("items")}
+        <Input.TextArea
+          aria-label='Ghi chú kiểm tra'
+          placeholder='Ghi chú kiểm tra (nội bộ)'
+          rows={2}
+          value={note}
+          onChange={event => edit(() => setNote(event.target.value))}
+        />
+        {error("note")}
+        {command.notices}
+        <Flex gap={8} className='mt-4'>
+          <Button
+            type='primary'
+            htmlType='submit'
+            loading={command.busy}
+            disabled={!command.canSubmit}
+          >
+            Ghi nhận kiểm tra
+          </Button>
+          <Button onClick={onClose} disabled={command.busy}>
+            Đóng
+          </Button>
+        </Flex>
+      </form>
+    </ConfigProvider>
   );
 }

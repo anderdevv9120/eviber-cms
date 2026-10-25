@@ -1,4 +1,6 @@
-import { Button, Flex, Form, Input, Upload } from "antd";
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
+import { Button, ConfigProvider, Flex, Form, Input, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
@@ -12,6 +14,9 @@ interface ImageFieldProps {
   optional?: boolean;
 }
 
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["CONTENT_HOME_UPDATE"] });
+
 export default function ImageField({
   name,
   alt,
@@ -20,6 +25,9 @@ export default function ImageField({
   label = "Ảnh",
   optional = false
 }: ImageFieldProps) {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
+  const { componentDisabled } = ConfigProvider.useConfig();
+  const disabled = componentDisabled || !canUpdate;
   const form = Form.useFormInstance();
   const image = Form.useWatch(name, form) as string | undefined;
 
@@ -41,19 +49,26 @@ export default function ImageField({
           />
         )}
         <Upload
+          disabled={disabled}
           accept='image/png,image/jpeg,image/webp,image/gif'
           showUploadList={false}
           beforeUpload={file => {
-            onUpload(file);
+            if (!componentDisabled && mayUpdate(useAppStore.getState().profile)) onUpload(file);
             return false;
           }}
         >
-          <Button icon={<UploadOutlined />} loading={uploading}>
+          <Button icon={<UploadOutlined />} loading={uploading} disabled={disabled}>
             {image ? "Đổi ảnh" : "Tải ảnh lên"}
           </Button>
         </Upload>
         {optional && image && (
-          <Button onClick={() => form.setFieldValue(name, undefined)}>
+          <Button
+            disabled={disabled}
+            onClick={() => {
+              if (!componentDisabled && mayUpdate(useAppStore.getState().profile))
+                form.setFieldValue(name, undefined);
+            }}
+          >
             Xoá {label.toLowerCase()}
           </Button>
         )}

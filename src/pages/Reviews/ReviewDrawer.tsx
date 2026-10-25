@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -36,6 +38,11 @@ interface Props {
 }
 
 export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
+  const profile = useAppStore(state => state.profile);
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["REVIEW_UPDATE"] });
+  const canReadCustomer = !!profile && canAccess(profile, { anyOf: ["CUSTOMER_READ"] });
+  const canReadProduct = !!profile && canAccess(profile, { anyOf: ["PRODUCT_READ"] });
+  const canReadOrder = !!profile && canAccess(profile, { anyOf: ["ORDER_READ"] });
   const [review, setReview] = useState<AdminReview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -62,6 +69,8 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
     success: string,
     syncReply: boolean
   ) => {
+    const latest = useAppStore.getState().profile;
+    if (busy || !latest || !canAccess(latest, { anyOf: ["REVIEW_UPDATE"] })) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -83,7 +92,9 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
   };
 
   const reviewer = (r: AdminReview) =>
-    r.reviewerType === "registered" && r.userId ? (
+    !canReadCustomer ? (
+      r.displayName
+    ) : r.reviewerType === "registered" && r.userId ? (
       <Link to={generatePath(PATH.CUSTOMER_DETAIL, { customerId: r.userId })}>{r.displayName}</Link>
     ) : (
       <Link
@@ -113,9 +124,13 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
               />
             )}
             {review.product?.name ? (
-              <Link to={generatePath(PATH.PRODUCT_DETAIL, { id: review.product._id })}>
+              canReadProduct ? (
+                <Link to={generatePath(PATH.PRODUCT_DETAIL, { id: review.product._id })}>
+                  <Typography.Text strong>{review.product.name}</Typography.Text>
+                </Link>
+              ) : (
                 <Typography.Text strong>{review.product.name}</Typography.Text>
-              </Link>
+              )
             ) : (
               <Typography.Text strong>Sản phẩm đã bị xóa</Typography.Text>
             )}
@@ -145,9 +160,13 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
                 key: "order",
                 label: "Đơn hàng",
                 children: review.orderId ? (
-                  <Link to={generatePath(PATH.ORDER_DETAIL, { orderId: review.orderId })}>
-                    {review.orderNumber ?? review.orderId}
-                  </Link>
+                  canReadOrder ? (
+                    <Link to={generatePath(PATH.ORDER_DETAIL, { orderId: review.orderId })}>
+                      {review.orderNumber ?? review.orderId}
+                    </Link>
+                  ) : (
+                    (review.orderNumber ?? review.orderId)
+                  )
                 ) : (
                   "—"
                 )
@@ -165,7 +184,7 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
                 key={next}
                 type={next === "approved" ? "primary" : "default"}
                 danger={next === "rejected"}
-                disabled={busy}
+                disabled={busy || !canUpdate}
                 onClick={() =>
                   act(
                     () => updateReviewStatusAPI(review._id, next, review.contentRevision),
@@ -190,6 +209,7 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
             <Tag color='warning'>Đánh giá đã được cập nhật sau phản hồi này.</Tag>
           )}
           <Input.TextArea
+            disabled={busy || !canUpdate}
             aria-label='Nội dung phản hồi'
             value={reply}
             maxLength={2000}
@@ -200,7 +220,7 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
           <Flex gap={8}>
             <Button
               type='primary'
-              disabled={busy || !reply.trim()}
+              disabled={busy || !canUpdate || !reply.trim()}
               onClick={() =>
                 act(
                   () => saveReviewReplyAPI(review._id, reply.trim(), review.contentRevision),
@@ -214,7 +234,7 @@ export default function ReviewDrawer({ reviewId, onClose, onChanged }: Props) {
             {review.adminReply && (
               <Button
                 danger
-                disabled={busy}
+                disabled={busy || !canUpdate}
                 onClick={() =>
                   act(() => deleteReviewReplyAPI(review._id), "Đã xóa phản hồi", true).catch(
                     cause => setActionError(getErrorMessage(cause))

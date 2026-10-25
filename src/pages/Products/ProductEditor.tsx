@@ -14,8 +14,9 @@ import {
 } from "@/services/products";
 import { PATH } from "@/constants/paths";
 import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
-import { listCategoriesAPI } from "@/services/categories";
+import { listCategoryOptionsAPI } from "@/services/categories";
 import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
@@ -93,6 +94,12 @@ function validateRows(rows: GridRow[]): CellErrors {
 }
 
 function ProductEditorPage({ id }: { id?: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canWrite =
+    !!profile && canAccess(profile, { anyOf: [id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["PRODUCT_UPDATE"] });
+  const canRead = !!profile && canAccess(profile, { anyOf: ["PRODUCT_READ"] });
+  const canReadInventory = !!profile && canAccess(profile, { anyOf: ["INVENTORY_READ"] });
   const navigate = useNavigate();
   const comboImpact = useComboImpact();
   const { modal } = App.useApp();
@@ -124,7 +131,10 @@ function ProductEditorPage({ id }: { id?: string }) {
   const baselineHtml = useRef<string | null>(null);
   const categoryIds = (Form.useWatch("categoryIds", form) as string[] | undefined) ?? [];
   const slug = (Form.useWatch("slug", form) as string | undefined) ?? "";
-  const catalog = useAttributeCatalog(options.map(option => option.attributeId));
+  const catalog = useAttributeCatalog(
+    options.map(option => option.attributeId),
+    canWrite
+  );
 
   const applyView = useCallback(
     (view: ProductEditorView, keep?: GridRow[]) => {
@@ -172,8 +182,9 @@ function ProductEditorPage({ id }: { id?: string }) {
   }, [id, attempt, applyView]);
 
   useEffect(() => {
+    if (!canRead) return;
     const controller = new AbortController();
-    listCategoriesAPI(controller.signal).then(
+    listCategoryOptionsAPI(controller.signal).then(
       ({ data }) => setCategories({ options: Array.isArray(data) ? data : [], error: null }),
       (cause: unknown) => {
         if (!controller.signal.aborted)
@@ -181,10 +192,10 @@ function ProductEditorPage({ id }: { id?: string }) {
       }
     );
     return () => controller.abort();
-  }, []);
+  }, [canRead]);
 
   const readOnly = product?.status === "DELETED";
-  useUnsavedOrderWarning(dirty && !readOnly, UNSAVED_COPY);
+  useUnsavedOrderWarning(dirty && product?.status !== "DELETED", UNSAVED_COPY);
   // Declared after the blocker so its effect already sees the saved (clean) state
   useEffect(() => {
     if (createdId) navigate(productDetailPath(createdId), { replace: true });
@@ -284,7 +295,7 @@ function ProductEditorPage({ id }: { id?: string }) {
   };
 
   const save = async (publish: boolean) => {
-    if (saving || conflict || readOnly) return;
+    if (!canWrite || saving || conflict || readOnly) return;
     setSaving(true);
     setError(null);
     setServerMissing([]);
@@ -312,6 +323,9 @@ function ProductEditorPage({ id }: { id?: string }) {
         if (confirmed === null) return;
         affected = confirmed;
       }
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: [id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"] }))
+        return;
       let view: ProductEditorView;
       try {
         view = product
@@ -323,7 +337,8 @@ function ProductEditorPage({ id }: { id?: string }) {
       }
       applyView(view, rows);
       let published = false;
-      if (publish) {
+      const publishProfile = useAppStore.getState().profile;
+      if (publish && publishProfile && canAccess(publishProfile, { anyOf: ["PRODUCT_UPDATE"] })) {
         try {
           view = (
             await changeProductStatusAPI(view._id, {
@@ -352,7 +367,7 @@ function ProductEditorPage({ id }: { id?: string }) {
   };
 
   const changeStatus = async (status: ProductStatus) => {
-    if (!product || saving) return;
+    if (!canUpdate || !product || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -365,6 +380,8 @@ function ProductEditorPage({ id }: { id?: string }) {
         if (confirmed === null) return;
         affected = confirmed;
       }
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: ["PRODUCT_UPDATE"] })) return;
       const { data } = await changeProductStatusAPI(product._id, {
         status,
         expectedRevision: product.revision
@@ -400,7 +417,7 @@ function ProductEditorPage({ id }: { id?: string }) {
     );
 
   const locked = lockedValueIds(savedVariants);
-  const busy = saving || readOnly;
+  const busy = saving || readOnly || !canWrite;
   return (
     <section className='min-w-0'>
       <Flex align='center' gap={12} className='mb-4'>
@@ -416,9 +433,11 @@ function ProductEditorPage({ id }: { id?: string }) {
           className='mb-4'
           title='Sản phẩm đã lưu trữ — chỉ xem. Khôi phục để chỉnh sửa.'
           action={
-            <Button loading={saving} onClick={() => void changeStatus("DRAFT")}>
-              Khôi phục
-            </Button>
+            canUpdate ? (
+              <Button loading={saving} onClick={() => void changeStatus("DRAFT")}>
+                Khôi phục
+              </Button>
+            ) : undefined
           }
         />
       )}
@@ -457,6 +476,7 @@ function ProductEditorPage({ id }: { id?: string }) {
               onDescriptionChange={onDescriptionChange}
             />
             <ProductImagesSection
+              permission={id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"}
               images={images}
               disabled={busy}
               onChange={next => {
@@ -486,7 +506,7 @@ function ProductEditorPage({ id }: { id?: string }) {
               disabled={busy}
               onChange={changeOptions}
             />
-            {product && (
+            {product && canReadInventory && (
               <Flex justify='end'>
                 <Link to={`${PATH.INVENTORY}?productId=${encodeURIComponent(product._id)}`}>
                   Xem tồn kho
@@ -507,7 +527,7 @@ function ProductEditorPage({ id }: { id?: string }) {
         </Form>
         <Flex vertical gap={12} style={{ width: 280 }} className='sticky top-4'>
           <PublishChecklist missing={missing} serverMissing={serverMissing} />
-          {!readOnly && (
+          {!readOnly && canWrite && (
             <>
               <Button
                 type='primary'
@@ -517,7 +537,7 @@ function ProductEditorPage({ id }: { id?: string }) {
               >
                 Lưu
               </Button>
-              {product?.status !== "PUBLISH" && (
+              {canUpdate && product?.status !== "PUBLISH" && (
                 <Button
                   disabled={conflict || saving || missing.length > 0}
                   onClick={() => void save(true)}

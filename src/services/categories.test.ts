@@ -5,6 +5,21 @@ import { response } from "@/test/attribute-fixtures";
 import * as api from "./categories";
 
 describe("category transport", () => {
+  it("loads projected cross-feature selectors without category administration", async () => {
+    const calls: InternalAxiosRequestConfig[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(config);
+      return response(config, [{ _id: "c1", name: "Áo" }]);
+    };
+    const signal = new AbortController().signal;
+    expect(await api.listCategoryOptionsAPI(signal)).toEqual({
+      data: [{ _id: "c1", name: "Áo" }],
+      message: "success"
+    });
+    expect(calls.map(c => [c.method, c.url, c.signal, c.toastError])).toEqual([
+      ["get", "/categories/options", signal, false]
+    ]);
+  });
   it("uses admin category paths, encoded ids, request bodies and inline errors", async () => {
     const calls: InternalAxiosRequestConfig[] = [];
     axiosRequest.defaults.adapter = async config => {

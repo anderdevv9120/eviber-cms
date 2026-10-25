@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
   Alert,
+  ConfigProvider,
   Button,
   Card,
   Checkbox,
@@ -83,7 +84,7 @@ interface LineDraft {
 
 function ExceptionRequest({ ctx, labels, onClose }: Props) {
   const { view } = ctx;
-  const command = useRefundCommand(ctx);
+  const command = useRefundCommand(ctx, "ORDER_REFUND_REVIEW");
   const [attempted, setAttempted] = useState(false);
   // Only what the server says can still be refunded is offered; history is never editable here.
   const open = view.allocations.filter(allocation => allocation.availableQuantity > 0);
@@ -160,113 +161,115 @@ function ExceptionRequest({ ctx, labels, onClose }: Props) {
 
   return (
     <Card size='small' title='Tạo yêu cầu ngoại lệ' className='mt-4'>
-      <form aria-label='Tạo yêu cầu ngoại lệ' onSubmit={submit} noValidate>
-        <Alert
-          type='info'
-          showIcon
-          className='mb-3'
-          title='Dùng cho yêu cầu quá hạn, chưa rõ thời điểm giao, đơn đã hủy hoặc chỉ hoàn phí vận chuyển. Yêu cầu được ghi lại cùng lý do ngoại lệ.'
-        />
-        <Checkbox
-          checked={shippingOnly}
-          onChange={event => edit(() => setShippingOnly(event.target.checked))}
-        >
-          Chỉ hoàn phí vận chuyển
-        </Checkbox>
-        {!shippingOnly &&
-          open.map(allocation => {
-            const label = labels[allocation.allocationId];
-            const line = lines[allocation.allocationId];
-            return (
-              <fieldset key={allocation.allocationId} className='my-4'>
-                <legend className='font-semibold'>{label}</legend>
-                <Typography.Text type='secondary'>
-                  Còn có thể hoàn: {allocation.availableQuantity}
-                </Typography.Text>
-                <Flex gap={12} wrap align='center' className='mt-2'>
-                  <InputNumber
-                    aria-label={`Số lượng hoàn ${label}`}
-                    precision={0}
-                    min={0}
-                    value={line.quantity}
-                    onChange={value => editLine(allocation.allocationId, { quantity: value })}
-                    {...invalid(`quantity:${allocation.allocationId}`)}
-                  />
-                  <Select<RefundReason>
-                    className='w-60'
-                    aria-label={`Lý do hoàn ${label}`}
-                    value={line.reason}
-                    options={Object.entries(refundReasonLabels).map(([value, text]) => ({
-                      value: value as RefundReason,
-                      label: text
-                    }))}
-                    onChange={value => editLine(allocation.allocationId, { reason: value })}
-                  />
-                  <Radio.Group
-                    aria-label={`Hình thức hoàn ${label}`}
-                    value={line.requestedReturn}
-                    onChange={event =>
-                      editLine(allocation.allocationId, { requestedReturn: event.target.value })
-                    }
-                  >
-                    <Radio value='return'>Trả hàng</Radio>
-                    <Radio value='no_return'>Không trả hàng</Radio>
-                  </Radio.Group>
-                </Flex>
-                {error(`quantity:${allocation.allocationId}`)}
-                <Input.TextArea
-                  className='mt-2'
-                  aria-label={`Giải thích ${label}`}
-                  placeholder='Giải thích'
-                  rows={2}
-                  value={line.explanation}
-                  onChange={event =>
-                    editLine(allocation.allocationId, { explanation: event.target.value })
-                  }
-                  {...invalid(`explanation:${allocation.allocationId}`)}
-                />
-                {error(`explanation:${allocation.allocationId}`)}
-              </fieldset>
-            );
-          })}
-        {error("items")}
-        <div className='mt-4'>
-          <label htmlFor='refund-exception-reason' className='mb-1 block'>
-            Lý do ngoại lệ <Tag>Nội bộ</Tag>
-          </label>
-          <Input.TextArea
-            id='refund-exception-reason'
-            aria-label='Lý do ngoại lệ'
-            rows={2}
-            showCount
-            value={exceptionReason}
-            onChange={event => edit(() => setExceptionReason(event.target.value))}
-            {...invalid("reason")}
+      <ConfigProvider componentDisabled={!command.canEdit}>
+        <form aria-label='Tạo yêu cầu ngoại lệ' onSubmit={submit} noValidate>
+          <Alert
+            type='info'
+            showIcon
+            className='mb-3'
+            title='Dùng cho yêu cầu quá hạn, chưa rõ thời điểm giao, đơn đã hủy hoặc chỉ hoàn phí vận chuyển. Yêu cầu được ghi lại cùng lý do ngoại lệ.'
           />
-          {error("reason")}
-        </div>
-        {command.notices}
-        <Flex gap={8} className='mt-4'>
-          <Button
-            type='primary'
-            htmlType='submit'
-            loading={command.busy}
-            disabled={!command.canSubmit}
+          <Checkbox
+            checked={shippingOnly}
+            onChange={event => edit(() => setShippingOnly(event.target.checked))}
           >
-            Gửi yêu cầu ngoại lệ
-          </Button>
-          <Button onClick={onClose} disabled={command.busy}>
-            Đóng
-          </Button>
-        </Flex>
-      </form>
+            Chỉ hoàn phí vận chuyển
+          </Checkbox>
+          {!shippingOnly &&
+            open.map(allocation => {
+              const label = labels[allocation.allocationId];
+              const line = lines[allocation.allocationId];
+              return (
+                <fieldset key={allocation.allocationId} className='my-4'>
+                  <legend className='font-semibold'>{label}</legend>
+                  <Typography.Text type='secondary'>
+                    Còn có thể hoàn: {allocation.availableQuantity}
+                  </Typography.Text>
+                  <Flex gap={12} wrap align='center' className='mt-2'>
+                    <InputNumber
+                      aria-label={`Số lượng hoàn ${label}`}
+                      precision={0}
+                      min={0}
+                      value={line.quantity}
+                      onChange={value => editLine(allocation.allocationId, { quantity: value })}
+                      {...invalid(`quantity:${allocation.allocationId}`)}
+                    />
+                    <Select<RefundReason>
+                      className='w-60'
+                      aria-label={`Lý do hoàn ${label}`}
+                      value={line.reason}
+                      options={Object.entries(refundReasonLabels).map(([value, text]) => ({
+                        value: value as RefundReason,
+                        label: text
+                      }))}
+                      onChange={value => editLine(allocation.allocationId, { reason: value })}
+                    />
+                    <Radio.Group
+                      aria-label={`Hình thức hoàn ${label}`}
+                      value={line.requestedReturn}
+                      onChange={event =>
+                        editLine(allocation.allocationId, { requestedReturn: event.target.value })
+                      }
+                    >
+                      <Radio value='return'>Trả hàng</Radio>
+                      <Radio value='no_return'>Không trả hàng</Radio>
+                    </Radio.Group>
+                  </Flex>
+                  {error(`quantity:${allocation.allocationId}`)}
+                  <Input.TextArea
+                    className='mt-2'
+                    aria-label={`Giải thích ${label}`}
+                    placeholder='Giải thích'
+                    rows={2}
+                    value={line.explanation}
+                    onChange={event =>
+                      editLine(allocation.allocationId, { explanation: event.target.value })
+                    }
+                    {...invalid(`explanation:${allocation.allocationId}`)}
+                  />
+                  {error(`explanation:${allocation.allocationId}`)}
+                </fieldset>
+              );
+            })}
+          {error("items")}
+          <div className='mt-4'>
+            <label htmlFor='refund-exception-reason' className='mb-1 block'>
+              Lý do ngoại lệ <Tag>Nội bộ</Tag>
+            </label>
+            <Input.TextArea
+              id='refund-exception-reason'
+              aria-label='Lý do ngoại lệ'
+              rows={2}
+              showCount
+              value={exceptionReason}
+              onChange={event => edit(() => setExceptionReason(event.target.value))}
+              {...invalid("reason")}
+            />
+            {error("reason")}
+          </div>
+          {command.notices}
+          <Flex gap={8} className='mt-4'>
+            <Button
+              type='primary'
+              htmlType='submit'
+              loading={command.busy}
+              disabled={!command.canSubmit}
+            >
+              Gửi yêu cầu ngoại lệ
+            </Button>
+            <Button onClick={onClose} disabled={command.busy}>
+              Đóng
+            </Button>
+          </Flex>
+        </form>
+      </ConfigProvider>
     </Card>
   );
 }
 
 function LegacyReview({ ctx, labels, onClose }: Props) {
   const { view } = ctx;
-  const command = useRefundCommand(ctx);
+  const command = useRefundCommand(ctx, "ORDER_REFUND_REVIEW");
   const [attempted, setAttempted] = useState(false);
   // A line amount the server could already establish is shown, never re-typed.
   const known = (netAmount: number) => netAmount > 0;
@@ -338,184 +341,186 @@ function LegacyReview({ ctx, labels, onClose }: Props) {
 
   return (
     <Card size='small' title='Đối soát đơn cũ' className='mt-4'>
-      <form aria-label='Đối soát đơn cũ' onSubmit={submit} noValidate>
-        <Typography.Paragraph type='secondary'>
-          Tất cả các trường đều bắt buộc.
-        </Typography.Paragraph>
-        <Step n={1} title='Dòng hàng'>
-          <div role='group' aria-label='Dòng hàng cần đối soát'>
-            <DataTable<RefundOrderAllocationView>
-              size='small'
-              pagination={false}
-              rowKey='allocationId'
-              dataSource={view.allocations}
-              columns={[
-                {
-                  title: "Sản phẩm mua",
-                  key: "product",
-                  render: (_, row) => labels[row.allocationId]
-                },
-                {
-                  title: "Đã mua",
-                  dataIndex: "purchasedQuantity",
-                  key: "purchased",
-                  align: "right"
-                },
-                {
-                  title: "Thành tiền thực tế",
-                  key: "net",
-                  align: "right",
-                  render: (_, row) =>
-                    known(row.netAmount) ? (
-                      <>
-                        {money(row.netAmount)} <Tag className='m-0'>Đã xác định</Tag>
-                      </>
-                    ) : (
-                      <InputNumber
-                        className='w-44'
-                        aria-label={`Số tiền thực tế ${labels[row.allocationId]}`}
-                        precision={0}
-                        min={0}
-                        suffix='₫'
-                        formatter={moneyFormatter}
-                        parser={moneyParser}
-                        value={amounts[row.allocationId]}
-                        onChange={value =>
-                          edit(() =>
-                            setAmounts(current => ({ ...current, [row.allocationId]: value }))
-                          )
-                        }
-                        {...invalid("lines")}
-                      />
-                    )
-                }
-              ]}
-            />
-          </div>
-          {error("lines")}
-        </Step>
-        <Step n={2} title='Thanh toán và giao hàng'>
-          <Flex gap={24} wrap>
-            <div>
-              <label htmlFor='refund-legacy-shipping' className='mb-1 block'>
-                Phí vận chuyển
-              </label>
-              <InputNumber
-                id='refund-legacy-shipping'
-                className='w-56'
-                aria-label='Phí vận chuyển'
-                precision={0}
-                min={0}
-                suffix='₫'
-                formatter={moneyFormatter}
-                parser={moneyParser}
-                value={shipping}
-                onChange={value => edit(() => setShipping(value))}
-                {...invalid("shipping")}
+      <ConfigProvider componentDisabled={!command.canEdit}>
+        <form aria-label='Đối soát đơn cũ' onSubmit={submit} noValidate>
+          <Typography.Paragraph type='secondary'>
+            Tất cả các trường đều bắt buộc.
+          </Typography.Paragraph>
+          <Step n={1} title='Dòng hàng'>
+            <div role='group' aria-label='Dòng hàng cần đối soát'>
+              <DataTable<RefundOrderAllocationView>
+                size='small'
+                pagination={false}
+                rowKey='allocationId'
+                dataSource={view.allocations}
+                columns={[
+                  {
+                    title: "Sản phẩm mua",
+                    key: "product",
+                    render: (_, row) => labels[row.allocationId]
+                  },
+                  {
+                    title: "Đã mua",
+                    dataIndex: "purchasedQuantity",
+                    key: "purchased",
+                    align: "right"
+                  },
+                  {
+                    title: "Thành tiền thực tế",
+                    key: "net",
+                    align: "right",
+                    render: (_, row) =>
+                      known(row.netAmount) ? (
+                        <>
+                          {money(row.netAmount)} <Tag className='m-0'>Đã xác định</Tag>
+                        </>
+                      ) : (
+                        <InputNumber
+                          className='w-44'
+                          aria-label={`Số tiền thực tế ${labels[row.allocationId]}`}
+                          precision={0}
+                          min={0}
+                          suffix='₫'
+                          formatter={moneyFormatter}
+                          parser={moneyParser}
+                          value={amounts[row.allocationId]}
+                          onChange={value =>
+                            edit(() =>
+                              setAmounts(current => ({ ...current, [row.allocationId]: value }))
+                            )
+                          }
+                          {...invalid("lines")}
+                        />
+                      )
+                  }
+                ]}
               />
-              {error("shipping")}
             </div>
-            <div>
-              <label htmlFor='refund-legacy-received' className='mb-1 block'>
-                Số tiền đã thu
-              </label>
-              <InputNumber
-                id='refund-legacy-received'
-                className='w-56'
-                aria-label='Số tiền đã thu'
-                precision={0}
-                min={0}
-                suffix='₫'
-                formatter={moneyFormatter}
-                parser={moneyParser}
-                value={received}
-                onChange={value => edit(() => setReceived(value))}
-                {...invalid("received")}
-              />
-              {error("received")}
-            </div>
-          </Flex>
-          {expected !== null && (
-            <Flex gap={8} wrap align='center' className='mt-2'>
-              <Typography.Text type='secondary'>
-                Cần thu: {money(lineTotal)} (các dòng) + {money(shipping as number)} (vận chuyển) ={" "}
-                {money(expected)}
-              </Typography.Text>
-              {isWholeNumber(received) &&
-                (received === expected ? (
-                  <Tag color='success'>Khớp</Tag>
-                ) : (
-                  <Tag color='error'>Lệch {money(Math.abs(received - expected))}</Tag>
-                ))}
+            {error("lines")}
+          </Step>
+          <Step n={2} title='Thanh toán và giao hàng'>
+            <Flex gap={24} wrap>
+              <div>
+                <label htmlFor='refund-legacy-shipping' className='mb-1 block'>
+                  Phí vận chuyển
+                </label>
+                <InputNumber
+                  id='refund-legacy-shipping'
+                  className='w-56'
+                  aria-label='Phí vận chuyển'
+                  precision={0}
+                  min={0}
+                  suffix='₫'
+                  formatter={moneyFormatter}
+                  parser={moneyParser}
+                  value={shipping}
+                  onChange={value => edit(() => setShipping(value))}
+                  {...invalid("shipping")}
+                />
+                {error("shipping")}
+              </div>
+              <div>
+                <label htmlFor='refund-legacy-received' className='mb-1 block'>
+                  Số tiền đã thu
+                </label>
+                <InputNumber
+                  id='refund-legacy-received'
+                  className='w-56'
+                  aria-label='Số tiền đã thu'
+                  precision={0}
+                  min={0}
+                  suffix='₫'
+                  formatter={moneyFormatter}
+                  parser={moneyParser}
+                  value={received}
+                  onChange={value => edit(() => setReceived(value))}
+                  {...invalid("received")}
+                />
+                {error("received")}
+              </div>
             </Flex>
-          )}
-          {needsDelivery && (
-            <div className='mt-4'>
-              <label htmlFor='refund-legacy-delivered-at' className='mb-1 block'>
-                Thời điểm giao hàng (kê khai)
-              </label>
-              <DatePicker
-                id='refund-legacy-delivered-at'
-                format='DD/MM/YYYY HH:mm'
-                showTime
-                needConfirm={false}
-                placeholder='Chọn thời điểm giao hàng'
-                value={deliveredAt ? dayjs(deliveredAt) : null}
-                onChange={value =>
-                  edit(() => setDeliveredAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))
-                }
-                status={shown("deliveredAt") ? "error" : undefined}
-              />
-              <Typography.Text type='secondary' className='mt-1 block'>
-                Đơn thiếu lịch sử giao hàng nên cần kê khai.
-              </Typography.Text>
-              {error("deliveredAt")}
-            </div>
-          )}
-        </Step>
-        <Step n={3} title='Lý do và xác nhận'>
-          <label htmlFor='refund-legacy-reason' className='mb-1 block'>
-            Lý do đối soát <Tag>Nội bộ</Tag>
-          </label>
-          <Input.TextArea
-            id='refund-legacy-reason'
-            aria-label='Lý do đối soát'
-            rows={2}
-            showCount
-            value={reason}
-            onChange={event => edit(() => setReason(event.target.value))}
-            {...invalid("reason")}
-          />
-          {error("reason")}
-          <Alert
-            type='warning'
-            showIcon
-            className='my-3'
-            title='Đối soát chỉ thực hiện một lần cho mỗi đơn cũ. Số liệu bạn kê khai trở thành sổ hoàn tiền và được ghi vào lịch sử kiểm toán.'
-          />
-          <Checkbox
-            checked={attested}
-            onChange={event => edit(() => setAttested(event.target.checked))}
-          >
-            Tôi xác nhận đã đối soát chứng từ: đơn đã giao và khách đã thanh toán đủ số tiền trên
-          </Checkbox>
-          {error("attested")}
-          {command.notices}
-          <Flex gap={8} className='mt-4'>
-            <Button
-              type='primary'
-              htmlType='submit'
-              loading={command.busy}
-              disabled={!command.canSubmit}
+            {expected !== null && (
+              <Flex gap={8} wrap align='center' className='mt-2'>
+                <Typography.Text type='secondary'>
+                  Cần thu: {money(lineTotal)} (các dòng) + {money(shipping as number)} (vận chuyển)
+                  = {money(expected)}
+                </Typography.Text>
+                {isWholeNumber(received) &&
+                  (received === expected ? (
+                    <Tag color='success'>Khớp</Tag>
+                  ) : (
+                    <Tag color='error'>Lệch {money(Math.abs(received - expected))}</Tag>
+                  ))}
+              </Flex>
+            )}
+            {needsDelivery && (
+              <div className='mt-4'>
+                <label htmlFor='refund-legacy-delivered-at' className='mb-1 block'>
+                  Thời điểm giao hàng (kê khai)
+                </label>
+                <DatePicker
+                  id='refund-legacy-delivered-at'
+                  format='DD/MM/YYYY HH:mm'
+                  showTime
+                  needConfirm={false}
+                  placeholder='Chọn thời điểm giao hàng'
+                  value={deliveredAt ? dayjs(deliveredAt) : null}
+                  onChange={value =>
+                    edit(() => setDeliveredAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))
+                  }
+                  status={shown("deliveredAt") ? "error" : undefined}
+                />
+                <Typography.Text type='secondary' className='mt-1 block'>
+                  Đơn thiếu lịch sử giao hàng nên cần kê khai.
+                </Typography.Text>
+                {error("deliveredAt")}
+              </div>
+            )}
+          </Step>
+          <Step n={3} title='Lý do và xác nhận'>
+            <label htmlFor='refund-legacy-reason' className='mb-1 block'>
+              Lý do đối soát <Tag>Nội bộ</Tag>
+            </label>
+            <Input.TextArea
+              id='refund-legacy-reason'
+              aria-label='Lý do đối soát'
+              rows={2}
+              showCount
+              value={reason}
+              onChange={event => edit(() => setReason(event.target.value))}
+              {...invalid("reason")}
+            />
+            {error("reason")}
+            <Alert
+              type='warning'
+              showIcon
+              className='my-3'
+              title='Đối soát chỉ thực hiện một lần cho mỗi đơn cũ. Số liệu bạn kê khai trở thành sổ hoàn tiền và được ghi vào lịch sử kiểm toán.'
+            />
+            <Checkbox
+              checked={attested}
+              onChange={event => edit(() => setAttested(event.target.checked))}
             >
-              Xác nhận đối soát
-            </Button>
-            <Button onClick={onClose} disabled={command.busy}>
-              Đóng
-            </Button>
-          </Flex>
-        </Step>
-      </form>
+              Tôi xác nhận đã đối soát chứng từ: đơn đã giao và khách đã thanh toán đủ số tiền trên
+            </Checkbox>
+            {error("attested")}
+            {command.notices}
+            <Flex gap={8} className='mt-4'>
+              <Button
+                type='primary'
+                htmlType='submit'
+                loading={command.busy}
+                disabled={!command.canSubmit}
+              >
+                Xác nhận đối soát
+              </Button>
+              <Button onClick={onClose} disabled={command.busy}>
+                Đóng
+              </Button>
+            </Flex>
+          </Step>
+        </form>
+      </ConfigProvider>
     </Card>
   );
 }

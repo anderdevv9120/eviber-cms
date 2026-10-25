@@ -44,6 +44,28 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens independent refund settings for refund-policy-only staff without unrelated reads", async () => {
+    const urls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      urls.push(config.url!);
+      return response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile(["REFUND_POLICY_READ"])
+          : { enabled: true, windowDays: 7, revision: 1 }
+      );
+    };
+    const router = renderRoute("/");
+    await screen.findByText("Chính sách hoàn tiền", { selector: ".ant-card-head-title" });
+    expect(router.state.location.pathname).toBe("/policies");
+    await waitFor(() => expect(urls).toContain("/refund-policy"));
+    expect(urls.some(url => url === "/policies" || url.startsWith("/store-settings/"))).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: "Lưu chính sách hoàn tiền" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
   it("opens owner role settings from its menu with the access-area breadcrumb", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(config, config.url === "/auth/profile" ? ownerProfile : roleList());

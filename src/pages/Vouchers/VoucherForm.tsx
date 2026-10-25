@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useRef, useState, type KeyboardEvent } from "react";
 import {
   Alert,
@@ -74,6 +76,9 @@ export default function VoucherForm({
   busy: boolean;
   onSubmit(input: CouponInput): Promise<void>;
 }) {
+  const profile = useAppStore(state => state.profile);
+  const canWrite =
+    !!profile && canAccess(profile, { anyOf: [voucher ? "COUPON_UPDATE" : "COUPON_CREATE"] });
   const [form] = Form.useForm<CouponInput>();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +103,14 @@ export default function VoucherForm({
     }
   };
   const submit = async (fields: CouponInput) => {
-    if (busy || saving.current) return;
+    const latest = useAppStore.getState().profile;
+    if (
+      !latest ||
+      !canAccess(latest, { anyOf: [voucher ? "COUPON_UPDATE" : "COUPON_CREATE"] }) ||
+      busy ||
+      saving.current
+    )
+      return;
     saving.current = true;
     setSubmitting(true);
     setError(null);
@@ -133,7 +145,7 @@ export default function VoucherForm({
     <Form<CouponInput>
       form={form}
       layout='vertical'
-      disabled={busy || submitting}
+      disabled={busy || submitting || !canWrite}
       onFinish={submit}
       initialValues={
         voucher
@@ -171,7 +183,7 @@ export default function VoucherForm({
           }
         ]}
       >
-        <Input disabled={!!voucher || busy || submitting} maxLength={100} />
+        <Input disabled={!!voucher || busy || submitting || !canWrite} maxLength={100} />
       </Form.Item>
       <Form.Item
         name='name'
@@ -247,24 +259,35 @@ export default function VoucherForm({
             }
           ]}
         >
-          <RemoteSelect<CouponTarget>
-            key={scope}
-            load={scope === "products" ? loadVoucherProducts : loadVoucherCategories}
-            label={target => target.name}
-            mode='multiple'
-            ariaLabel={scope === "products" ? "Sản phẩm áp dụng" : "Danh mục áp dụng"}
-            placeholder={scope === "products" ? "Tìm và chọn sản phẩm" : "Tìm và chọn danh mục"}
-            retryLabel='Thử lại mục áp dụng'
-            selected={(scope === "products"
-              ? (voucher?.selectedProducts ?? [])
-              : (voucher?.selectedCategories ?? [])
-            ).map(target => ({
-              _id: target._id,
-              label: target.unavailable
-                ? `Không còn khả dụng (${target._id})`
-                : (target.name ?? target._id)
-            }))}
-          />
+          {!canWrite ? (
+            <Select
+              mode='multiple'
+              disabled
+              options={[
+                ...(voucher?.selectedProducts ?? []),
+                ...(voucher?.selectedCategories ?? [])
+              ].map(target => ({ value: target._id, label: target.name ?? target._id }))}
+            />
+          ) : (
+            <RemoteSelect<CouponTarget>
+              key={scope}
+              load={scope === "products" ? loadVoucherProducts : loadVoucherCategories}
+              label={target => target.name}
+              mode='multiple'
+              ariaLabel={scope === "products" ? "Sản phẩm áp dụng" : "Danh mục áp dụng"}
+              placeholder={scope === "products" ? "Tìm và chọn sản phẩm" : "Tìm và chọn danh mục"}
+              retryLabel='Thử lại mục áp dụng'
+              selected={(scope === "products"
+                ? (voucher?.selectedProducts ?? [])
+                : (voucher?.selectedCategories ?? [])
+              ).map(target => ({
+                _id: target._id,
+                label: target.unavailable
+                  ? `Không còn khả dụng (${target._id})`
+                  : (target.name ?? target._id)
+              }))}
+            />
+          )}
         </Form.Item>
       )}
       <Flex gap={16}>

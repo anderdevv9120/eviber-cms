@@ -1,5 +1,6 @@
-import { ownerProfile } from "@/test/access-fixtures";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 import "@/test/attribute-fixtures";
+import { deferred } from "@/test/attribute-fixtures";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -17,7 +18,7 @@ import ProductEditor from "./ProductEditor";
 import { DESCRIPTION_IMAGE_INVALID } from "./product-publish";
 import { PRODUCT_ERROR } from "./product-errors";
 
-vi.mock("@/services/categories", () => ({ listCategoriesAPI: vi.fn() }));
+vi.mock("@/services/categories", () => ({ listCategoryOptionsAPI: vi.fn() }));
 vi.mock("@/services/products", () => ({
   getProductAPI: vi.fn(),
   createProductAPI: vi.fn(),
@@ -26,8 +27,7 @@ vi.mock("@/services/products", () => ({
 }));
 vi.mock("@/services/combos", () => ({ listAffectedCombosAPI: vi.fn() }));
 vi.mock("@/services/attributes", () => ({
-  listAttributesAPI: vi.fn(),
-  getAttributeValuesAPI: vi.fn()
+  listAttributeOptionsAPI: vi.fn()
 }));
 vi.mock("@/services/images", () => ({ uploadImageAPI: vi.fn() }));
 vi.mock("@/utils/notification", () => ({
@@ -198,24 +198,74 @@ beforeEach(() => {
   vi.mocked(combosApi.listAffectedCombosAPI)
     .mockReset()
     .mockResolvedValue(ok({ combos: [] }));
-  vi.mocked(categoriesApi.listCategoriesAPI)
+  vi.mocked(categoriesApi.listCategoryOptionsAPI)
     .mockReset()
     .mockResolvedValue(ok([{ _id: "c1", name: "Áo" }] as categoriesApi.Category[]));
-  vi.mocked(attributesApi.listAttributesAPI)
+  vi.mocked(attributesApi.listAttributeOptionsAPI)
     .mockReset()
-    .mockResolvedValue(ok({ data: attributes, total: 2, page: 1, pageSize: 100, totalPage: 1 }));
-  vi.mocked(attributesApi.getAttributeValuesAPI)
-    .mockReset()
-    .mockImplementation(async id =>
-      ok({
-        attribute: attributes.find(row => row._id === id)!,
-        values: dictionary[id as keyof typeof dictionary],
-        revision: 1
-      })
+    .mockResolvedValue(
+      ok(
+        attributes.map(attribute => ({
+          ...attribute,
+          values: dictionary[attribute._id as keyof typeof dictionary]
+        }))
+      )
     );
 });
 
 describe("product refund eligibility", () => {
+  it("stops a product image batch after revocation even when another feature can upload", async () => {
+    useAppStore
+      .getState()
+      .setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE", "CONTENT_HOME_UPDATE"]));
+    const first = deferred<Awaited<ReturnType<typeof imagesApi.uploadImageAPI>>>();
+    vi.mocked(imagesApi.uploadImageAPI)
+      .mockReset()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(ok({ path: "/images/second.jpg" }));
+    renderEditor();
+    await loaded();
+    fireEvent.change(screen.getByLabelText("Chọn ảnh sản phẩm"), {
+      target: { files: [new File(["a"], "a.png"), new File(["b"], "b.png")] }
+    });
+    await waitFor(() => expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1));
+    act(() =>
+      useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "CONTENT_HOME_UPDATE"]))
+    );
+    await act(async () => first.resolve(ok({ path: "/images/first.jpg" })));
+    await screen.findByAltText("Ảnh 1");
+    expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1);
+    expect(screen.getByAltText("Ảnh 1").getAttribute("src")).toContain("first.jpg");
+  });
+
+  it("does not publish after product permission is revoked during the draft save", async () => {
+    useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));
+    vi.mocked(api.getProductAPI).mockResolvedValue(ok(product(complete)));
+    const saved = deferred<Awaited<ReturnType<typeof api.updateProductAPI>>>();
+    vi.mocked(api.updateProductAPI).mockReturnValue(saved.promise);
+    renderEditor();
+    await loaded();
+    fireEvent.click(button("Lưu & Đăng bán"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    act(() => useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ"])));
+    await act(async () => saved.resolve(ok(product({ ...complete, revision: 4 }))));
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
+  });
+  it("keeps the draft and shows a backend access denial when a stale permitted form submits", async () => {
+    useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));
+    vi.mocked(api.updateProductAPI).mockRejectedValue(
+      new ApiError("Bạn không có quyền cập nhật sản phẩm", 403, { code: "CMS_ACCESS_DENIED" })
+    );
+    renderEditor();
+    await loaded();
+    type(input("Tên sản phẩm"), "Bản nháp bị từ chối");
+    // The persisted role may change before the browser has refreshed its profile.
+    fireEvent.click(button("Lưu"));
+    expect(await screen.findByText("Bạn không có quyền cập nhật sản phẩm")).toBeTruthy();
+    expect(input("Tên sản phẩm").value).toBe("Bản nháp bị từ chối");
+    expect(lastUpdate()[1]).toMatchObject({ name: "Bản nháp bị từ chối", expectedRevision: 3 });
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
+  });
   it("preserves a disabled refund policy through edit and save", async () => {
     vi.mocked(api.getProductAPI).mockResolvedValue(ok(product({ refundEnabled: false })));
     vi.mocked(api.updateProductAPI).mockResolvedValue(
@@ -411,6 +461,7 @@ describe("ProductEditor — existing product", () => {
     await loaded();
     type(input("SKU Đỏ / S"), " ao-1-x ");
     fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1), { timeout: 5000 });
     await waitFor(() => expect(input("SKU Đỏ / S").value).toBe("AO-1-X"));
     expect(screen.getByText("9")).toBeTruthy();
   });
@@ -473,7 +524,8 @@ describe("ProductEditor — existing product", () => {
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
     expect(api.updateProductAPI).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 5000 });
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu" }, { timeout: 5000 }));
     fireEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Tiếp tục" })
     );
@@ -580,6 +632,7 @@ describe("ProductEditor — existing product", () => {
     renderEditor();
     await loaded();
     fireEvent.click(button("Lưu"));
+    await waitFor(() => expect(api.updateProductAPI).toHaveBeenCalledTimes(1), { timeout: 5000 });
     await waitFor(() => expect(input("SKU Đỏ / S").getAttribute("aria-invalid")).toBe("true"));
     expect(screen.getByText("Mã SKU đã được sử dụng")).toBeTruthy();
   });

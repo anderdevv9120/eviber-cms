@@ -1,6 +1,11 @@
 import { StrictMode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import RefundReviewForm from "./RefundReviewForm";
+import RefundInspectionForm from "./RefundInspectionForm";
+import RefundExceptionForm from "./RefundExceptionForm";
 import { ConfigProvider } from "antd";
 import dayjs from "dayjs";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
@@ -175,6 +180,126 @@ const open = async (name: string) => fireEvent.click(await screen.findByRole("bu
 const reviewButtons = () => screen.queryAllByRole("button").map(button => button.textContent);
 
 describe("admin refund section", () => {
+  beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
+  it.each(["review", "pay", "restore"])(
+    "RBAC review refreshes server capabilities at unchanged revision after %s grant changes",
+    async initial => {
+      const review = initial !== "pay";
+      useAppStore
+        .getState()
+        .setProfile(
+          staffProfile(["ORDER_READ", review ? "ORDER_REFUND_REVIEW" : "ORDER_REFUND_PAY"])
+        );
+      let server = { ...view, canReview: review, canPay: !review };
+      serve({ [`get ${REFUNDS}`]: config => response(config, server) });
+      renderSection();
+      await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" });
+      if (review) {
+        await open("Duyệt yêu cầu");
+        type("textbox", `Lý do quyết định ${itemLabel}`, "Keep capability draft");
+      }
+      const reads = calls.length;
+      if (initial === "restore")
+        await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+      server = { ...view, canReview: true, canPay: true };
+      await act(async () =>
+        useAppStore
+          .getState()
+          .setProfile(
+            staffProfile([
+              "ORDER_READ",
+              "ORDER_REFUND_REVIEW",
+              ...(initial === "restore" ? [] : ["ORDER_REFUND_PAY" as const])
+            ])
+          )
+      );
+      await waitFor(() => expect(calls.length).toBeGreaterThan(reads));
+      await screen.findByRole("button", { name: "Tạo yêu cầu ngoại lệ" });
+      if (review)
+        expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe(
+          "Keep capability draft"
+        );
+      else expect(screen.getByRole("button", { name: "Duyệt yêu cầu" })).toBeTruthy();
+    }
+  );
+  it.each(["review", "inspect", "exception", "legacy"])(
+    "RBAC review makes all %s fields read-only on revocation and restores the same draft",
+    async mode => {
+      const ctx = { view, reload: vi.fn(), commit: vi.fn() };
+      const props = { ctx, labels: { a1: itemLabel }, onClose: () => {} };
+      const ui =
+        mode === "review" ? (
+          <RefundReviewForm {...props} request={request} />
+        ) : mode === "inspect" ? (
+          <RefundInspectionForm
+            {...props}
+            request={{
+              ...request,
+              stage: "awaiting_return",
+              items: [{ ...item, approvedQuantity: 3, returnRequired: true }]
+            }}
+          />
+        ) : (
+          <RefundExceptionForm {...props} mode={mode === "legacy" ? "legacy" : "request"} />
+        );
+      const { container } = render(ui);
+      const fields = Array.from(
+        container.querySelectorAll<HTMLInputElement>("input:not([type=hidden]),textarea,select")
+      );
+      expect(fields.length).toBeGreaterThan(0);
+      await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+      expect(fields.every(input => input.disabled)).toBe(true);
+      expect((screen.getByRole("button", { name: "Đóng" }) as HTMLButtonElement).disabled).toBe(
+        false
+      );
+      await act(async () => useAppStore.getState().setProfile(ownerProfile));
+      expect(fields.some(input => !input.disabled)).toBe(true);
+      expect(fields.every(input => input.isConnected)).toBe(true);
+    }
+  );
+  it("RBAC no refund grant never fetches even if the section is mounted directly", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ"]));
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await act(async () => {});
+    expect(calls).toHaveLength(0);
+  });
+  it("RBAC intersects stale review capability with the current profile", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_PAY"]));
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" });
+    expect(screen.queryByRole("button", { name: "Duyệt yêu cầu" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tạo yêu cầu ngoại lệ" })).toBeNull();
+  });
+  it("RBAC preserves the open review draft and rejects forced submission after permission refresh", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await open("Duyệt yêu cầu");
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Keep my decision");
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_PAY"]))
+    );
+    const confirm = screen.getByRole("button", { name: "Xác nhận duyệt" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe("Keep my decision");
+    fireEvent.submit(confirm.closest("form")!);
+    expect(calls.filter(call => call.method === "post")).toHaveLength(0);
+  });
+  it("RBAC child review also denies a server capability removed while the profile still permits it", () => {
+    const denied = { ...view, canReview: false };
+    render(
+      <RefundReviewForm
+        ctx={{ view: denied, reload: vi.fn(), commit: vi.fn() }}
+        request={request}
+        labels={{ a1: itemLabel }}
+        onClose={() => {}}
+      />
+    );
+    expect(
+      (screen.getByRole("button", { name: "Xác nhận duyệt" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
   it("partial_approval_preserves_customer_request_and_releases_remainder", async () => {
     const committed = withRequest(
       {

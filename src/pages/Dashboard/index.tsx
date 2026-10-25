@@ -11,6 +11,8 @@ import { Link } from "react-router";
 import { PATH } from "@/constants/paths";
 import { useKeyedRead } from "@/hooks/useKeyedRead";
 import { getDashboardAPI, type DashboardSummary } from "@/services/reports";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 async function loadSummary(_key: string, signal: AbortSignal) {
   const { data } = await getDashboardAPI(signal);
@@ -77,6 +79,9 @@ export default function Dashboard() {
 }
 
 function SummaryCards({ summary }: { summary: DashboardSummary }) {
+  const profile = useAppStore(state => state.profile);
+  const canReadOrders = !!profile && canAccess(profile, { anyOf: ["ORDER_READ"] });
+  const canReadInventory = !!profile && canAccess(profile, { anyOf: ["INVENTORY_READ"] });
   const { orders, catalog } = summary;
   const tasks: {
     title: string;
@@ -117,30 +122,44 @@ function SummaryCards({ summary }: { summary: DashboardSummary }) {
   const stats: [string, number, string | null][] = [
     ["Sản phẩm đang bán", catalog.publishedProducts, null],
     ["SKU đang bán", catalog.activeSkus, null],
-    ["SKU sắp hết hàng", catalog.lowStockSkus, stockLink("low")],
-    ["SKU hết hàng", catalog.outOfStockSkus, stockLink("out")]
+    ["SKU sắp hết hàng", catalog.lowStockSkus, canReadInventory ? stockLink("low") : null],
+    ["SKU hết hàng", catalog.outOfStockSkus, canReadInventory ? stockLink("out") : null]
   ];
   const statRow = "flex w-full items-center justify-between px-5 py-3 text-[13px]";
   return (
     <div className='grid grid-cols-[minmax(0,1fr)_320px] items-start gap-5'>
       <Card title='Việc cần xử lý' styles={{ body: { padding: 0 } }}>
-        {tasks.map(({ title, value, to, icon, tone }, index) => (
-          <Link
-            key={title}
-            to={to}
-            aria-label={`${title}: ${value}`}
-            className={`flex items-center gap-3.5 px-5 py-3.5 text-(--ant-color-text) hover:bg-(--ant-color-fill-quaternary) ${index ? "border-t border-(--ant-color-border-secondary)" : ""}`}
-          >
-            <span className={`grid size-8 place-items-center rounded-lg ${TONE[tone]}`}>
-              {icon}
-            </span>
-            <span className='min-w-11 text-xl font-semibold tabular-nums'>
-              {formatCount(value)}
-            </span>
-            <span>{title}</span>
-            <RightOutlined className='ml-auto text-xs text-(--ant-color-text-tertiary)' />
-          </Link>
-        ))}
+        {tasks.map(({ title, value, to, icon, tone }, index) => {
+          const className = `flex items-center gap-3.5 px-5 py-3.5 text-(--ant-color-text) ${index ? "border-t border-(--ant-color-border-secondary)" : ""}`;
+          const content = (
+            <>
+              <span className={`grid size-8 place-items-center rounded-lg ${TONE[tone]}`}>
+                {icon}
+              </span>
+              <span className='min-w-11 text-xl font-semibold tabular-nums'>
+                {formatCount(value)}
+              </span>
+              <span>{title}</span>
+              {canReadOrders && (
+                <RightOutlined className='ml-auto text-xs text-(--ant-color-text-tertiary)' />
+              )}
+            </>
+          );
+          return canReadOrders ? (
+            <Link
+              key={title}
+              to={to}
+              aria-label={`${title}: ${value}`}
+              className={`${className} hover:bg-(--ant-color-fill-quaternary)`}
+            >
+              {content}
+            </Link>
+          ) : (
+            <div key={title} className={className}>
+              {content}
+            </div>
+          );
+        })}
       </Card>
       <Card title='Catalog' styles={{ body: { padding: 0 } }}>
         {stats.map(([title, value, target], index) => {

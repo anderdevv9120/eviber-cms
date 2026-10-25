@@ -4,6 +4,8 @@ import { deferred } from "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/customers";
 import CustomerAddresses from "./CustomerAddresses";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 vi.mock("@/services/customers", () => ({
   getCustomerAddressesAPI: vi.fn(),
@@ -25,6 +27,7 @@ const address: api.CustomerAddress = {
 };
 const response = (data: api.CustomerAddress[]) => ({ data, message: "success" });
 beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
   vi.mocked(api.getCustomerAddressesAPI)
     .mockReset()
     .mockResolvedValue(response([address]));
@@ -39,6 +42,31 @@ beforeEach(() => {
     .mockResolvedValue({ data: { success: true }, message: "success" });
 });
 describe("Customer address book", () => {
+  it("RBAC rechecks a pending delete confirmation after authority changes", async () => {
+    render(<CustomerAddresses customerId='customer-id' />);
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa địa chỉ" }));
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["CUSTOMER_READ"])));
+    const confirm = screen.getByRole("button", { name: "Xác nhận xóa" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    confirm.disabled = false;
+    fireEvent.click(confirm);
+    expect(api.deleteCustomerAddressAPI).not.toHaveBeenCalled();
+  });
+  it("RBAC disables an open address form preserving its draft and blocks forced submit", async () => {
+    render(<CustomerAddresses customerId='customer-id' />);
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa địa chỉ" }));
+    fireEvent.change(screen.getByLabelText("Địa chỉ cụ thể"), {
+      target: { value: "Unsaved street" }
+    });
+    await act(async () => useAppStore.getState().clearProfile());
+    const button = screen.getByRole("button", { name: "Lưu địa chỉ" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect((screen.getByLabelText("Địa chỉ cụ thể") as HTMLInputElement).value).toBe(
+      "Unsaved street"
+    );
+    await act(async () => fireEvent.submit(button.closest("form")!));
+    expect(api.updateCustomerAddressAPI).not.toHaveBeenCalled();
+  });
   it("displays primary and sends full address input on PUT before reloading", async () => {
     render(<CustomerAddresses customerId='customer-id' />);
     // scroll.x của bảng sinh thêm dòng đo độ rộng ẩn (ant-table-measure-row) lặp lại tiêu đề.

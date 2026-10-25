@@ -11,12 +11,17 @@ import {
 } from "@/services/customers";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import CustomerAddressForm from "./CustomerAddressForm";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
+import { ApiError } from "@/utils/request";
 
 export default function CustomerAddresses({ customerId }: { customerId: string }) {
   return <AddressBook key={customerId} customerId={customerId} />;
 }
 
 function AddressBook({ customerId }: { customerId: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["CUSTOMER_UPDATE"] });
   const [view, setView] = useState<{ addresses?: CustomerAddress[]; error?: string }>({});
   const [editing, setEditing] = useState<CustomerAddress | "new" | null>(null);
   const [deleting, setDeleting] = useState<CustomerAddress | null>(null);
@@ -25,6 +30,14 @@ function AddressBook({ customerId }: { customerId: string }) {
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const request = useRef<AbortController | null>(null);
+  const openEdit = (next: CustomerAddress | "new") => {
+    const current = useAppStore.getState().profile;
+    if (current && canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] })) setEditing(next);
+  };
+  const openDelete = (next: CustomerAddress) => {
+    const current = useAppStore.getState().profile;
+    if (current && canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] })) setDeleting(next);
+  };
   // Stable callback is shared by initial network synchronization and mutation recovery.
   const reload = useCallback(() => {
     request.current?.abort();
@@ -51,7 +64,7 @@ function AddressBook({ customerId }: { customerId: string }) {
       request.current?.abort();
     };
   }, [reload]);
-  const blocked = saving || !view.addresses;
+  const blocked = !canUpdate || saving || !view.addresses;
   const retry = () => {
     setView({});
     reload().catch(() => {
@@ -59,27 +72,38 @@ function AddressBook({ customerId }: { customerId: string }) {
     });
   };
   const mutate = async (write: () => Promise<unknown>) => {
-    if (inFlight.current || !view.addresses) return;
+    const current = useAppStore.getState().profile;
+    if (
+      !current ||
+      !canAccess(current, { anyOf: ["CUSTOMER_UPDATE"] }) ||
+      inFlight.current ||
+      !view.addresses
+    )
+      return;
     inFlight.current = true;
     setSaving(true);
     setNotice(undefined);
     try {
-      await write();
-    } catch (cause) {
-      if (mounted.current)
-        setNotice(
-          `${getErrorMessage(cause)}. Kết quả lưu chưa được xác nhận; kiểm tra sổ địa chỉ đã tải lại trước khi thao tác tiếp.`
-        );
+      try {
+        await write();
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 403) throw cause;
+        if (mounted.current)
+          setNotice(
+            `${getErrorMessage(cause)}. Kết quả lưu chưa được xác nhận; kiểm tra sổ địa chỉ đã tải lại trước khi thao tác tiếp.`
+          );
+      }
+      if (mounted.current) {
+        setEditing(null);
+        setDeleting(null);
+        setView({});
+        // Backend owns primary selection; every write is followed by a fresh book read.
+        await reload();
+      }
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setSaving(false);
     }
-    if (mounted.current) {
-      setEditing(null);
-      setDeleting(null);
-      setView({});
-      // Backend owns primary selection; every write is followed by a fresh book read.
-      await reload();
-    }
-    inFlight.current = false;
-    if (mounted.current) setSaving(false);
   };
   const save = async (input: CustomerAddressInput) => {
     if (!editing || (editing === "new" && (view.addresses?.length ?? 10) >= 10)) return;
@@ -95,10 +119,14 @@ function AddressBook({ customerId }: { customerId: string }) {
   };
   const remove = async () => {
     if (!deleting) return;
-    await mutate(async () => {
-      const { data } = await deleteCustomerAddressAPI(customerId, deleting._id);
-      if (data?.success !== true) throw new Error("Chưa xác nhận được kết quả xóa địa chỉ");
-    });
+    try {
+      await mutate(async () => {
+        const { data } = await deleteCustomerAddressAPI(customerId, deleting._id);
+        if (data?.success !== true) throw new Error("Chưa xác nhận được kết quả xóa địa chỉ");
+      });
+    } catch (cause) {
+      if (mounted.current) setNotice(getErrorMessage(cause));
+    }
   };
   return (
     <section aria-label='Sổ địa chỉ' className='mt-6'>
@@ -110,7 +138,7 @@ function AddressBook({ customerId }: { customerId: string }) {
           </Button>
           <Button
             disabled={blocked || (view.addresses?.length ?? 10) >= 10}
-            onClick={() => setEditing("new")}
+            onClick={() => openEdit("new")}
           >
             Thêm địa chỉ
           </Button>
@@ -156,10 +184,10 @@ function AddressBook({ customerId }: { customerId: string }) {
               key: "actions",
               render: (_, row) => (
                 <Flex gap={8}>
-                  <Button disabled={blocked} onClick={() => setEditing(row)}>
+                  <Button disabled={blocked} onClick={() => openEdit(row)}>
                     Sửa địa chỉ
                   </Button>
-                  <Button danger disabled={blocked} onClick={() => setDeleting(row)}>
+                  <Button danger disabled={blocked} onClick={() => openDelete(row)}>
                     Xóa địa chỉ
                   </Button>
                 </Flex>
@@ -208,6 +236,7 @@ function AddressBook({ customerId }: { customerId: string }) {
             if (!inFlight.current) setDeleting(null);
           }}
         >
+          {notice && <Alert type='error' showIcon title={notice} />}
           <p>Xóa địa chỉ của {deleting.name}?</p>
         </Modal>
       )}

@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -42,6 +44,10 @@ interface ListState {
 }
 
 export default function Attributes() {
+  const profile = useAppStore(state => state.profile);
+  const canCreate = !!profile && canAccess(profile, { anyOf: ["ATTRIBUTE_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["ATTRIBUTE_UPDATE"] });
+  const canDelete = !!profile && canAccess(profile, { anyOf: ["ATTRIBUTE_DELETE"] });
   const navigate = useNavigate();
   const [query, setQuery] = useState({ page: 1, pageSize: 10, search: "" });
   const queryKey = JSON.stringify(query);
@@ -129,7 +135,14 @@ export default function Attributes() {
   }, [fetchList]);
 
   const submit = async (input: CreateAttributeInput | UpdateAttributeInput) => {
-    if (savingRef.current || writesDisabled) return;
+    const latest = useAppStore.getState().profile;
+    if (
+      !latest ||
+      !canAccess(latest, { anyOf: [editing ? "ATTRIBUTE_UPDATE" : "ATTRIBUTE_CREATE"] }) ||
+      savingRef.current ||
+      writesDisabled
+    )
+      return;
     savingRef.current = true;
     setSaving(true);
     try {
@@ -169,7 +182,10 @@ export default function Attributes() {
     }
   };
   const confirmDelete = async () => {
+    const latest = useAppStore.getState().profile;
     if (
+      !latest ||
+      !canAccess(latest, { anyOf: ["ATTRIBUTE_DELETE"] }) ||
       !deleting ||
       writesDisabled ||
       savingRef.current ||
@@ -219,9 +235,10 @@ export default function Attributes() {
         <Flex gap={8} wrap>
           <Tooltip title={`Sửa ${row.name}`}>
             <Button
-              disabled={writesDisabled}
+              disabled={writesDisabled || !canUpdate}
               aria-label={`Sửa ${row.name}`}
               onClick={() => {
+                if (!canUpdate || writesDisabled) return;
                 setEditing(row);
                 setFormOpen(true);
               }}
@@ -232,9 +249,10 @@ export default function Attributes() {
           <Tooltip title={`Xóa ${row.name}`}>
             <Button
               danger
-              disabled={writesDisabled}
+              disabled={writesDisabled || !canDelete}
               aria-label={`Xóa ${row.name}`}
               onClick={() => {
+                if (!canDelete || writesDisabled) return;
                 setActionError(null);
                 setDeleting(row);
               }}
@@ -255,8 +273,9 @@ export default function Attributes() {
         </Typography.Title>
         <Button
           type='primary'
-          disabled={writesDisabled}
+          disabled={writesDisabled || !canCreate}
           onClick={() => {
+            if (!canCreate || writesDisabled) return;
             setEditing(undefined);
             setFormOpen(true);
           }}
@@ -356,7 +375,7 @@ export default function Attributes() {
         <AttributeForm
           key={editing?._id ?? "create"}
           attribute={editing}
-          disabled={writesDisabled}
+          disabled={writesDisabled || !(editing ? canUpdate : canCreate)}
           onSubmit={submit}
           onCancel={() => setFormOpen(false)}
         />
@@ -373,7 +392,7 @@ export default function Attributes() {
         okText='Xóa'
         cancelText='Hủy'
         confirmLoading={saving}
-        okButtonProps={{ danger: true, disabled: writesDisabled }}
+        okButtonProps={{ danger: true, disabled: writesDisabled || !canDelete }}
         footer={used ? <Button onClick={() => setDeleting(null)}>Đóng</Button> : undefined}
       >
         {deleting &&

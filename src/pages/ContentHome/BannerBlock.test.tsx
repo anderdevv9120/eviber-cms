@@ -1,8 +1,10 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App, ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import "@/test/attribute-fixtures";
+import { deferred } from "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/banners";
 import * as imagesApi from "@/services/images";
@@ -76,6 +78,7 @@ const upload = (dialog: HTMLElement) => {
 
 describe("banners page", () => {
   beforeEach(() => {
+    useAppStore.getState().setProfile(ownerProfile);
     vi.stubGlobal(
       "URL",
       class extends URL {
@@ -99,6 +102,98 @@ describe("banners page", () => {
     vi.mocked(imagesApi.uploadImageAPI)
       .mockReset()
       .mockResolvedValue(ok({ path: "/images/hero_1.png" }));
+  });
+
+  it("blocks every banner mutation for read-only staff", async () => {
+    useAppStore.getState().setProfile(staffProfile(["CONTENT_HOME_READ"]));
+    setup();
+    await screen.findByText("Banner A");
+    for (const name of ["Thêm banner", "Sửa Banner A", "Xóa Banner A", "Sắp xếp Banner A"])
+      expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("switch", { name: "Hiển thị Banner A" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
+
+  it("preserves a selected image and draft when permission is revoked in the banner form", async () => {
+    setup();
+    const dialog = await openCreate();
+    upload(dialog);
+    await within(dialog).findByAltText("Ảnh banner xem trước");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Sale draft" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["CONTENT_HOME_READ"])));
+    expect((within(dialog).getByLabelText("Tiêu đề") as HTMLInputElement).value).toBe("Sale draft");
+    const button = within(dialog).getByRole("button", { name: "Lưu banner" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    button.disabled = false;
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(imagesApi.uploadImageAPI).not.toHaveBeenCalled();
+    expect(api.createBannerAPI).not.toHaveBeenCalled();
+  });
+
+  it("rechecks authority when an already-open delete confirmation is accepted", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa Banner A" }));
+    const confirm = await screen.findByRole("button", { name: "Xóa banner" });
+    act(() => useAppStore.getState().setProfile(staffProfile(["CONTENT_HOME_READ"])));
+    fireEvent.click(confirm);
+    await act(async () => {});
+    expect(api.deleteBannerAPI).not.toHaveBeenCalled();
+  });
+
+  it("retains unsaved ordering but disables saving when permission changes", async () => {
+    setup();
+    await screen.findByText("Banner A");
+    drag("Banner B", rows()[0]);
+    act(() => useAppStore.getState().setProfile(staffProfile(["CONTENT_HOME_READ"])));
+    expect(rows().map(row => within(row).getByText(/Banner [AB]/).textContent)).toEqual([
+      "Banner B",
+      "Banner A"
+    ]);
+    expect((screen.getByRole("button", { name: "Lưu thứ tự" }) as HTMLButtonElement).disabled).toBe(
+      true
+    );
+  });
+
+  it("does not write the banner when authority changes during an authorized upload", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof imagesApi.uploadImageAPI>>>();
+    vi.mocked(imagesApi.uploadImageAPI).mockReturnValueOnce(pending.promise);
+    setup();
+    const dialog = await openCreate();
+    upload(dialog);
+    await within(dialog).findByAltText("Ảnh banner xem trước");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Sale draft" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu banner" }));
+    await waitFor(() => expect(imagesApi.uploadImageAPI).toHaveBeenCalledTimes(1));
+    act(() => useAppStore.getState().setProfile(staffProfile(["CONTENT_HOME_READ"])));
+    await act(async () => pending.resolve(ok({ path: "/images/uploaded.jpg" })));
+    expect(api.createBannerAPI).not.toHaveBeenCalled();
+    expect((within(dialog).getByLabelText("Tiêu đề") as HTMLInputElement).value).toBe("Sale draft");
+    expect(
+      (within(dialog).getByRole("button", { name: "Lưu banner" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
+
+  it("keeps an authorized draft when the backend denies a forced banner submission", async () => {
+    vi.mocked(api.updateBannerAPI).mockRejectedValueOnce(new ApiError("Không có quyền", 403));
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa Banner A" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), {
+      target: { value: "Draft denied" }
+    });
+    const button = within(dialog).getByRole("button", { name: "Lưu banner" }) as HTMLButtonElement;
+    button.disabled = false;
+    fireEvent.click(button);
+    await within(dialog).findByText("Không có quyền");
+    expect((within(dialog).getByLabelText("Tiêu đề") as HTMLInputElement).value).toBe(
+      "Draft denied"
+    );
+    expect(api.updateBannerAPI).toHaveBeenCalledExactlyOnceWith(
+      "a",
+      expect.objectContaining({ title: "Draft denied" })
+    );
   });
 
   it("lists banners in order with thumbnails from the API host", async () => {

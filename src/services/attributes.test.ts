@@ -8,6 +8,26 @@ vi.mock("@/utils/notification", () => ({ errorNotification: vi.fn() }));
 import { errorNotification } from "@/utils/notification";
 
 describe("attribute transport through the real shared client", () => {
+  it("loads projected options and retains selected attributes with the backend comma selector", async () => {
+    const calls: InternalAxiosRequestConfig[] = [];
+    const options = [
+      { _id: "a", code: "size", name: "Kích thước", values: [{ _id: "v", value: "M" }] }
+    ];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(config);
+      return response(config, options);
+    };
+    const signal = new AbortController().signal;
+    expect(await api.listAttributeOptionsAPI(["a", "b"], signal)).toEqual({
+      data: options,
+      message: "success"
+    });
+    await api.listAttributeOptionsAPI([], signal);
+    expect(calls.map(c => [c.method, c.url, c.params, c.signal, c.toastError])).toEqual([
+      ["get", "/attributes/options", { attributeIds: "a,b" }, signal, false],
+      ["get", "/attributes/options", undefined, signal, false]
+    ]);
+  });
   it("keeps exactly one envelope, list query and cancellation signals", async () => {
     const calls: InternalAxiosRequestConfig[] = [];
     axiosRequest.defaults.adapter = async config => {
