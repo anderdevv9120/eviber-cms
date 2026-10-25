@@ -1,5 +1,7 @@
+import { ownerProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { AdminOrderDetail, OrderStatus, TransitionOrderInput } from "@/services/orders";
 import { order } from "@/test/order-fixtures";
@@ -38,6 +40,8 @@ function Harness({
 }
 const note = () => screen.getByRole("textbox", { name: /^Ghi chú/ });
 const confirm = () => fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+
+beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
 
 describe("fulfillment form", () => {
   it("submits the reviewed revision and omits an empty optional note", () => {

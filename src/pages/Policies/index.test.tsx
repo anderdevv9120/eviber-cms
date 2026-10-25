@@ -1,10 +1,13 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/storeContent";
 import Policies from "./index";
+import * as refunds from "@/services/refunds";
 
 vi.mock("@/constants/env", () => ({
   ADMIN_API_URL: "http://api.test:8001/admin/v1",
@@ -14,6 +17,13 @@ vi.mock("@/services/storeContent", () => ({
   listPoliciesAPI: vi.fn(),
   getPolicyAPI: vi.fn(),
   savePolicyAPI: vi.fn()
+}));
+vi.mock("@/services/refunds", () => ({
+  getRefundPolicyAPI: vi.fn(async () => ({
+    data: { enabled: true, windowDays: 7, revision: 0 },
+    message: "success"
+  })),
+  saveRefundPolicyAPI: vi.fn()
 }));
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
@@ -89,6 +99,8 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe("policy pages", () => {
   beforeEach(() => {
+    useAppStore.getState().setProfile(ownerProfile);
+    vi.mocked(refunds.getRefundPolicyAPI).mockClear();
     vi.mocked(api.listPoliciesAPI).mockReset().mockResolvedValue(ok(rows));
     vi.mocked(api.getPolicyAPI).mockReset().mockResolvedValue(ok(returnsPage));
     vi.mocked(api.savePolicyAPI)
@@ -105,6 +117,57 @@ describe("policy pages", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("opens policy content read-only and never loads refund settings for POLICY_READ alone", async () => {
+    useAppStore.getState().setProfile(staffProfile(["POLICY_READ"]));
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Xem Chính sách đổi trả" }));
+    const title = (await screen.findByLabelText("Tiêu đề")) as HTMLInputElement;
+    expect(title.disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Lưu" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByLabelText("Nội dung").closest("[inert]")).not.toBeNull();
+    expect(refunds.getRefundPolicyAPI).not.toHaveBeenCalled();
+  });
+
+  it("shows refund-only settings without fetching policy pages", async () => {
+    useAppStore.getState().setProfile(staffProfile(["REFUND_POLICY_READ"]));
+    setup();
+    await screen.findByRole("spinbutton", { name: "Số ngày sau khi giao hàng" });
+    expect(api.listPoliciesAPI).not.toHaveBeenCalled();
+    expect(refunds.getRefundPolicyAPI).toHaveBeenCalled();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("preserves policy drafts and blocks a forced save after profile refresh", async () => {
+    setup();
+    const editor = (await openReturns()) as HTMLTextAreaElement;
+    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Draft title" } });
+    fireEvent.change(editor, { target: { value: "<p>Draft body</p>" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["POLICY_READ"])));
+    expect((screen.getByLabelText("Tiêu đề") as HTMLInputElement).value).toBe("Draft title");
+    expect((screen.getByLabelText("Nội dung") as HTMLTextAreaElement).value).toBe(
+      "<p>Draft body</p>"
+    );
+    const button = screen.getByRole("button", { name: "Lưu" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    button.disabled = false;
+    fireEvent.click(button);
+    await act(async () => {
+      await wait(450);
+    });
+    expect(api.savePolicyAPI).not.toHaveBeenCalled();
+  });
+
+  it("rechecks authority after waiting for the policy editor debounce", async () => {
+    setup();
+    await openReturns();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    act(() => useAppStore.getState().setProfile(staffProfile(["POLICY_READ"])));
+    await act(async () => {
+      await wait(450);
+    });
+    expect(api.savePolicyAPI).not.toHaveBeenCalled();
   });
 
   it("lists the four pages with their status", async () => {

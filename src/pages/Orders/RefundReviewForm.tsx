@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Button, Checkbox, Flex, Input, InputNumber } from "antd";
+import { ConfigProvider, Button, Checkbox, Flex, Input, InputNumber } from "antd";
 import {
   decideRefundAPI,
   type AdminRefundRequest,
@@ -31,7 +31,7 @@ export default function RefundReviewForm({
   onClose: () => void;
 }) {
   const { view } = ctx;
-  const command = useRefundCommand(ctx);
+  const command = useRefundCommand(ctx, "ORDER_REFUND_REVIEW");
   const [attempted, setAttempted] = useState(false);
   // Approving everything is only the starting point; every line still needs an explicit reason.
   const [rows, setRows] = useState<Record<string, RowDraft>>(() =>
@@ -118,101 +118,113 @@ export default function RefundReviewForm({
     attempted && errors[name] ? <div className='mt-1 text-red-600'>{errors[name]}</div> : null;
 
   return (
-    <form aria-label='Duyệt yêu cầu hoàn tiền' onSubmit={submit} noValidate className='mt-4'>
-      {request.items.map(item => {
-        const label = labels[item.allocationId];
-        const row = rows[item.allocationId];
-        return (
-          <fieldset key={item.allocationId} className='mb-4'>
-            <legend className='font-semibold'>{label}</legend>
-            <p>
-              Khách yêu cầu {item.quantity} · {refundReasonLabels[item.reason]}
-            </p>
-            <p>Giải thích của khách: {item.explanation}</p>
-            <RefundEvidence orderId={view.orderId} evidenceIds={item.evidenceIds} label={label} />
-            <div className='mt-2'>
-              <InputNumber
-                aria-label={`Số lượng duyệt ${label}`}
-                precision={0}
-                value={row.approvedQuantity}
-                status={attempted && errors[`quantity:${item.allocationId}`] ? "error" : undefined}
-                onChange={value => editRow(item.allocationId, { approvedQuantity: value })}
+    <ConfigProvider componentDisabled={!command.canEdit}>
+      <form aria-label='Duyệt yêu cầu hoàn tiền' onSubmit={submit} noValidate className='mt-4'>
+        {request.items.map(item => {
+          const label = labels[item.allocationId];
+          const row = rows[item.allocationId];
+          return (
+            <fieldset key={item.allocationId} className='mb-4'>
+              <legend className='font-semibold'>{label}</legend>
+              {ctx.readable !== false && (
+                <>
+                  <p>
+                    Khách yêu cầu {item.quantity} · {refundReasonLabels[item.reason]}
+                  </p>
+                  <p>Giải thích của khách: {item.explanation}</p>
+                  <RefundEvidence
+                    orderId={view.orderId}
+                    evidenceIds={item.evidenceIds}
+                    label={label}
+                  />
+                </>
+              )}
+              <div className='mt-2'>
+                <InputNumber
+                  aria-label={`Số lượng duyệt ${label}`}
+                  precision={0}
+                  value={row.approvedQuantity}
+                  status={
+                    attempted && errors[`quantity:${item.allocationId}`] ? "error" : undefined
+                  }
+                  onChange={value => editRow(item.allocationId, { approvedQuantity: value })}
+                />
+                {error(`quantity:${item.allocationId}`)}
+              </div>
+              {item.reason === "missing_item" ? (
+                <Checkbox
+                  className='mt-2'
+                  checked={row.waived}
+                  onChange={event => editRow(item.allocationId, { waived: event.target.checked })}
+                >
+                  {`Xác nhận miễn trả hàng cho hàng bị thiếu ${label}`}
+                </Checkbox>
+              ) : (
+                <Checkbox
+                  className='mt-2'
+                  checked={row.returnRequired}
+                  onChange={event =>
+                    editRow(item.allocationId, { returnRequired: event.target.checked })
+                  }
+                >
+                  {`Yêu cầu trả hàng ${label}`}
+                </Checkbox>
+              )}
+              {error(`waiver:${item.allocationId}`)}
+              <Input
+                className='mt-2'
+                aria-label={`Lý do quyết định ${label}`}
+                placeholder='Lý do quyết định (nội bộ)'
+                value={row.reason}
+                status={attempted && errors[`reason:${item.allocationId}`] ? "error" : undefined}
+                onChange={event => editRow(item.allocationId, { reason: event.target.value })}
               />
-              {error(`quantity:${item.allocationId}`)}
-            </div>
-            {item.reason === "missing_item" ? (
-              <Checkbox
-                className='mt-2'
-                checked={row.waived}
-                onChange={event => editRow(item.allocationId, { waived: event.target.checked })}
-              >
-                {`Xác nhận miễn trả hàng cho hàng bị thiếu ${label}`}
-              </Checkbox>
-            ) : (
-              <Checkbox
-                className='mt-2'
-                checked={row.returnRequired}
-                onChange={event =>
-                  editRow(item.allocationId, { returnRequired: event.target.checked })
-                }
-              >
-                {`Yêu cầu trả hàng ${label}`}
-              </Checkbox>
-            )}
-            {error(`waiver:${item.allocationId}`)}
-            <Input
-              className='mt-2'
-              aria-label={`Lý do quyết định ${label}`}
-              placeholder='Lý do quyết định (nội bộ)'
-              value={row.reason}
-              status={attempted && errors[`reason:${item.allocationId}`] ? "error" : undefined}
-              onChange={event => editRow(item.allocationId, { reason: event.target.value })}
-            />
-            {error(`reason:${item.allocationId}`)}
-          </fieldset>
-        );
-      })}
-      <div className='mb-3'>
-        <div className='mb-1'>Phí vận chuyển hoàn</div>
-        <InputNumber
-          aria-label='Phí vận chuyển hoàn'
-          precision={0}
-          value={shipping}
-          onChange={value => edit(() => setShipping(value))}
+              {error(`reason:${item.allocationId}`)}
+            </fieldset>
+          );
+        })}
+        <div className='mb-3'>
+          <div className='mb-1'>Phí vận chuyển hoàn</div>
+          <InputNumber
+            aria-label='Phí vận chuyển hoàn'
+            precision={0}
+            value={shipping}
+            onChange={value => edit(() => setShipping(value))}
+          />
+          {error("shipping")}
+        </div>
+        <Input.TextArea
+          aria-label='Tin nhắn gửi khách hàng'
+          placeholder='Tin nhắn gửi khách hàng'
+          rows={2}
+          value={customerMessage}
+          onChange={event => edit(() => setCustomerMessage(event.target.value))}
         />
-        {error("shipping")}
-      </div>
-      <Input.TextArea
-        aria-label='Tin nhắn gửi khách hàng'
-        placeholder='Tin nhắn gửi khách hàng'
-        rows={2}
-        value={customerMessage}
-        onChange={event => edit(() => setCustomerMessage(event.target.value))}
-      />
-      {error("message")}
-      <Input.TextArea
-        className='mt-3'
-        aria-label='Ghi chú nội bộ'
-        placeholder='Ghi chú nội bộ (khách không thấy)'
-        rows={2}
-        value={internalNote}
-        onChange={event => edit(() => setInternalNote(event.target.value))}
-      />
-      {error("note")}
-      {command.notices}
-      <Flex gap={8} className='mt-4'>
-        <Button
-          type='primary'
-          htmlType='submit'
-          loading={command.busy}
-          disabled={!command.canSubmit}
-        >
-          Xác nhận duyệt
-        </Button>
-        <Button onClick={onClose} disabled={command.busy}>
-          Đóng
-        </Button>
-      </Flex>
-    </form>
+        {error("message")}
+        <Input.TextArea
+          className='mt-3'
+          aria-label='Ghi chú nội bộ'
+          placeholder='Ghi chú nội bộ (khách không thấy)'
+          rows={2}
+          value={internalNote}
+          onChange={event => edit(() => setInternalNote(event.target.value))}
+        />
+        {error("note")}
+        {command.notices}
+        <Flex gap={8} className='mt-4'>
+          <Button
+            type='primary'
+            htmlType='submit'
+            loading={command.busy}
+            disabled={!command.canSubmit}
+          >
+            Xác nhận duyệt
+          </Button>
+          <Button onClick={onClose} disabled={command.busy}>
+            Đóng
+          </Button>
+        </Flex>
+      </form>
+    </ConfigProvider>
   );
 }

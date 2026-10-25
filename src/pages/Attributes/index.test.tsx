@@ -1,3 +1,5 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -441,4 +443,45 @@ describe("attribute list workflows", () => {
       expect(calls.filter(c => c.method === method)).toHaveLength(1);
     }
   );
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+describe("attribute permission actions", () => {
+  it("preserves the dictionary but disables read-only mutations", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ATTRIBUTE_READ"]));
+    renderList();
+    await screen.findByText("Kích thước");
+    for (const name of ["Thêm thuộc tính", "Sửa Kích thước", "Xóa Kích thước"])
+      expect(screen.getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
+  });
+  it("preserves the open rename draft when update is removed", async () => {
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa Kích thước" }));
+    change("Tên thuộc tính", "Unsaved name");
+    act(() =>
+      useAppStore.getState().setProfile(staffProfile(["ATTRIBUTE_READ", "ATTRIBUTE_CREATE"]))
+    );
+    expect((screen.getByLabelText("Tên thuộc tính") as HTMLInputElement).value).toBe(
+      "Unsaved name"
+    );
+    expect(screen.getByRole("button", { name: "Lưu tên" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.submit(screen.getByLabelText("Tên thuộc tính").closest("form")!);
+    await act(async () => {});
+    expect(calls.filter(c => c.method === "patch")).toHaveLength(0);
+  });
+  it("rechecks delete authority in an already open confirmation", async () => {
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa Kích thước" }));
+    const dialog = await screen.findByRole("dialog");
+    act(() =>
+      useAppStore.getState().setProfile(staffProfile(["ATTRIBUTE_READ", "ATTRIBUTE_UPDATE"]))
+    );
+    const button = within(dialog).getByRole("button", { name: "Xóa" });
+    button.removeAttribute("disabled");
+    fireEvent.click(button);
+    expect(calls.filter(c => c.method === "delete")).toHaveLength(0);
+  });
 });

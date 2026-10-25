@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { Alert, Button, Card, Flex, Form, Input, Result, Spin, Typography } from "antd";
 import BlockTitle from "@/components/StoreContent/BlockTitle";
 import { CONFLICT_MESSAGE, required } from "@/components/StoreContent/rules";
@@ -6,7 +8,12 @@ import useRevisionedSettings from "@/components/StoreContent/useRevisionedSettin
 import { getStoreInfoAPI, saveStoreInfoAPI, type StoreInfoSettings } from "@/services/storeContent";
 import RefundPolicySettings from "@/pages/StoreContent/RefundPolicySettings";
 
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["STORE_INFO_UPDATE"] });
+
 export default function StoreInfo() {
+  const profile = useAppStore(state => state.profile);
+  const canUpdate = mayUpdate(profile);
   const [form] = Form.useForm<StoreInfoSettings>();
   const { settings, loadError, saving, saveError, conflict, reload, submit } =
     useRevisionedSettings<StoreInfoSettings>({
@@ -16,8 +23,9 @@ export default function StoreInfo() {
     });
 
   const save = async () => {
+    if (!mayUpdate(useAppStore.getState().profile) || saving || conflict) return;
     const values = await form.validateFields().catch(() => null);
-    if (values) await submit(values);
+    if (values && mayUpdate(useAppStore.getState().profile)) await submit(values);
   };
 
   if (loadError)
@@ -63,7 +71,7 @@ export default function StoreInfo() {
         form={form}
         layout='vertical'
         initialValues={settings}
-        disabled={saving}
+        disabled={saving || !canUpdate}
       >
         <Flex vertical gap={16}>
           <Card title={<BlockTitle hint='Chân trang'>Liên hệ</BlockTitle>}>
@@ -128,11 +136,11 @@ export default function StoreInfo() {
         </Flex>
       </Form>
       <Flex justify='end'>
-        <Button type='primary' loading={saving} disabled={conflict} onClick={save}>
+        <Button type='primary' loading={saving} disabled={!canUpdate || conflict} onClick={save}>
           Lưu thông tin
         </Button>
       </Flex>
-      <RefundPolicySettings />
+      {profile && canAccess(profile, { anyOf: ["REFUND_POLICY_READ"] }) && <RefundPolicySettings />}
     </Flex>
   );
 }

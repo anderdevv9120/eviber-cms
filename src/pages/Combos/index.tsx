@@ -28,6 +28,7 @@ import type { ProductStatus } from "@/services/products";
 import { mapComboError } from "./combo-errors";
 import { PATH } from "@/constants/paths";
 import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
@@ -183,6 +184,9 @@ function useDebouncedSearch(q: string, commit: (q: string) => void) {
 }
 
 function CombosPage() {
+  const profile = useAppStore(state => state.profile);
+  const canCreate = !!profile && canAccess(profile, { anyOf: ["COMBO_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["COMBO_UPDATE"] });
   const navigate = useNavigate();
   const { query, changeQuery, reload, result, error } = useComboList();
   const commitSearch = useCallback((q: string) => changeQuery({ q }), [changeQuery]);
@@ -191,6 +195,8 @@ function CombosPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const changeStatus = async (row: ComboListRow, status: ProductStatus) => {
+    const current = useAppStore.getState().profile;
+    if (!current || !canAccess(current, { anyOf: ["COMBO_UPDATE"] })) return;
     setBusyId(row._id);
     setActionError(null);
     try {
@@ -279,7 +285,7 @@ function CombosPage() {
       title: "Thao tác",
       key: "actions",
       render: (_, row) =>
-        row.status === "DELETED" ? (
+        !canUpdate ? null : row.status === "DELETED" ? (
           action(row, "DRAFT", "Khôi phục")
         ) : (
           <Flex gap={8} wrap>
@@ -369,9 +375,11 @@ function CombosPage() {
           <Button onClick={reload} disabled={!result && !error}>
             Tải lại
           </Button>
-          <Button type='primary' onClick={() => navigate(PATH.COMBO_NEW)}>
-            Thêm combo
-          </Button>
+          {canCreate && (
+            <Button type='primary' onClick={() => navigate(PATH.COMBO_NEW)}>
+              Thêm combo
+            </Button>
+          )}
         </Flex>
       </Flex>
       {error ? (

@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import axiosRequest from "@/utils/request";
 import { deferred, orderList, response } from "@/test/order-fixtures";
@@ -30,8 +32,25 @@ function setup() {
   return router;
 }
 const summaryRegion = () => screen.getByRole("region", { name: "Tình trạng hiện tại" });
+beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
 
 describe("Operational Dashboard", () => {
+  it("RBAC keeps summary counts while removing forbidden order/inventory drill-downs reactively", async () => {
+    serve();
+    setup();
+    await screen.findByRole("link", { name: "Đơn chờ xử lý: 3" });
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["DASHBOARD_READ"])));
+    expect(within(summaryRegion()).queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByText("Đơn chờ xử lý")).toBeTruthy();
+    expect(screen.getByText("SKU sắp hết hàng")).toBeTruthy();
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["DASHBOARD_READ", "ORDER_READ"]))
+    );
+    expect(screen.getByRole("link", { name: "Đơn chờ xử lý: 3" }).getAttribute("href")).toBe(
+      "/orders?status=pending"
+    );
+    expect(screen.queryByRole("link", { name: "SKU sắp hết hàng: 7" })).toBeNull();
+  });
   it("opens refund work in the existing order list through the shared attention query", async () => {
     const requests: unknown[] = [];
     axiosRequest.defaults.adapter = async config => {

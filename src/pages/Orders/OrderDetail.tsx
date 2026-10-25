@@ -22,6 +22,8 @@ import {
 import OrderHistory from "./OrderHistory";
 import OrderActionDialog, { type OrderActionIntent } from "./OrderActionDialog";
 import RefundSection from "./RefundSection";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 // Stored purchase snapshot; legacy orders without a type keep the old percentage field.
 const couponDiscount = (
@@ -42,6 +44,31 @@ export default function OrderDetail() {
 }
 
 function OrderDetailRead({ orderId }: { orderId: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["ORDER_UPDATE"] });
+  const canPay = !!profile && canAccess(profile, { anyOf: ["ORDER_PAYMENT_UPDATE"] });
+  const canRefund =
+    !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"] });
+  const [refundMounted, setRefundMounted] = useState(canRefund);
+  // Keep an existing draft mounted on revocation; the section blocks reads and writes itself.
+  useEffect(
+    () =>
+      useAppStore.subscribe(({ profile: current }) => {
+        if (current && canAccess(current, { anyOf: ["ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"] }))
+          setRefundMounted(true);
+      }),
+    []
+  );
+  const openAction = (next: OrderActionIntent) => {
+    const current = useAppStore.getState().profile;
+    if (
+      current &&
+      canAccess(current, {
+        anyOf: [next.type === "payment" ? "ORDER_PAYMENT_UPDATE" : "ORDER_UPDATE"]
+      })
+    )
+      setIntent(next);
+  };
   const [attempt, setAttempt] = useState(0);
   const [intent, setIntent] = useState<OrderActionIntent | null>(null);
   const [view, setView] = useState<{
@@ -146,22 +173,22 @@ function OrderDetailRead({ orderId }: { orderId: string }) {
             )}
             <Flex gap={8} wrap>
               {order.actions.orderStatuses
-                .filter(action => action.enabled)
+                .filter(action => action.enabled && canUpdate)
                 .map(action => (
                   <Button
                     key={action.status}
-                    onClick={() => setIntent({ type: "fulfillment", status: action.status })}
+                    onClick={() => openAction({ type: "fulfillment", status: action.status })}
                   >
                     {orderActionLabels[action.status]}
                   </Button>
                 ))}
               {order.actions.paymentActions
                 // Refunds are handled by the refund section below, never by a payment dialog.
-                .filter(action => action.enabled && action.action !== "refund")
+                .filter(action => action.enabled && action.action !== "refund" && canPay)
                 .map(action => (
                   <Button
                     key={action.action}
-                    onClick={() => setIntent({ type: "payment", action: action.action })}
+                    onClick={() => openAction({ type: "payment", action: action.action })}
                   >
                     {paymentActionLabels[action.action]}
                   </Button>
@@ -399,12 +426,14 @@ function OrderDetailRead({ orderId }: { orderId: string }) {
               ))}
             </ul>
           </section>
-          <RefundSection
-            orderId={orderId}
-            revision={order.revision}
-            order={order}
-            onCommitted={refreshOrder}
-          />
+          {refundMounted && (
+            <RefundSection
+              orderId={orderId}
+              revision={order.revision}
+              order={order}
+              onCommitted={refreshOrder}
+            />
+          )}
           <OrderHistory order={order} />
         </>
       )}
@@ -423,6 +452,9 @@ function OrderDetailRead({ orderId }: { orderId: string }) {
 }
 
 function CustomerLink({ order }: { order: AdminOrderDetail }) {
+  const profile = useAppStore(state => state.profile);
+  if (!profile || !canAccess(profile, { anyOf: ["CUSTOMER_READ"] }))
+    return order.userId ? "Khách hàng đăng ký" : "Khách vãng lai";
   if (order.userId)
     return (
       <Link to={PATH.CUSTOMER_DETAIL.replace(":customerId", encodeURIComponent(order.userId))}>

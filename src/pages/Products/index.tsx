@@ -15,8 +15,9 @@ import {
   type PublishRequirement
 } from "@/services/products";
 import { PATH } from "@/constants/paths";
-import { listCategoriesAPI } from "@/services/categories";
+import { listCategoryOptionsAPI } from "@/services/categories";
 import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
@@ -158,7 +159,7 @@ function useCategoryOptions() {
   });
   useEffect(() => {
     const controller = new AbortController();
-    listCategoriesAPI(controller.signal).then(
+    listCategoryOptionsAPI(controller.signal).then(
       ({ data }) => setState({ options: Array.isArray(data) ? data : [] }),
       (cause: unknown) => {
         if (!controller.signal.aborted) setState({ options: [], error: getErrorMessage(cause) });
@@ -186,6 +187,9 @@ function useDebouncedSearch(q: string, commit: (q: string) => void) {
 }
 
 function ProductsPage() {
+  const profile = useAppStore(state => state.profile);
+  const canCreate = !!profile && canAccess(profile, { anyOf: ["PRODUCT_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["PRODUCT_UPDATE"] });
   const navigate = useNavigate();
   const comboImpact = useComboImpact();
   const { query, changeQuery, reload, result, error } = useProductList();
@@ -197,7 +201,7 @@ function ProductsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const changeStatus = async (row: ProductListRow, status: ProductStatus) => {
-    if (changing.current) return;
+    if (!canUpdate || changing.current) return;
     changing.current = true;
     setBusyId(row._id);
     setActionError(null);
@@ -211,6 +215,8 @@ function ProductsPage() {
         if (confirmed === null) return;
         affected = confirmed;
       }
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: ["PRODUCT_UPDATE"] })) return;
       await changeProductStatusAPI(row._id, { status, expectedRevision: row.revision });
       successNotification(statusActions[status]);
       comboImpact.notify(affected);
@@ -278,7 +284,7 @@ function ProductsPage() {
       title: "Thao tác",
       key: "actions",
       render: (_, row) =>
-        row.status === "DELETED" ? (
+        !canUpdate ? null : row.status === "DELETED" ? (
           action(row, "DRAFT", "Khôi phục")
         ) : (
           <Flex gap={8} wrap>
@@ -357,9 +363,11 @@ function ProductsPage() {
           <Button onClick={reload} disabled={!result && !error}>
             Tải lại
           </Button>
-          <Button type='primary' onClick={() => navigate(PATH.PRODUCT_NEW)}>
-            Thêm sản phẩm
-          </Button>
+          {canCreate && (
+            <Button type='primary' onClick={() => navigate(PATH.PRODUCT_NEW)}>
+              Thêm sản phẩm
+            </Button>
+          )}
         </Flex>
       </Flex>
       {error ? (

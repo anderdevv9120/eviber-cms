@@ -1,4 +1,6 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import {
   Alert,
   Button,
@@ -74,11 +76,23 @@ export default function VoucherForm({
   busy: boolean;
   onSubmit(input: CouponInput): Promise<void>;
 }) {
+  const profile = useAppStore(state => state.profile);
+  const writePermission = voucher ? "COUPON_UPDATE" : "COUPON_CREATE";
+  const canWrite = !!profile && canAccess(profile, { anyOf: [writePermission] });
   const [form] = Form.useForm<CouponInput>();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saving = useRef(false);
   const [scope, setScope] = useState<CouponScope>(voucher?.scopeType ?? "all");
+  const loadTargets = useCallback(
+    async (query: RemoteSelectQuery, signal: AbortSignal) => {
+      const latest = useAppStore.getState().profile;
+      if (!canWrite || !latest || !canAccess(latest, { anyOf: [writePermission] }))
+        return { data: [], total: 0, page: query.page, pageSize: query.pageSize };
+      return (scope === "products" ? loadVoucherProducts : loadVoucherCategories)(query, signal);
+    },
+    [canWrite, scope, writePermission]
+  );
   const [type, setType] = useState(voucher?.discountType ?? "percentage");
   const integer = (min: number, max = Number.MAX_SAFE_INTEGER, nullable = false) => ({
     validator: (_: unknown, value?: number | null) =>
@@ -98,7 +112,14 @@ export default function VoucherForm({
     }
   };
   const submit = async (fields: CouponInput) => {
-    if (busy || saving.current) return;
+    const latest = useAppStore.getState().profile;
+    if (
+      !latest ||
+      !canAccess(latest, { anyOf: [voucher ? "COUPON_UPDATE" : "COUPON_CREATE"] }) ||
+      busy ||
+      saving.current
+    )
+      return;
     saving.current = true;
     setSubmitting(true);
     setError(null);
@@ -133,7 +154,7 @@ export default function VoucherForm({
     <Form<CouponInput>
       form={form}
       layout='vertical'
-      disabled={busy || submitting}
+      disabled={busy || submitting || !canWrite}
       onFinish={submit}
       initialValues={
         voucher
@@ -171,7 +192,7 @@ export default function VoucherForm({
           }
         ]}
       >
-        <Input disabled={!!voucher || busy || submitting} maxLength={100} />
+        <Input disabled={!!voucher || busy || submitting || !canWrite} maxLength={100} />
       </Form.Item>
       <Form.Item
         name='name'
@@ -249,7 +270,7 @@ export default function VoucherForm({
         >
           <RemoteSelect<CouponTarget>
             key={scope}
-            load={scope === "products" ? loadVoucherProducts : loadVoucherCategories}
+            load={loadTargets}
             label={target => target.name}
             mode='multiple'
             ariaLabel={scope === "products" ? "Sản phẩm áp dụng" : "Danh mục áp dụng"}

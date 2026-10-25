@@ -1,3 +1,6 @@
+import type { PermissionCode } from "@/constants/permissions";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, App, Button, Flex, Popconfirm, Spin, Tooltip, Typography } from "antd";
 import type { TableProps } from "antd";
@@ -35,6 +38,10 @@ export default function Categories() {
 }
 
 function CategoriesContent() {
+  const profile = useAppStore(state => state.profile);
+  const canCreate = !!profile && canAccess(profile, { anyOf: ["CATEGORY_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["CATEGORY_UPDATE"] });
+  const canDelete = !!profile && canAccess(profile, { anyOf: ["CATEGORY_DELETE"] });
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<ActionError | null>(null);
@@ -68,7 +75,14 @@ function CategoriesContent() {
     return () => controller.abort();
   }, [load]);
 
-  const run = async (action: () => Promise<unknown>, success: string, id?: string) => {
+  const run = async (
+    permission: PermissionCode,
+    action: () => Promise<unknown>,
+    success: string,
+    id?: string
+  ) => {
+    const latest = useAppStore.getState().profile;
+    if (busy || !latest || !canAccess(latest, { anyOf: [permission] })) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -121,17 +135,28 @@ function CategoriesContent() {
         <Flex gap={8}>
           <Button
             aria-label={`Sửa ${row.name}`}
-            disabled={writesDisabled}
-            onClick={() => setEditing(row)}
+            disabled={writesDisabled || !canUpdate}
+            onClick={() => {
+              if (canUpdate && !writesDisabled) setEditing(row);
+            }}
           >
             Sửa
           </Button>
           <Popconfirm
+            disabled={writesDisabled || !canDelete}
             title='Xóa danh mục này?'
             okText='Xóa danh mục'
             cancelText='Hủy'
-            okButtonProps={{ danger: true }}
-            onConfirm={() => run(() => deleteCategoryAPI(row._id), "Đã xóa danh mục", row._id)}
+            okButtonProps={{ danger: true, disabled: writesDisabled || !canDelete }}
+            onConfirm={() => {
+              if (!draft.dirty)
+                return run(
+                  "CATEGORY_DELETE",
+                  () => deleteCategoryAPI(row._id),
+                  "Đã xóa danh mục",
+                  row._id
+                );
+            }}
           >
             <Tooltip
               title={
@@ -140,7 +165,7 @@ function CategoriesContent() {
                   : undefined
               }
             >
-              <Button danger aria-label={`Xóa ${row.name}`} disabled={writesDisabled}>
+              <Button danger aria-label={`Xóa ${row.name}`} disabled={writesDisabled || !canDelete}>
                 Xóa
               </Button>
             </Tooltip>
@@ -176,15 +201,26 @@ function CategoriesContent() {
               <Button
                 type='primary'
                 loading={busy}
+                disabled={!canUpdate}
                 onClick={() =>
-                  void run(() => reorderCategoriesAPI(draft.valueIds), "Đã lưu thứ tự danh mục")
+                  void run(
+                    "CATEGORY_UPDATE",
+                    () => reorderCategoriesAPI(draft.valueIds),
+                    "Đã lưu thứ tự danh mục"
+                  )
                 }
               >
                 Lưu thứ tự
               </Button>
             </>
           )}
-          <Button type='primary' disabled={writesDisabled} onClick={() => setEditing("new")}>
+          <Button
+            type='primary'
+            disabled={writesDisabled || !canCreate}
+            onClick={() => {
+              if (canCreate && !writesDisabled) setEditing("new");
+            }}
+          >
             Thêm danh mục
           </Button>
         </Flex>
@@ -212,9 +248,13 @@ function CategoriesContent() {
         columns={columns}
         rowLabel={row => row.name}
         itemNoun='danh mục'
-        disabled={busy}
-        onMove={draft.move}
-        onMoveTo={draft.moveTo}
+        disabled={busy || !canUpdate}
+        onMove={(id, direction) => {
+          if (canUpdate && !busy) draft.move(id, direction);
+        }}
+        onMoveTo={(id, target) => {
+          if (canUpdate && !busy) draft.moveTo(id, target);
+        }}
         emptyText='Chưa có danh mục'
       />
       {editing && (

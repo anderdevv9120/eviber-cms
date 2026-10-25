@@ -24,11 +24,13 @@ const moveTo = (rows: ComboPieceRow[], from: number, to: number) => {
 export default function ComboPiecesSection({
   items,
   errors,
+  canWrite,
   disabled,
   onChange
 }: {
   items: ComboPieceRow[];
   errors: PieceErrors;
+  canWrite: boolean;
   disabled: boolean;
   onChange: (items: ComboPieceRow[]) => void;
 }) {
@@ -56,47 +58,49 @@ export default function ComboPiecesSection({
   return (
     <Card title={`Món trong combo (${items.length}/20)`}>
       <Flex vertical gap={12}>
-        <Flex gap={8} align='start'>
-          <div className='min-w-0 flex-1'>
-            <RemoteSelect<ComboProductOption>
-              load={load}
-              label={product => product.name}
-              value={choice}
-              onChange={value => setChoice(typeof value === "string" ? value : undefined)}
-              selected={
-                choice && byId.has(choice) ? [{ _id: choice, label: byId.get(choice)!.name }] : []
-              }
-              ariaLabel='Thêm sản phẩm combo'
-              placeholder='Tìm sản phẩm để thêm'
-              retryLabel='Thử lại'
-              disabled={product => picked.has(product._id)}
-            />
-          </div>
-          <Button
-            disabled={
-              disabled || !choice || picked.has(choice) || items.length >= 20 || !byId.has(choice)
-            }
-            onClick={() => {
-              if (!choice || picked.has(choice)) return;
-              const product = byId.get(choice);
-              if (!product) return;
-              onChange([
-                ...items,
-                {
-                  _id: product._id,
-                  productId: product._id,
-                  product,
-                  quantity: 1,
-                  mode: "CHOOSE",
-                  variantId: null
+        {canWrite && (
+          <Flex gap={8} align='start'>
+            <div className='min-w-0 flex-1'>
+              <RemoteSelect<ComboProductOption>
+                load={load}
+                label={product => product.name}
+                value={choice}
+                onChange={value => setChoice(typeof value === "string" ? value : undefined)}
+                selected={
+                  choice && byId.has(choice) ? [{ _id: choice, label: byId.get(choice)!.name }] : []
                 }
-              ]);
-              setChoice(undefined);
-            }}
-          >
-            Thêm món
-          </Button>
-        </Flex>
+                ariaLabel='Thêm sản phẩm combo'
+                placeholder='Tìm sản phẩm để thêm'
+                retryLabel='Thử lại'
+                disabled={product => picked.has(product._id)}
+              />
+            </div>
+            <Button
+              disabled={
+                disabled || !choice || picked.has(choice) || items.length >= 20 || !byId.has(choice)
+              }
+              onClick={() => {
+                if (!choice || picked.has(choice)) return;
+                const product = byId.get(choice);
+                if (!product) return;
+                onChange([
+                  ...items,
+                  {
+                    _id: product._id,
+                    productId: product._id,
+                    product,
+                    quantity: 1,
+                    mode: "CHOOSE",
+                    variantId: null
+                  }
+                ]);
+                setChoice(undefined);
+              }}
+            >
+              Thêm món
+            </Button>
+          </Flex>
+        )}
         {errors._form && <Alert type='error' title={errors._form} />}
         <SortableTable
           rows={items}

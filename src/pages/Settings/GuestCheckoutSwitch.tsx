@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Switch, Typography } from "antd";
 import {
@@ -22,7 +24,11 @@ function confirmedValue(response: ApiResponse<CheckoutSettings>): boolean {
   return response.data.allowGuestCheckout;
 }
 
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["CHECKOUT_SETTINGS_UPDATE"] });
+
 export default function GuestCheckoutSwitch() {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
   const [view, setView] = useState<SettingsView>({ phase: "reading" });
   const request = useRef<AbortController | null>(null);
   const saving = useRef(false);
@@ -60,7 +66,13 @@ export default function GuestCheckoutSwitch() {
   };
 
   const save = async (allowGuestCheckout: boolean) => {
-    if (saving.current || view.phase !== "ready" || view.value === undefined) return;
+    if (
+      !mayUpdate(useAppStore.getState().profile) ||
+      saving.current ||
+      view.phase !== "ready" ||
+      view.value === undefined
+    )
+      return;
     const controller = request.current;
     if (!controller || controller.signal.aborted) return;
     const current = () => !controller.signal.aborted && request.current === controller;
@@ -92,7 +104,7 @@ export default function GuestCheckoutSwitch() {
           checked={view.value === true}
           checkedChildren='Bật'
           unCheckedChildren={view.value === undefined ? "?" : "Tắt"}
-          disabled={view.phase !== "ready"}
+          disabled={!canUpdate || view.phase !== "ready"}
           loading={view.phase === "reading" || view.phase === "saving"}
           onChange={save}
         />

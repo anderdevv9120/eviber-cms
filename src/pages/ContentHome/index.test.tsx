@@ -1,6 +1,8 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import "@/test/attribute-fixtures";
@@ -84,11 +86,47 @@ const typeIn = (label: string, value: string) =>
 
 describe("content home page", () => {
   beforeEach(() => {
+    useAppStore.getState().setProfile(ownerProfile);
     vi.mocked(api.getStoreHomeAPI).mockReset().mockResolvedValue(ok(settings));
     vi.mocked(api.saveStoreHomeAPI)
       .mockReset()
       .mockImplementation(async input => ok({ ...input, revision: input.revision + 1 }));
     vi.mocked(uploadImageAPI).mockReset();
+  });
+
+  it.each([null, staffProfile(["CONTENT_HOME_READ"])])(
+    "denies home writes and uploads for %j",
+    async profile => {
+      useAppStore.setState({ profile });
+      const { container } = setup();
+      await ready();
+      const button = screen.getByRole("button", { name: "Lưu trang chủ" }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      button.disabled = false;
+      fireEvent.click(button);
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+      if (input)
+        fireEvent.change(input, {
+          target: { files: [new File(["x"], "tile.png", { type: "image/png" })] }
+        });
+      await act(async () => {});
+      expect(api.saveStoreHomeAPI).not.toHaveBeenCalled();
+      expect(uploadImageAPI).not.toHaveBeenCalled();
+      for (const button of screen.getAllByRole("button", { name: /Đổi ảnh/ }))
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+    }
+  );
+
+  it("preserves a home draft and disables submission after authority refresh", async () => {
+    setup();
+    const input = (await ready()) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Bản nháp riêng" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["CONTENT_HOME_READ"])));
+    expect(input.value).toBe("Bản nháp riêng");
+    expect(input.disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Lưu trang chủ" }) as HTMLButtonElement).disabled
+    ).toBe(true);
   });
 
   it("lists the four storefront blocks in page order with a storefront link", async () => {

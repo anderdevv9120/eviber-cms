@@ -1,25 +1,39 @@
-import { Button, Flex, Form, Input, Upload } from "antd";
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
+import { Button, ConfigProvider, Flex, Form, Input, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
+import type { PermissionCode } from "@/constants/permissions";
 
 interface ImageFieldProps {
   name: (string | number)[];
   alt: string;
   uploading: boolean;
   onUpload: (file: File) => void;
+  permission: PermissionCode;
   label?: string;
   /** Ảnh tuỳ chọn: không bắt buộc, có nút xoá */
   optional?: boolean;
 }
+
+const mayUpdate = (profile: Profile | null, permission: PermissionCode) =>
+  !!profile && canAccess(profile, { anyOf: [permission] });
 
 export default function ImageField({
   name,
   alt,
   uploading,
   onUpload,
+  permission,
   label = "Ảnh",
   optional = false
 }: ImageFieldProps) {
+  const canUpdate = mayUpdate(
+    useAppStore(state => state.profile),
+    permission
+  );
+  const { componentDisabled } = ConfigProvider.useConfig();
+  const disabled = componentDisabled || !canUpdate;
   const form = Form.useFormInstance();
   const image = Form.useWatch(name, form) as string | undefined;
 
@@ -41,19 +55,27 @@ export default function ImageField({
           />
         )}
         <Upload
+          disabled={disabled}
           accept='image/png,image/jpeg,image/webp,image/gif'
           showUploadList={false}
           beforeUpload={file => {
-            onUpload(file);
+            if (!componentDisabled && mayUpdate(useAppStore.getState().profile, permission))
+              onUpload(file);
             return false;
           }}
         >
-          <Button icon={<UploadOutlined />} loading={uploading}>
+          <Button icon={<UploadOutlined />} loading={uploading} disabled={disabled}>
             {image ? "Đổi ảnh" : "Tải ảnh lên"}
           </Button>
         </Upload>
         {optional && image && (
-          <Button onClick={() => form.setFieldValue(name, undefined)}>
+          <Button
+            disabled={disabled}
+            onClick={() => {
+              if (!componentDisabled && mayUpdate(useAppStore.getState().profile, permission))
+                form.setFieldValue(name, undefined);
+            }}
+          >
             Xoá {label.toLowerCase()}
           </Button>
         )}

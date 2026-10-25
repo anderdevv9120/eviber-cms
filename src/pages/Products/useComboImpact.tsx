@@ -3,10 +3,14 @@ import { Link, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
 import { listAffectedCombosAPI, type ComboRef } from "@/services/combos";
 import { warningNotification } from "@/utils/notification";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 export function useComboImpact() {
   const { modal } = App.useApp();
   const navigate = useNavigate();
+  const profile = useAppStore(state => state.profile);
+  const canReadCombos = !!profile && canAccess(profile, { anyOf: ["COMBO_READ"] });
 
   const confirm = async (productId: string, question: string): Promise<ComboRef[] | null> => {
     let affected: ComboRef[] = [];
@@ -28,9 +32,13 @@ export function useComboImpact() {
             <ul>
               {affected.map(combo => (
                 <li key={combo._id}>
-                  <Link to={PATH.COMBO_DETAIL.replace(":id", encodeURIComponent(combo._id))}>
-                    {combo.name}
-                  </Link>
+                  {canReadCombos ? (
+                    <Link to={PATH.COMBO_DETAIL.replace(":id", encodeURIComponent(combo._id))}>
+                      {combo.name}
+                    </Link>
+                  ) : (
+                    combo.name
+                  )}
                 </li>
               ))}
             </ul>
@@ -46,8 +54,10 @@ export function useComboImpact() {
 
   const notify = (affected: ComboRef[]) => {
     if (!affected.length) return;
+    const current = useAppStore.getState().profile;
+    const canOpen = !!current && canAccess(current, { anyOf: ["COMBO_READ"] });
     warningNotification(`${affected.length} combo bị ảnh hưởng`, {
-      actions: (
+      actions: canOpen ? (
         <Button
           size='small'
           onClick={() =>
@@ -60,7 +70,7 @@ export function useComboImpact() {
         >
           Sửa combo
         </Button>
-      )
+      ) : undefined
     });
   };
 

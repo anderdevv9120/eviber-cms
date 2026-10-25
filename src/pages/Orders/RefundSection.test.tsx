@@ -1,6 +1,12 @@
 import { StrictMode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import RefundReviewForm from "./RefundReviewForm";
+import RefundInspectionForm from "./RefundInspectionForm";
+import RefundExceptionForm from "./RefundExceptionForm";
+import RefundPayoutForm from "./RefundPayoutForm";
 import { ConfigProvider } from "antd";
 import dayjs from "dayjs";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
@@ -175,6 +181,557 @@ const open = async (name: string) => fireEvent.click(await screen.findByRole("bu
 const reviewButtons = () => screen.queryAllByRole("button").map(button => button.textContent);
 
 describe("admin refund section", () => {
+  beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
+  it("hides loaded refund reads on revocation while retaining a closable review draft", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await open("Duyệt yêu cầu");
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Keep revoked draft");
+    const draft = field("textbox", `Lý do quyết định ${itemLabel}`);
+    const reads = calls.length;
+
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+    expect(screen.queryByText("Chính sách khi mua")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Lịch sử yêu cầu 1" })).toBeNull();
+    expect(screen.queryByLabelText("Đang tải dữ liệu hoàn tiền")).toBeNull();
+    expect(draft.value).toBe("Keep revoked draft");
+    expect(draft.disabled).toBe(true);
+    expect(draft.isConnected).toBe(true);
+    expect(calls).toHaveLength(reads);
+
+    click("Đóng");
+    expect(screen.queryByRole("form", { name: "Duyệt yêu cầu hoàn tiền" })).toBeNull();
+    expect(writes()).toHaveLength(0);
+  });
+  it("ends pending refund loading on revocation and ignores the late response", async () => {
+    const pending = deferred<AxiosResponse>();
+    let config: InternalAxiosRequestConfig | undefined;
+    serve({
+      [`get ${REFUNDS}`]: next => {
+        config = next;
+        return pending.promise;
+      }
+    });
+    renderSection();
+    await waitFor(() => expect(config).toBeDefined());
+    expect(screen.getByLabelText("Đang tải dữ liệu hoàn tiền")).toBeTruthy();
+    const reads = calls.length;
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+    expect(config!.signal!.aborted).toBe(true);
+    expect(screen.queryByLabelText("Đang tải dữ liệu hoàn tiền")).toBeNull();
+    await act(async () => pending.resolve(response(config!, view)));
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("Chính sách khi mua")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(calls).toHaveLength(reads);
+  });
+  it.each(["ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"] as const)(
+    "hides old capabilities and amounts until the %s-only reload resolves",
+    async remaining => {
+      useAppStore
+        .getState()
+        .setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"]));
+      const pending = deferred<AxiosResponse>();
+      let reloadConfig: InternalAxiosRequestConfig | undefined;
+      let reloading = false;
+      serve({
+        [`get ${REFUNDS}`]: config => {
+          if (!reloading) return response(config, { ...view, canPay: true });
+          reloadConfig = config;
+          return pending.promise;
+        }
+      });
+      renderSection();
+      await open("Duyệt yêu cầu");
+      type("textbox", `Lý do quyết định ${itemLabel}`, "Keep partial draft");
+      const draft = field("textbox", `Lý do quyết định ${itemLabel}`);
+      reloading = true;
+      await act(async () =>
+        useAppStore.getState().setProfile(staffProfile(["ORDER_READ", remaining]))
+      );
+      await waitFor(() => expect(reloadConfig).toBeDefined());
+      expect(screen.queryByText("Chính sách khi mua")).toBeNull();
+      expect(screen.queryByText(/30\.000/)).toBeNull();
+      expect(screen.queryByText("Giải thích của khách: Không vừa size")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Tạo yêu cầu ngoại lệ" })).toBeNull();
+      expect(draft.value).toBe("Keep partial draft");
+      expect(draft.disabled).toBe(true);
+      fireEvent.submit(screen.getByRole("form", { name: "Duyệt yêu cầu hoàn tiền" }));
+      expect(writes()).toHaveLength(0);
+      await act(async () =>
+        pending.resolve(
+          response(reloadConfig!, {
+            ...view,
+            canReview: remaining === "ORDER_REFUND_REVIEW",
+            canPay: remaining === "ORDER_REFUND_PAY",
+            remainingPaidShipping: 12000
+          })
+        )
+      );
+      expect(await screen.findByText(/12\.000/)).toBeTruthy();
+      expect(screen.queryByText(/30\.000/)).toBeNull();
+      expect(draft.isConnected).toBe(true);
+      expect(draft.value).toBe("Keep partial draft");
+      expect(draft.disabled).toBe(remaining !== "ORDER_REFUND_REVIEW");
+    }
+  );
+  it("shows a failed authority refresh and retries without discarding the draft", async () => {
+    let failed = false;
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        failed ? fail(config, 503, "Refresh unavailable") : response(config, view)
+    });
+    renderSection();
+    await open("Duyệt yêu cầu");
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Keep failed-refresh draft");
+    const draft = field("textbox", `Lý do quyết định ${itemLabel}`);
+    failed = true;
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_PAY"]))
+    );
+    expect(await screen.findByText("Refresh unavailable")).toBeTruthy();
+    expect(screen.queryByText("Chính sách khi mua")).toBeNull();
+    expect(draft.isConnected).toBe(true);
+    failed = false;
+    click("Thử lại");
+    expect(await screen.findByText("Chính sách khi mua")).toBeTruthy();
+    expect(draft.value).toBe("Keep failed-refresh draft");
+    expect(draft.isConnected).toBe(true);
+  });
+  it("does not display an untouched automatic payout form after read revocation", async () => {
+    const claimedView: AdminRefundOrderView = {
+      ...view,
+      canPay: true,
+      requests: [
+        {
+          ...request,
+          stage: "payout_in_progress",
+          claim: {
+            claimId: "c1",
+            claimedAt: "2026-10-23T00:00:00.000Z",
+            merchandiseAmount: 270000,
+            shippingAmount: 0,
+            amount: 270000
+          }
+        }
+      ]
+    };
+    serve({ [`get ${REFUNDS}`]: config => response(config, claimedView) });
+    renderSection();
+    await screen.findByRole("form", { name: "Ghi nhận hoàn tiền đã chuyển" });
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+    expect(screen.queryByRole("form", { name: "Ghi nhận hoàn tiền đã chuyển" })).toBeNull();
+    expect(screen.queryByText(/Số tiền đã cố định/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hủy nhận xử lý" })).toBeNull();
+  });
+  it("never mounts payout forms for an initial review-only view", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]));
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(config, {
+          ...view,
+          canPay: false,
+          requests: [
+            {
+              ...request,
+              stage: "payout_in_progress",
+              claim: {
+                claimId: "c1",
+                claimedAt: "2026-10-23T00:00:00.000Z",
+                merchandiseAmount: 270000,
+                shippingAmount: 0,
+                amount: 270000
+              }
+            }
+          ]
+        })
+    });
+    renderSection();
+    await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" });
+    expect(screen.queryByLabelText("Ghi nhận hoàn tiền đã chuyển")).toBeNull();
+  });
+  it.each(["record", "release"])(
+    "retains an edited %s draft when the fresh view removes pay capability",
+    async mode => {
+      useAppStore
+        .getState()
+        .setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"]));
+      const pending = deferred<AxiosResponse>();
+      let pendingConfig: InternalAxiosRequestConfig | undefined;
+      let refreshing = false;
+      const claimedView: AdminRefundOrderView = {
+        ...view,
+        canPay: true,
+        requests: [
+          {
+            ...request,
+            stage: "payout_in_progress",
+            claim: {
+              claimId: "c1",
+              claimedAt: "2026-10-23T00:00:00.000Z",
+              merchandiseAmount: 270000,
+              shippingAmount: 0,
+              amount: 270000
+            }
+          }
+        ]
+      };
+      serve({
+        [`get ${REFUNDS}`]: config => {
+          if (!refreshing) return response(config, claimedView);
+          pendingConfig = config;
+          return pending.promise;
+        }
+      });
+      renderSection();
+      await screen.findByRole("form", { name: "Ghi nhận hoàn tiền đã chuyển" });
+      if (mode === "release") click("Hủy nhận xử lý");
+      const label = mode === "record" ? "Mã tham chiếu giao dịch" : "Lý do giải phóng";
+      type("textbox", label, "Keep payout draft");
+      const draft = field("textbox", label);
+      refreshing = true;
+      await act(async () =>
+        useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]))
+      );
+      expect(screen.queryByText(/Số tiền đã cố định/)).toBeNull();
+      expect(draft.isConnected).toBe(true);
+      expect(draft.disabled).toBe(true);
+      await waitFor(() => expect(pendingConfig).toBeDefined());
+      await act(async () =>
+        pending.resolve(response(pendingConfig!, { ...claimedView, canPay: false }))
+      );
+      expect(draft.isConnected).toBe(true);
+      expect(draft.value).toBe("Keep payout draft");
+      expect(field("textbox", label)).toBe(draft);
+      expect(draft.disabled).toBe(true);
+      expect(writes()).toHaveLength(0);
+      if (mode === "release") {
+        click("Đóng");
+        expect(screen.queryByRole("form", { name: "Giải phóng nhận xử lý" })).toBeNull();
+      }
+    }
+  );
+  it("rejects an explicit reload result if read authority changed while it was pending", async () => {
+    useAppStore
+      .getState()
+      .setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW", "ORDER_REFUND_PAY"]));
+    const pending = deferred<AxiosResponse>();
+    let pendingConfig: InternalAxiosRequestConfig | undefined;
+    let reads = 0;
+    const claimedView: AdminRefundOrderView = {
+      ...view,
+      canPay: true,
+      requests: [
+        {
+          ...request,
+          stage: "payout_in_progress",
+          claim: {
+            claimId: "c1",
+            claimedAt: "2026-10-23T00:00:00.000Z",
+            merchandiseAmount: 270000,
+            shippingAmount: 0,
+            amount: 270000
+          }
+        }
+      ]
+    };
+    serve({
+      [`get ${REFUNDS}`]: config => {
+        reads += 1;
+        if (reads === 2) {
+          pendingConfig = config;
+          return pending.promise;
+        }
+        return response(
+          config,
+          reads === 1 ? claimedView : { ...view, remainingPaidShipping: 12000 }
+        );
+      }
+    });
+    const { onCommitted } = renderSection();
+    await open("Kiểm tra trạng thái");
+    await waitFor(() => expect(pendingConfig).toBeDefined());
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]))
+    );
+    await screen.findByText(/12\.000/);
+    await act(async () =>
+      pending.resolve(response(pendingConfig!, { ...claimedView, remainingPaidShipping: 99000 }))
+    );
+    expect(screen.queryByText(/99\.000/)).toBeNull();
+    expect(screen.getByText(/12\.000/)).toBeTruthy();
+    expect(onCommitted).not.toHaveBeenCalled();
+  });
+  it.each(["review", "inspect", "exception", "legacy", "record", "release"])(
+    "%s keeps reload and its close/status escape usable after write revocation",
+    async mode => {
+      const reload = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Read unavailable"))
+        .mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      const ctx = { view: { ...view, canPay: true }, reload, commit: vi.fn() };
+      const props = { ctx, labels: { a1: itemLabel }, onClose };
+      const claim = {
+        claimId: "c1",
+        claimedAt: dayjs().subtract(2, "hour").toISOString(),
+        merchandiseAmount: 270000,
+        shippingAmount: 0,
+        amount: 270000
+      };
+      serve({
+        [`post ${REFUNDS}/r1/decision`]: config => fail(config, 409, "Stale revision"),
+        [`post ${REFUNDS}/r1/inspections`]: config => fail(config, 409, "Stale revision"),
+        [`post ${REFUNDS}`]: config => fail(config, 409, "Stale revision"),
+        "post /orders/order-id/refund-legacy-review": config => fail(config, 409, "Stale revision"),
+        [`post ${REFUNDS}/r1/payout`]: config => fail(config, 409, "Stale revision"),
+        [`post ${REFUNDS}/r1/payout-release`]: config => fail(config, 409, "Stale revision")
+      });
+      render(
+        mode === "review" ? (
+          <RefundReviewForm {...props} request={request} />
+        ) : mode === "inspect" ? (
+          <RefundInspectionForm
+            {...props}
+            request={{
+              ...request,
+              stage: "awaiting_return",
+              items: [{ ...item, approvedQuantity: 3, returnRequired: true }]
+            }}
+          />
+        ) : mode === "exception" || mode === "legacy" ? (
+          <RefundExceptionForm {...props} mode={mode === "legacy" ? "legacy" : "request"} />
+        ) : (
+          <RefundPayoutForm
+            ctx={ctx}
+            request={{ ...request, stage: "payout_in_progress", claim }}
+          />
+        )
+      );
+      let draft: HTMLInputElement;
+      if (mode === "review") {
+        type("textbox", `Lý do quyết định ${itemLabel}`, "Keep escape draft");
+        draft = field("textbox", `Lý do quyết định ${itemLabel}`);
+      } else if (mode === "inspect") {
+        type("spinbutton", `Số lượng đã nhận ${itemLabel}`, "1");
+        type("textbox", "Ghi chú kiểm tra", "Keep escape draft");
+        draft = field("textbox", "Ghi chú kiểm tra");
+      } else if (mode === "exception") {
+        fireEvent.click(field("checkbox", "Chỉ hoàn phí vận chuyển"));
+        type("textbox", "Lý do ngoại lệ", "Keep escape draft");
+        draft = field("textbox", "Lý do ngoại lệ");
+      } else if (mode === "legacy") {
+        type("spinbutton", "Số tiền đã thu", "270000");
+        type("textbox", "Lý do đối soát", "Keep escape draft");
+        fireEvent.click(field("checkbox", /Tôi xác nhận đã đối soát chứng từ/));
+        draft = field("textbox", "Lý do đối soát");
+      } else if (mode === "record") {
+        type("spinbutton", "Số tiền đã hoàn", "270000");
+        type(
+          "textbox",
+          "Thời điểm đã chuyển tiền",
+          dayjs().subtract(1, "hour").format("DD/MM/YYYY HH:mm")
+        );
+        fireEvent.keyDown(field("textbox", "Thời điểm đã chuyển tiền"), {
+          key: "Enter",
+          code: "Enter"
+        });
+        type("textbox", "Mã tham chiếu giao dịch", "Keep escape draft");
+        draft = field("textbox", "Mã tham chiếu giao dịch");
+      } else {
+        click("Hủy nhận xử lý");
+        fireEvent.click(
+          field("checkbox", "Tôi đã đối chiếu ngân hàng và xác nhận chưa chuyển khoản")
+        );
+        type("textbox", "Lý do giải phóng", "Keep escape draft");
+        draft = field("textbox", "Lý do giải phóng");
+      }
+      const form = draft.closest("form")!;
+      fireEvent.submit(form);
+      const reloadButton = await screen.findByRole("button", { name: "Tải lại dữ liệu" });
+      expect(writes()).toHaveLength(1);
+      await act(async () =>
+        useAppStore
+          .getState()
+          .setProfile(
+            staffProfile([
+              "ORDER_READ",
+              mode === "record" || mode === "release" ? "ORDER_REFUND_REVIEW" : "ORDER_REFUND_PAY"
+            ])
+          )
+      );
+      expect(draft.value).toBe("Keep escape draft");
+      expect(draft.disabled).toBe(true);
+      expect(reloadButton).toHaveProperty("disabled", false);
+      fireEvent.click(reloadButton);
+      await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+      fireEvent.submit(form);
+      expect(writes()).toHaveLength(1);
+      if (mode === "record") {
+        click("Kiểm tra trạng thái");
+        await waitFor(() => expect(reload).toHaveBeenCalledTimes(3));
+      } else {
+        click("Đóng");
+        if (mode === "release")
+          expect(screen.queryByRole("form", { name: "Giải phóng nhận xử lý" })).toBeNull();
+        else expect(onClose).toHaveBeenCalledOnce();
+      }
+    }
+  );
+  it("keeps refund reload usable after write revocation without allowing a write", async () => {
+    let conflict = false;
+    serve({
+      [`get ${REFUNDS}`]: config => {
+        return conflict ? fail(config, 503, "Read unavailable") : response(config, view);
+      },
+      [`post ${REFUNDS}/r1/decision`]: config => {
+        conflict = true;
+        return fail(config, 409, "Stale revision");
+      }
+    });
+    renderSection();
+    await open("Duyệt yêu cầu");
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Keep reload draft");
+    click("Xác nhận duyệt");
+    const reload = (await screen.findByRole("button", {
+      name: "Tải lại dữ liệu"
+    })) as HTMLButtonElement;
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_PAY"]))
+    );
+    expect(reload.disabled).toBe(false);
+    const before = calls.length;
+    fireEvent.click(reload);
+    await waitFor(() => expect(calls.length).toBeGreaterThan(before));
+    expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe("Keep reload draft");
+    fireEvent.submit(screen.getByRole("form", { name: "Duyệt yêu cầu hoàn tiền" }));
+    expect(writes()).toHaveLength(1);
+    click("Đóng");
+    expect(screen.queryByRole("form", { name: "Duyệt yêu cầu hoàn tiền" })).toBeNull();
+  });
+  it.each(["review", "pay", "restore"])(
+    "RBAC review refreshes server capabilities at unchanged revision after %s grant changes",
+    async initial => {
+      const review = initial !== "pay";
+      useAppStore
+        .getState()
+        .setProfile(
+          staffProfile(["ORDER_READ", review ? "ORDER_REFUND_REVIEW" : "ORDER_REFUND_PAY"])
+        );
+      let server = { ...view, canReview: review, canPay: !review };
+      serve({ [`get ${REFUNDS}`]: config => response(config, server) });
+      renderSection();
+      await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" });
+      if (review) {
+        await open("Duyệt yêu cầu");
+        type("textbox", `Lý do quyết định ${itemLabel}`, "Keep capability draft");
+      }
+      const reads = calls.length;
+      if (initial === "restore")
+        await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+      server = { ...view, canReview: true, canPay: true };
+      await act(async () =>
+        useAppStore
+          .getState()
+          .setProfile(
+            staffProfile([
+              "ORDER_READ",
+              "ORDER_REFUND_REVIEW",
+              ...(initial === "restore" ? [] : ["ORDER_REFUND_PAY" as const])
+            ])
+          )
+      );
+      await waitFor(() => expect(calls.length).toBeGreaterThan(reads));
+      await screen.findByRole("button", { name: "Tạo yêu cầu ngoại lệ" });
+      if (review)
+        expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe(
+          "Keep capability draft"
+        );
+      else expect(screen.getByRole("button", { name: "Duyệt yêu cầu" })).toBeTruthy();
+    }
+  );
+  it.each(["review", "inspect", "exception", "legacy"])(
+    "RBAC review makes all %s fields read-only on revocation and restores the same draft",
+    async mode => {
+      const ctx = { view, reload: vi.fn(), commit: vi.fn() };
+      const onClose = vi.fn();
+      const props = { ctx, labels: { a1: itemLabel }, onClose };
+      const ui =
+        mode === "review" ? (
+          <RefundReviewForm {...props} request={request} />
+        ) : mode === "inspect" ? (
+          <RefundInspectionForm
+            {...props}
+            request={{
+              ...request,
+              stage: "awaiting_return",
+              items: [{ ...item, approvedQuantity: 3, returnRequired: true }]
+            }}
+          />
+        ) : (
+          <RefundExceptionForm {...props} mode={mode === "legacy" ? "legacy" : "request"} />
+        );
+      const { container } = render(ui);
+      const fields = Array.from(
+        container.querySelectorAll<HTMLInputElement>("input:not([type=hidden]),textarea,select")
+      );
+      expect(fields.length).toBeGreaterThan(0);
+      await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+      expect(fields.every(input => input.disabled)).toBe(true);
+      expect((screen.getByRole("button", { name: "Đóng" }) as HTMLButtonElement).disabled).toBe(
+        false
+      );
+      click("Đóng");
+      expect(onClose).toHaveBeenCalledOnce();
+      await act(async () => useAppStore.getState().setProfile(ownerProfile));
+      expect(fields.some(input => !input.disabled)).toBe(true);
+      expect(fields.every(input => input.isConnected)).toBe(true);
+    }
+  );
+  it("RBAC no refund grant never fetches even if the section is mounted directly", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ"]));
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await act(async () => {});
+    expect(calls).toHaveLength(0);
+  });
+  it("RBAC intersects stale review capability with the current profile", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_PAY"]));
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" });
+    expect(screen.queryByRole("button", { name: "Duyệt yêu cầu" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tạo yêu cầu ngoại lệ" })).toBeNull();
+  });
+  it("RBAC preserves the open review draft and rejects forced submission after permission refresh", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await open("Duyệt yêu cầu");
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Keep my decision");
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_PAY"]))
+    );
+    const confirm = screen.getByRole("button", { name: "Xác nhận duyệt" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe("Keep my decision");
+    fireEvent.submit(confirm.closest("form")!);
+    expect(calls.filter(call => call.method === "post")).toHaveLength(0);
+  });
+  it("RBAC child review also denies a server capability removed while the profile still permits it", () => {
+    const denied = { ...view, canReview: false };
+    render(
+      <RefundReviewForm
+        ctx={{ view: denied, reload: vi.fn(), commit: vi.fn() }}
+        request={request}
+        labels={{ a1: itemLabel }}
+        onClose={() => {}}
+      />
+    );
+    expect(
+      (screen.getByRole("button", { name: "Xác nhận duyệt" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
   it("partial_approval_preserves_customer_request_and_releases_remainder", async () => {
     const committed = withRequest(
       {

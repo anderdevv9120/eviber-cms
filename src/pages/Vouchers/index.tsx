@@ -1,3 +1,4 @@
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Input, Pagination, Select, Spin, Typography } from "antd";
 import type { TableColumnsType } from "antd";
@@ -95,6 +96,8 @@ function useVouchersList() {
 }
 
 function VoucherPage() {
+  const profile = useAppStore(state => state.profile);
+  const canCreate = !!profile && canAccess(profile, { anyOf: ["COUPON_CREATE"] });
   const { query, key, changeQuery, reload, result, error } = useVouchersList();
   const [selection, setSelection] = useState<{ id: string | null; session: number } | null>(null);
   const [savedVersion, setSavedVersion] = useState(0);
@@ -180,7 +183,13 @@ function VoucherPage() {
           <Button onClick={reload} disabled={!result && !error}>
             Tải lại
           </Button>
-          <Button type='primary' onClick={() => setSelection({ id: null, session: Date.now() })}>
+          <Button
+            type='primary'
+            disabled={!canCreate}
+            onClick={() => {
+              if (canCreate) setSelection({ id: null, session: Date.now() });
+            }}
+          >
             Thêm voucher
           </Button>
         </Flex>

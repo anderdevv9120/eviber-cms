@@ -1,3 +1,5 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, type ComponentProps } from "react";
@@ -289,4 +291,47 @@ describe("AdjustStockModal", () => {
     await screen.findByText("Máy chủ lỗi");
     expect(onUnknownResult).not.toHaveBeenCalled();
   });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+describe("stock adjustment authority", () => {
+  beforeEach(() => {
+    vi.mocked(api.adjustStockAPI)
+      .mockReset()
+      .mockResolvedValue(ok(result(87)));
+  });
+  it("preserves quantity and note while blocking a forced submit after refresh", async () => {
+    renderModal();
+    amount(8);
+    note("Draft note");
+    act(() => useAppStore.getState().setProfile(staffProfile(["INVENTORY_READ"])));
+    expect(submitDisabled()).toBe(true);
+    expect((screen.getByLabelText("Ghi chú") as HTMLTextAreaElement).value).toBe("Draft note");
+    expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe("8");
+    expect((screen.getByRole("spinbutton") as HTMLInputElement).disabled).toBe(true);
+    submitButton().removeAttribute("disabled");
+    submit();
+    await act(async () => {});
+    expect(calls()).toHaveLength(0);
+  });
+  it("denies null profile even with a valid adjustment", () => {
+    useAppStore.setState({ profile: null });
+    renderModal();
+    amount(8);
+    expect(submitDisabled()).toBe(true);
+  });
+});
+
+it("submits a permitted staff adjustment using INVENTORY_ADJUST", async () => {
+  vi.mocked(api.adjustStockAPI)
+    .mockReset()
+    .mockResolvedValue(ok(result(45)));
+  useAppStore.getState().setProfile(staffProfile(["INVENTORY_READ", "INVENTORY_ADJUST"]));
+  renderModal();
+  amount(8);
+  submit();
+  await waitFor(() => expect(api.adjustStockAPI).toHaveBeenCalledWith("v1", { delta: 8 }));
 });

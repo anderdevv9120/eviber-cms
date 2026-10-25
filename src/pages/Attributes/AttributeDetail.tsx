@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, App, Button, Flex, Modal, Spin, Typography } from "antd";
 import { useParams } from "react-router";
@@ -31,6 +33,8 @@ export default function AttributeDetail() {
   );
 }
 function DetailContent({ attributeId }: { attributeId: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["ATTRIBUTE_UPDATE"] });
   const [result, setResult] = useState<AttributeValuesResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -111,6 +115,8 @@ function DetailContent({ attributeId }: { attributeId: string }) {
     await reload();
   };
   const submitValue = async (input: CreateAttributeValueInput) => {
+    const latest = useAppStore.getState().profile;
+    if (!latest || !canAccess(latest, { anyOf: ["ATTRIBUTE_UPDATE"] })) return;
     if (writesDisabled || savingRef.current || (editingId && !editing)) return;
     savingRef.current = true;
     setSaving(true);
@@ -136,6 +142,8 @@ function DetailContent({ attributeId }: { attributeId: string }) {
     }
   };
   const saveOrder = async () => {
+    const latest = useAppStore.getState().profile;
+    if (!latest || !canAccess(latest, { anyOf: ["ATTRIBUTE_UPDATE"] })) return;
     if (busy || orderConflict || !draft.dirty || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
@@ -161,6 +169,8 @@ function DetailContent({ attributeId }: { attributeId: string }) {
     }
   };
   const confirmDelete = async () => {
+    const latest = useAppStore.getState().profile;
+    if (!latest || !canAccess(latest, { anyOf: ["ATTRIBUTE_UPDATE"] })) return;
     if (!result || !deleting || used || writesDisabled || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
@@ -234,8 +244,9 @@ function DetailContent({ attributeId }: { attributeId: string }) {
           <Flex gap={8} className='mb-4'>
             <Button
               type='primary'
-              disabled={writesDisabled}
+              disabled={writesDisabled || !canUpdate}
               onClick={() => {
+                if (!canUpdate || writesDisabled) return;
                 setEditingValue(undefined);
                 setFormOpen(true);
               }}
@@ -243,7 +254,7 @@ function DetailContent({ attributeId }: { attributeId: string }) {
               Thêm giá trị
             </Button>
             <Button
-              disabled={busy || orderConflict || !draft.dirty}
+              disabled={busy || orderConflict || !draft.dirty || !canUpdate}
               loading={saving}
               onClick={() => void saveOrder()}
             >
@@ -264,15 +275,21 @@ function DetailContent({ attributeId }: { attributeId: string }) {
           </Flex>
           <AttributeValuesTable
             values={orderedValues}
-            disabled={busy || orderConflict || formOpen || !!deletingId}
-            mutationsDisabled={writesDisabled}
-            onMove={draft.move}
-            onMoveTo={draft.moveTo}
+            disabled={busy || orderConflict || formOpen || !!deletingId || !canUpdate}
+            mutationsDisabled={writesDisabled || !canUpdate}
+            onMove={(id, direction) => {
+              if (canUpdate) draft.move(id, direction);
+            }}
+            onMoveTo={(id, target) => {
+              if (canUpdate) draft.moveTo(id, target);
+            }}
             onEdit={value => {
+              if (!canUpdate || writesDisabled) return;
               setEditingValue(value);
               setFormOpen(true);
             }}
             onDelete={value => {
+              if (!canUpdate || writesDisabled) return;
               setActionError(null);
               setDeletingId(value._id);
             }}
@@ -313,7 +330,7 @@ function DetailContent({ attributeId }: { attributeId: string }) {
           key={editingId ?? "create"}
           value={editingValue}
           expectedRevision={result ? result.revision : 0}
-          disabled={writesDisabled || (!!editingId && !editing)}
+          disabled={writesDisabled || !canUpdate || (!!editingId && !editing)}
           onSubmit={submitValue}
           onCancel={() => setFormOpen(false)}
         />
@@ -330,7 +347,7 @@ function DetailContent({ attributeId }: { attributeId: string }) {
         okText='Xóa'
         cancelText='Hủy'
         confirmLoading={saving}
-        okButtonProps={{ danger: true, disabled: writesDisabled }}
+        okButtonProps={{ danger: true, disabled: writesDisabled || !canUpdate }}
         footer={used ? <Button onClick={() => setDeletingId(null)}>Đóng</Button> : undefined}
       >
         {deleting &&
