@@ -15,7 +15,8 @@ import {
   LayoutOutlined,
   SettingOutlined,
   ShopOutlined,
-  GiftOutlined
+  GiftOutlined,
+  CreditCardOutlined
 } from "@ant-design/icons";
 import { PATH } from "@/constants/paths";
 
@@ -59,7 +60,10 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   },
   {
     title: "Cài đặt",
-    items: [{ key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" }]
+    items: [
+      { key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" },
+      { key: PATH.SETTINGS_PAYMENT, icon: <CreditCardOutlined />, label: "Thanh toán" }
+    ]
   }
 ];
 

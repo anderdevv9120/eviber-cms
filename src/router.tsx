@@ -29,6 +29,7 @@ const Vouchers = lazy(() => import("./pages/Vouchers"));
 const ContentHome = lazy(() => import("./pages/ContentHome"));
 const StoreInfo = lazy(() => import("./pages/StoreInfo"));
 const CheckoutSettings = lazy(() => import("./pages/Settings/CheckoutSettings"));
+const PaymentSettings = lazy(() => import("./pages/PaymentSettings"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
@@ -78,7 +79,8 @@ export const routes: RouteObject[] = [
       { path: PATH.CONTENT_INFO, element: <StoreInfo /> },
       { path: PATH.POLICIES, element: <Policies /> },
       { path: PATH.REPORTS, element: <Reports /> },
-      { path: PATH.SETTINGS_CHECKOUT, element: <CheckoutSettings /> }
+      { path: PATH.SETTINGS_CHECKOUT, element: <CheckoutSettings /> },
+      { path: PATH.SETTINGS_PAYMENT, element: <PaymentSettings /> }
     ]
   },
   { path: "*", element: <NotFound /> }

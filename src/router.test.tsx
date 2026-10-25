@@ -143,6 +143,33 @@ describe("CMS data router", () => {
     expect(breadcrumb.getByText("Cài đặt")).toBeTruthy();
   });
 
+  it("opens Cài đặt › Thanh toán with the payOS settings form", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : {
+              status: "not_configured",
+              clientId: null,
+              apiKeyLast4: null,
+              checksumKeyLast4: null,
+              linkTtlMinutes: 15,
+              revision: 0,
+              updatedAt: null,
+              updatedBy: null,
+              webhookUrl: null
+            }
+      );
+    const router = renderRoute("/dashboard");
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Thanh toán/ }));
+    await screen.findByRole("heading", { name: "Thanh toán" });
+    expect(router.state.location.pathname).toBe("/settings/payment");
+    expect(await screen.findByText("Chưa cấu hình")).toBeTruthy();
+    const breadcrumb = within(screen.getByRole("navigation"));
+    expect(breadcrumb.getByText("Cài đặt")).toBeTruthy();
+  });
+
   it("drops the removed Payments, Banner and old content routes", () => {
     const paths = routes.flatMap(route => route.children ?? []).map(route => route.path);
     for (const removed of ["/payments", "/banners", "/store-content", "/categories"])

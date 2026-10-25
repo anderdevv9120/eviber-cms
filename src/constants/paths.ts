@@ -22,7 +22,8 @@ export const PATH = {
   CONTENT_INFO: "/content/store-info",
   POLICIES: "/policies",
   REPORTS: "/reports",
-  SETTINGS_CHECKOUT: "/settings/checkout"
+  SETTINGS_CHECKOUT: "/settings/checkout",
+  SETTINGS_PAYMENT: "/settings/payment"
 };
 
 export const PATH_AUTH = {
