@@ -11,6 +11,7 @@ import MainLayout from "./layouts/MainLayout";
 
 const ForgetPassword = lazy(() => import("./pages/auth/ForgetPassword"));
 const Login = lazy(() => import("./pages/auth/Login"));
+const AcceptStaffInvitation = lazy(() => import("./pages/auth/AcceptStaffInvitation"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
 const Combos = lazy(() => import("./pages/Combos"));
@@ -37,6 +38,14 @@ const StaffRegistration = lazy(() => import("./pages/Staff/StaffRegistration"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
+  {
+    path: PATH_AUTH.STAFF_INVITATION,
+    element: (
+      <Suspense fallback={<div>Đang tải lời mời...</div>}>
+        <AcceptStaffInvitation />
+      </Suspense>
+    )
+  },
   {
     path: PATH_AUTH.AUTH,
     element: (

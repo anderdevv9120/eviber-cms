@@ -77,17 +77,24 @@ describe("staff transport", () => {
     expect(calls.map(c => c.params)).toEqual([undefined, undefined, undefined, undefined]);
   });
 
-  it("exposes only management functions — no token or credential surface", () => {
-    expect(Object.keys(api).sort()).toEqual([
-      "assignStaffRoleAPI",
-      "bulkInviteAPI",
-      "listAssignableRolesAPI",
-      "listInvitationsAPI",
-      "listStaffAPI",
-      "resendInvitationAPI",
-      "revokeInvitationAPI",
-      "revokeStaffAccessAPI",
-      "sendInvitationAPI"
+  it("posts invitation secrets only in public request bodies without admin credentials", async () => {
+    const calls: InternalAxiosRequestConfig[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      calls.push(config);
+      return response(config, { state: "already_accepted" });
+    };
+    const signal = new AbortController().signal;
+    await api.previewInvitationAPI("secret-token", signal);
+    await api.acceptInvitationAPI("secret-token", "Current password");
+    expect(calls.map(c => [c.method, c.url, c.toastError, c.skipAuth])).toEqual([
+      ["post", "/staff/invitations/preview", false, true],
+      ["post", "/staff/invitations/accept", false, true]
     ]);
+    expect(calls.map(c => JSON.parse(c.data))).toEqual([
+      { token: "secret-token" },
+      { token: "secret-token", password: "Current password" }
+    ]);
+    expect(calls[0].signal).toBe(signal);
+    expect(calls.every(c => !c.headers.Authorization && c.params === undefined)).toBe(true);
   });
 });

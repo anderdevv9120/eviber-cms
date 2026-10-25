@@ -42,6 +42,36 @@ export interface StaffView {
   lastLogin: string | null;
 }
 
+export type InvitationPreview =
+  | { state: "unusable" | "expired" | "already_accepted" }
+  | {
+      state: "pending";
+      email: string;
+      roleName: string;
+      expiresAt: string;
+      passwordMode: "existing" | "set";
+    };
+
+export const previewInvitationAPI = (
+  token: string,
+  signal?: AbortSignal
+): Promise<ApiResponse<InvitationPreview>> =>
+  axiosRequest.post(
+    "/staff/invitations/preview",
+    { token },
+    { skipAuth: true, toastError: false, signal }
+  );
+
+export const acceptInvitationAPI = (
+  token: string,
+  password: string
+): Promise<ApiResponse<{ state: "accepted" | "already_accepted" }>> =>
+  axiosRequest.post(
+    "/staff/invitations/accept",
+    { token, password },
+    { skipAuth: true, toastError: false }
+  );
+
 const inlineErrors = { toastError: false };
 // Gửi mail có thể lâu (SMTP chậm) — 60s/hàng theo kế hoạch; timeout chỉ là "không rõ kết quả"
 const SEND_TIMEOUT_MS = 60_000;

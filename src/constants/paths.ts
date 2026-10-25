@@ -31,5 +31,6 @@ export const PATH = {
 export const PATH_AUTH = {
   AUTH: "/auth",
   LOGIN: "/auth/login",
+  STAFF_INVITATION: "/auth/staff-invitation",
   FORGET_PASSWORD: "/auth/forget-password"
 };

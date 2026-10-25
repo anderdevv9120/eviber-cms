@@ -12,6 +12,8 @@ declare module "axios" {
   export interface AxiosRequestConfig {
     /** false → không notify lỗi global (caller tự hiển thị); string → message custom */
     toastError?: boolean | string;
+    /** Public invitation requests must not read or mutate the CMS session. */
+    skipAuth?: boolean;
   }
 }
 
@@ -134,6 +136,10 @@ const axiosRequest = axios.create({
 });
 
 axiosRequest.interceptors.request.use(config => {
+  if (config.skipAuth) {
+    config.headers.delete("Authorization");
+    return config;
+  }
   (config as RetriableRequestConfig)._sessionRevision ??= useAppStore.getState().sessionRevision;
   (config as RetriableRequestConfig)._sessionId ??= getSessionId();
   const token = getCookies(ACCESS_TOKEN_KEY);
@@ -156,6 +162,7 @@ axiosRequest.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       originalRequest &&
+      !originalRequest.skipAuth &&
       isCurrentSession() &&
       !originalRequest._retry &&
       !isRefreshExcluded
@@ -207,7 +214,7 @@ axiosRequest.interceptors.response.use(
     }
 
     const apiError = toApiError(error);
-    if (apiError.status === 403 && isCurrentSession()) {
+    if (apiError.status === 403 && !originalRequest?.skipAuth && isCurrentSession()) {
       if (apiError.errors?.code === "CMS_MEMBERSHIP_REQUIRED") {
         clearSession();
       } else if (

@@ -61,6 +61,41 @@ describe("request interceptor", () => {
     axios.defaults.adapter = originalAdapter;
   });
 
+  it.each([401, 403])(
+    "isolates public invitation errors (%s) from the current CMS session",
+    async status => {
+      useAppStore.getState().setProfile(ownerProfile);
+      const calls: InternalAxiosRequestConfig[] = [];
+      const refreshAPI = vi.fn(async config => ok(config, { data: tokens("new") }));
+      authHandler = refreshAPI;
+      apiHandler = async config => {
+        calls.push(config);
+        throw new AxiosError("denied", String(status), config, null, {
+          ...ok(config, { message: "Invalid proof", errors: { code: "CMS_MEMBERSHIP_REQUIRED" } }),
+          status
+        });
+      };
+      await expect(
+        axiosRequest.post(
+          "/staff/invitations/accept",
+          { token: "secret", password: "wrong" },
+          {
+            skipAuth: true,
+            toastError: false,
+            headers: { Authorization: "Bearer explicit" }
+          }
+        )
+      ).rejects.toMatchObject({ status });
+      expect(calls).toHaveLength(1);
+      expect(calls[0].headers.Authorization).toBeUndefined();
+      expect(refreshAPI).not.toHaveBeenCalled();
+      expect(getCookies(ACCESS_TOKEN_KEY)).toBe("access-old");
+      expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-old");
+      expect(useAppStore.getState().profile).toEqual(ownerProfile);
+      expect(errorNotification).not.toHaveBeenCalled();
+    }
+  );
+
   it("normalizes Nest string conflict codes without dropping the revision error", async () => {
     apiHandler = async config => {
       throw new AxiosError("conflict", "409", config, null, {
