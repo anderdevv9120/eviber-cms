@@ -1,28 +1,60 @@
 import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import axiosRequest from "@/utils/request";
 import { response } from "@/test/attribute-fixtures";
 import { useAppStore } from "@/store/useAppStore";
 import MainLayout from ".";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 beforeEach(() => {
   localStorage.clear();
   useAppStore.getState().clearProfile();
-  axiosRequest.defaults.adapter = async config =>
-    response(config, {
-      _id: "admin",
-      email: "admin@example.test",
-      phone: "",
-      firstName: "Admin",
-      lastName: "User",
-      status: "ACTIVE",
-      roles: ["ADMIN"]
-    });
+  axiosRequest.defaults.adapter = async config => response(config, ownerProfile);
 });
 
 describe("CMS breadcrumb hierarchy", () => {
+  it("preserves the mounted page and focused draft through query-only navigation", async () => {
+    const Page = () => {
+      const [draft, setDraft] = useState("");
+      return (
+        <input
+          aria-label='Draft search'
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+        />
+      );
+    };
+    const router = createMemoryRouter(
+      [{ element: <MainLayout />, children: [{ path: "/products", element: <Page /> }] }],
+      { initialEntries: ["/products"] }
+    );
+    render(<RouterProvider router={router} />);
+    const input = await screen.findByRole("textbox", { name: "Draft search" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "shirt" } });
+    await act(() => router.navigate("/products?search=shirt"));
+    const next = await screen.findByRole("textbox", { name: "Draft search" });
+    expect(next).toBe(input);
+    expect((next as HTMLInputElement).value).toBe("shirt");
+    expect(document.activeElement).toBe(input);
+  });
+  it("refreshes the current menu on window focus", async () => {
+    let current = ownerProfile;
+    axiosRequest.defaults.adapter = async config => response(config, current);
+    const router = createMemoryRouter([{ path: "*", element: <MainLayout /> }], {
+      initialEntries: ["/inventory"]
+    });
+    render(<RouterProvider router={router} />);
+    await screen.findByRole("menuitem", { name: /Sản phẩm/ });
+    current = staffProfile(["INVENTORY_READ"]);
+    fireEvent.focus(window);
+    const { waitFor } = await import("@testing-library/react");
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: /Sản phẩm/ })).toBeNull());
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
   it.each([
     ["/dashboard", ["Tổng quan"]],
     ["/reports", ["Báo cáo bán hàng"]],

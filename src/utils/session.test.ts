@@ -1,3 +1,4 @@
+import { ownerProfile } from "@/test/access-fixtures";
 import { afterEach, describe, expect, it } from "vitest";
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/constants";
 import { useAppStore } from "@/store/useAppStore";
@@ -36,7 +37,8 @@ describe("session util", () => {
       status: "VERIFIED",
       firstName: "A",
       lastName: "B",
-      roles: ["ADMIN"]
+      roles: ["SUPER_ADMIN"],
+      access: ownerProfile.access
     });
     clearSession();
     expect(hasSession()).toBe(false);

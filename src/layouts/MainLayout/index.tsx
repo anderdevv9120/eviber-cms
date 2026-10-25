@@ -2,9 +2,8 @@ import { Suspense, useEffect, useState } from "react";
 import { Layout, Breadcrumb, Spin, Flex, Result, Button, theme } from "antd";
 import { Link, matchPath, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
-import { getProfileAPI } from "@/services/auth";
+import { refreshProfile } from "@/services/auth";
 import { clearSession, hasSession } from "@/utils/session";
-import { ApiError } from "@/utils/request";
 import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
@@ -31,10 +30,10 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
 };
 
 const MainLayout = () => {
-  const { profile, setProfile } = useAppStore();
+  const profile = useAppStore(state => state.profile);
   const { token } = theme.useToken();
   const navigate = useNavigate();
-  const { pathname, search } = useLocation();
+  const { pathname, search, key: locationKey } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
   const customerDetail = !!matchPath(PATH.CUSTOMER_DETAIL, pathname);
@@ -111,27 +110,26 @@ const MainLayout = () => {
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
+  const [checkedPath, setCheckedPath] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    getProfileAPI()
-      .then(res => {
-        // Đăng xuất trong lúc request còn bay: không ghi lại profile vừa dọn
-        if (cancelled || !hasSession()) return;
-        if (!res?.data?._id) throw new Error("Invalid profile response");
-        setProfile(res.data);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        // Server từ chối phiên (chưa đăng nhập / hết hạn / mất quyền) → về login thay vì màn lỗi
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          clearSession();
-        }
-        setLoadFailed(true);
+    const refresh = () =>
+      refreshProfile().catch(() => {
+        if (!cancelled) setLoadFailed(true);
       });
+    void refresh().finally(() => {
+      if (!cancelled) setCheckedPath(pathname);
+    });
+    const onFocus = () => {
+      void refresh();
+    };
+    window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
     };
-  }, [attempt, setProfile]);
+  }, [attempt, locationKey, pathname]);
 
   const handleRetry = () => {
     setLoadFailed(false);
@@ -173,7 +171,7 @@ const MainLayout = () => {
     );
   }
 
-  if (!profile) {
+  if (!profile || checkedPath !== pathname) {
     return (
       <Flex
         justify='center'

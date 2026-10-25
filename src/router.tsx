@@ -4,6 +4,8 @@ import { Navigate, type RouteObject } from "react-router";
 import { PATH, PATH_AUTH } from "./constants/paths";
 import PublicGuard from "./guards/PublicGuard";
 import AuthenticatedGuard from "./guards/AuthenticatedGuard";
+import PermissionGuard from "./guards/PermissionGuard";
+import { ROUTE_POLICIES } from "./utils/access";
 import NotFound from "./layouts/NotFound";
 import MainLayout from "./layouts/MainLayout";
 
@@ -55,30 +57,191 @@ export const routes: RouteObject[] = [
       </Suspense>
     ),
     children: [
-      { path: PATH.HOME, element: <Navigate to={PATH.DASHBOARD} /> },
-      { path: PATH.DASHBOARD, element: <Dashboard /> },
-      { path: PATH.PRODUCTS, element: <Products /> },
-      { path: PATH.COMBOS, element: <Combos /> },
-      { path: PATH.COMBO_NEW, element: <ComboEditor /> },
-      { path: PATH.COMBO_DETAIL, element: <ComboEditor /> },
-      { path: PATH.INVENTORY, element: <Inventory /> },
-      { path: PATH.PRODUCT_NEW, element: <ProductEditor /> },
-      { path: PATH.PRODUCT_DETAIL, element: <ProductEditor /> },
-      { path: PATH.ORDER, element: <Orders /> },
-      { path: PATH.CUSTOMERS, element: <Customers /> },
-      { path: PATH.CUSTOMER_DETAIL, element: <RegisteredCustomerDetail /> },
-      { path: PATH.GUEST_BUYER_DETAIL, element: <GuestBuyerDetail /> },
-      { path: PATH.ORDER_DETAIL, element: <OrderDetail /> },
-      { path: PATH.CATEGORIES, element: <Categories /> },
-      { path: PATH.ATTRIBUTES, element: <Attributes /> },
-      { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> },
-      { path: PATH.REVIEWS, element: <Reviews /> },
-      { path: PATH.VOUCHERS, element: <Vouchers /> },
-      { path: PATH.CONTENT_HOME, element: <ContentHome /> },
-      { path: PATH.CONTENT_INFO, element: <StoreInfo /> },
-      { path: PATH.POLICIES, element: <Policies /> },
-      { path: PATH.REPORTS, element: <Reports /> },
-      { path: PATH.SETTINGS_CHECKOUT, element: <CheckoutSettings /> }
+      { path: PATH.HOME, element: <PermissionGuard /> },
+      {
+        path: PATH.DASHBOARD,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.DASHBOARD]}>
+            <Dashboard />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.PRODUCTS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.PRODUCTS]}>
+            <Products />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.COMBOS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.COMBOS]}>
+            <Combos />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.COMBO_NEW,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.COMBO_NEW]}>
+            <ComboEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.COMBO_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.COMBO_DETAIL]}>
+            <ComboEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.INVENTORY,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.INVENTORY]}>
+            <Inventory />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.PRODUCT_NEW,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.PRODUCT_NEW]}>
+            <ProductEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.PRODUCT_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.PRODUCT_DETAIL]}>
+            <ProductEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ORDER,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ORDER]}>
+            <Orders />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CUSTOMERS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CUSTOMERS]}>
+            <Customers />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CUSTOMER_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CUSTOMER_DETAIL]}>
+            <RegisteredCustomerDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.GUEST_BUYER_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.GUEST_BUYER_DETAIL]}>
+            <GuestBuyerDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ORDER_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ORDER_DETAIL]}>
+            <OrderDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CATEGORIES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CATEGORIES]}>
+            <Categories />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ATTRIBUTES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ATTRIBUTES]}>
+            <Attributes />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ATTRIBUTE_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ATTRIBUTE_DETAIL]}>
+            <AttributeDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.REVIEWS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.REVIEWS]}>
+            <Reviews />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.VOUCHERS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.VOUCHERS]}>
+            <Vouchers />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CONTENT_HOME,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CONTENT_HOME]}>
+            <ContentHome />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CONTENT_INFO,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CONTENT_INFO]}>
+            <StoreInfo />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.POLICIES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.POLICIES]}>
+            <Policies />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.REPORTS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.REPORTS]}>
+            <Reports />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_CHECKOUT,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_CHECKOUT]}>
+            <CheckoutSettings />
+          </PermissionGuard>
+        )
+      }
     ]
   },
   { path: "*", element: <NotFound /> }

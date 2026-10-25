@@ -9,20 +9,13 @@ import { attribute, value, list, response, deferred } from "@/test/attribute-fix
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
 import { order, orderList } from "@/test/order-fixtures";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
   errorNotification: vi.fn()
 }));
-const profile = {
-  _id: "admin",
-  email: "admin@example.test",
-  phone: "",
-  firstName: "Admin",
-  lastName: "User",
-  status: "ACTIVE",
-  roles: ["ADMIN"]
-};
+const profile = ownerProfile;
 // Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
 configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
@@ -50,6 +43,92 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens the first permitted route from home and filters menu groups", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile(["INVENTORY_READ"])
+          : {
+              data: [],
+              total: 0,
+              totalPage: 0,
+              page: 1,
+              pageSize: 10,
+              metadata: { lowStockThreshold: 5, stock: "all" }
+            }
+      );
+    const router = renderRoute("/");
+    await screen.findByRole("heading", { name: "Tồn kho" });
+    expect(router.state.location.pathname).toBe("/inventory");
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.queryByText("Bán hàng")).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Tổng quan|Sản phẩm/ })).toBeNull();
+  });
+
+  it("sends no feature request for a forbidden direct URL", async () => {
+    const forbiddenPageLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      forbiddenPageLoad(config.url);
+      return response(config, []);
+    };
+    renderRoute("/products");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(forbiddenPageLoad).not.toHaveBeenCalled();
+  });
+
+  it("shows no-access and sign-out for staff without permissions", async () => {
+    axiosRequest.defaults.adapter = async config => response(config, staffProfile([]));
+    renderRoute("/");
+    await screen.findByText("Bạn chưa được cấp quyền sử dụng CMS");
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
+    await screen.findByText("Đăng nhập vào CMS");
+  });
+
+  it("refreshes permissions before mounting the destination after navigation", async () => {
+    let current = ownerProfile;
+    const featureLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, current);
+      featureLoad(config.url);
+      return response(config, []);
+    };
+    const router = renderRoute("/policies");
+    await screen.findByRole("heading", { name: "Trang chính sách" });
+    current = staffProfile(["INVENTORY_READ"]);
+    featureLoad.mockClear();
+    await act(() => router.navigate("/products"));
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(featureLoad).not.toHaveBeenCalled();
+  });
+
+  it("logs in through home to the first allowed page", async () => {
+    clearSession();
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/login"
+          ? {
+              accessToken: "staff-token",
+              refreshToken: "staff-refresh",
+              accessExpiresIn: 60000,
+              refreshExpiresIn: 60000
+            }
+          : config.url === "/auth/profile"
+            ? staffProfile(["POLICY_READ"])
+            : []
+      );
+    const router = renderRoute("/auth/login");
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "staff@example.test" }
+    });
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "Password123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    await screen.findByRole("heading", { name: "Trang chính sách" });
+    expect(router.state.location.pathname).toBe("/policies");
+  });
   it("opens the combo list from Catalog and keeps its menu selected", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(
@@ -551,7 +630,7 @@ describe("CMS data router", () => {
         headers: {},
         status: 403,
         statusText: "Forbidden",
-        data: { message: "Forbidden" }
+        data: { message: "Forbidden", errors: { code: "CMS_MEMBERSHIP_REQUIRED" } }
       });
     };
     const router = renderRoute("/catalog/attributes");

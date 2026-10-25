@@ -1,5 +1,6 @@
 import axiosRequest from "@/utils/request";
-import type { Profile } from "@/store/useAppStore";
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { clearSession, getSessionId, hasSession } from "@/utils/session";
 import type { TokenPair } from "@/utils/session";
 
 export interface LoginRequest {
@@ -25,5 +26,38 @@ export const logoutAPI = (data: RefreshTokenRequest): Promise<ApiResponse<{ mess
 };
 
 export const getProfileAPI = (): Promise<ApiResponse<Profile>> => {
-  return axiosRequest.get("/auth/profile");
+  return axiosRequest.get("/auth/profile", { toastError: false });
+};
+
+let pendingProfile: { revision: number; sessionId: string; promise: Promise<void> } | null = null;
+
+export const refreshProfile = (): Promise<void> => {
+  const revision = useAppStore.getState().sessionRevision;
+  const sessionId = getSessionId();
+  if (!sessionId) return Promise.resolve();
+  if (pendingProfile?.revision === revision && pendingProfile.sessionId === sessionId)
+    return pendingProfile.promise;
+  const isCurrent = () =>
+    useAppStore.getState().sessionRevision === revision &&
+    getSessionId() === sessionId &&
+    hasSession();
+  const promise = getProfileAPI()
+    .then(({ data }) => {
+      if (!isCurrent()) return;
+      if (!data?._id || !data.access || !Array.isArray(data.access.permissions)) {
+        throw new Error("Invalid profile response");
+      }
+      useAppStore.getState().setProfile(data);
+    })
+    .catch((error: unknown) => {
+      if (isCurrent() && error instanceof Error && "status" in error && error.status === 401) {
+        clearSession();
+      }
+      throw error;
+    })
+    .finally(() => {
+      if (pendingProfile?.promise === promise) pendingProfile = null;
+    });
+  pendingProfile = { revision, sessionId, promise };
+  return promise;
 };

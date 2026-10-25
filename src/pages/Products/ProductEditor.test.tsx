@@ -1,3 +1,4 @@
+import { ownerProfile } from "@/test/access-fixtures";
 import "@/test/attribute-fixtures";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -176,7 +177,8 @@ beforeEach(() => {
     phone: "",
     firstName: "Admin",
     lastName: "",
-    roles: ["ADMIN"],
+    roles: ["SUPER_ADMIN"],
+    access: ownerProfile.access,
     status: "ACTIVE"
   });
   vi.mocked(api.getProductAPI).mockReset().mockResolvedValue(ok(product()));

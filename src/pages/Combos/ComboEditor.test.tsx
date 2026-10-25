@@ -1,3 +1,4 @@
+import { ownerProfile } from "@/test/access-fixtures";
 import "@/test/attribute-fixtures";
 import { deferred } from "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -118,7 +119,8 @@ beforeEach(() => {
     phone: "",
     firstName: "Admin",
     lastName: "",
-    roles: ["ADMIN"],
+    roles: ["SUPER_ADMIN"],
+    access: ownerProfile.access,
     status: "ACTIVE"
   });
   vi.mocked(combos.getComboAPI).mockReset().mockResolvedValue(ok(combo()));

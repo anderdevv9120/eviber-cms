@@ -1,3 +1,4 @@
+import { ownerProfile } from "@/test/access-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -81,7 +82,8 @@ const profile = {
   phone: "",
   firstName: "Admin",
   lastName: "",
-  roles: ["ADMIN"],
+  roles: ["SUPER_ADMIN"],
+  access: ownerProfile.access,
   status: "ACTIVE"
 };
 const renderList = (path = "/vouchers") => {

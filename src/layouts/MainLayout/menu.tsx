@@ -17,6 +17,8 @@ import {
   ShopOutlined,
   GiftOutlined
 } from "@ant-design/icons";
+import type { Profile } from "@/store/useAppStore";
+import { canAccess, NAVIGATION_POLICIES } from "@/utils/access";
 import { PATH } from "@/constants/paths";
 
 type MenuItem = { key: string; icon: ReactNode; label: string };
@@ -63,11 +65,14 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   }
 ];
 
-export const MENU_ITEMS: MenuProps["items"] = MENU_SECTIONS.flatMap<
-  NonNullable<MenuProps["items"]>[number]
->(({ title, items }, index) =>
-  title ? [{ type: "group", key: `group-${index}`, label: title, children: items }] : items
-);
+export const menuItemsFor = (profile: Profile): MenuProps["items"] =>
+  MENU_SECTIONS.flatMap<NonNullable<MenuProps["items"]>[number]>(({ title, items }, index) => {
+    const allowed = items.filter(item => canAccess(profile, NAVIGATION_POLICIES[item.key]));
+    if (!allowed.length) return [];
+    return title
+      ? [{ type: "group", key: `group-${index}`, label: title, children: allowed }]
+      : allowed;
+  });
 
 const MENU_PATHS = MENU_SECTIONS.flatMap(({ items }) => items.map(({ key }) => key));
 

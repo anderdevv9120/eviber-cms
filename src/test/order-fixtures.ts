@@ -1,3 +1,4 @@
+import { ownerProfile } from "@/test/access-fixtures";
 import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
@@ -164,7 +165,8 @@ beforeEach(() => {
     status: "active",
     firstName: "Admin",
     lastName: "Test",
-    roles: ["ADMIN"]
+    roles: ["SUPER_ADMIN"],
+    access: ownerProfile.access
   });
 });
 const originalAdapter = axiosRequest.defaults.adapter;

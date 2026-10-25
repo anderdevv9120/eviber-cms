@@ -1,10 +1,12 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { getCookies } from "./cookies";
-import { clearSession, hasSession, saveTokens, TokenPair } from "./session";
+import { clearSession, getSessionId, hasSession, saveTokens, TokenPair } from "./session";
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/constants";
 import { ADMIN_API_URL } from "@/constants/env";
 import { errorNotification } from "./notification";
 import { getErrorMessage } from "./getErrorMessage";
+import { useAppStore } from "@/store/useAppStore";
+import { refreshProfile } from "@/services/auth";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
@@ -15,6 +17,8 @@ declare module "axios" {
 
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  _sessionRevision?: number;
+  _sessionId?: string;
 }
 
 // BE treo (không sập) thì request không bao giờ trả về → nút submit/spinner quay vô hạn.
@@ -65,6 +69,8 @@ const REFRESH_EXCLUDED_PATHS = ["/auth/login", "/auth/refresh-token", "/auth/log
 
 // Gọi bằng axios thuần để không đi lại vòng interceptor này
 const performRefresh = async (): Promise<string> => {
+  const revision = useAppStore.getState().sessionRevision;
+  const sessionId = getSessionId();
   const refreshToken = getCookies(REFRESH_TOKEN_KEY);
   if (!refreshToken) {
     throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
@@ -76,7 +82,11 @@ const performRefresh = async (): Promise<string> => {
   );
   // Đăng xuất chen vào lúc refresh đang bay: ghi cookie mới là hồi sinh phiên vừa đăng xuất,
   // nên bỏ cặp token này và thu hồi luôn phiên vừa được cấp trên server
-  if (getCookies(REFRESH_TOKEN_KEY) !== refreshToken) {
+  if (
+    getCookies(REFRESH_TOKEN_KEY) !== refreshToken ||
+    useAppStore.getState().sessionRevision !== revision ||
+    getSessionId() !== sessionId
+  ) {
     void axios
       .post(
         `${ADMIN_API_URL}/auth/logout`,
@@ -122,6 +132,8 @@ const axiosRequest = axios.create({
 });
 
 axiosRequest.interceptors.request.use(config => {
+  (config as RetriableRequestConfig)._sessionRevision ??= useAppStore.getState().sessionRevision;
+  (config as RetriableRequestConfig)._sessionId ??= getSessionId();
   const token = getCookies(ACCESS_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -135,10 +147,14 @@ axiosRequest.interceptors.response.use(
     const originalRequest = error.config as RetriableRequestConfig | undefined;
     const requestUrl = originalRequest?.url ?? "";
     const isRefreshExcluded = REFRESH_EXCLUDED_PATHS.some(path => requestUrl.includes(path));
+    const isCurrentSession = () =>
+      originalRequest?._sessionRevision === useAppStore.getState().sessionRevision &&
+      originalRequest?._sessionId === getSessionId();
 
     if (
       error.response?.status === 401 &&
       originalRequest &&
+      isCurrentSession() &&
       !originalRequest._retry &&
       !isRefreshExcluded
     ) {
@@ -158,12 +174,12 @@ axiosRequest.interceptors.response.use(
               ? refreshError
               : new ApiError(getErrorMessage(refreshError));
           // Chỉ 401/403 là phiên thực sự bị từ chối → dọn phiên; lỗi transient giữ cookie để thử lại
-          if (apiError.status === 401 || apiError.status === 403) {
+          if ((apiError.status === 401 || apiError.status === 403) && isCurrentSession()) {
             // 401 về muộn sau khi phiên đã bị dọn (hoặc user vừa đăng xuất) không báo "hết hạn" lần nữa
             const hadSession = hasSession();
             clearSession();
             if (hadSession) errorNotification(SESSION_EXPIRED_MESSAGE);
-          } else {
+          } else if (isCurrentSession()) {
             notify(originalRequest.toastError, apiError.message);
           }
           onRefreshFailed(apiError);
@@ -176,6 +192,10 @@ axiosRequest.interceptors.response.use(
       return new Promise((resolve, reject) => {
         refreshSubscribers.push({
           onSuccess: newToken => {
+            if (!isCurrentSession()) {
+              reject(new ApiError(SESSION_EXPIRED_MESSAGE, 401));
+              return;
+            }
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             resolve(axiosRequest(originalRequest));
           },
@@ -185,6 +205,17 @@ axiosRequest.interceptors.response.use(
     }
 
     const apiError = toApiError(error);
+    if (apiError.status === 403 && isCurrentSession()) {
+      if (apiError.errors?.code === "CMS_MEMBERSHIP_REQUIRED") {
+        clearSession();
+      } else if (
+        apiError.errors?.code === "CMS_ACCESS_DENIED" &&
+        !requestUrl.includes("/auth/profile")
+      ) {
+        // Refresh authority once; a rejected write must never be replayed.
+        await refreshProfile().catch(() => undefined);
+      }
+    }
     if (!axios.isCancel(error) && error.code !== AxiosError.ERR_CANCELED) {
       notify(error.config?.toastError, apiError.message);
     }

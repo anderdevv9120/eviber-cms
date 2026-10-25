@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/constants";
 import { getCookies, setCookies } from "./cookies";
-import { clearSession } from "./session";
+import { clearSession, saveTokens } from "./session";
 import axiosRequest, { ApiError } from "./request";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 vi.mock("./notification", () => ({
   errorNotification: vi.fn(),
@@ -57,6 +59,114 @@ describe("request interceptor", () => {
   afterEach(() => {
     clearSession();
     axios.defaults.adapter = originalAdapter;
+  });
+
+  it("refreshes profile once after concurrent feature denial without retrying writes or losing session", async () => {
+    useAppStore.getState().setProfile(ownerProfile);
+    const denied = (config: InternalAxiosRequestConfig) =>
+      Promise.reject(
+        new AxiosError("denied", "403", config, null, {
+          ...ok(config, { message: "Forbidden", errors: { code: "CMS_ACCESS_DENIED" } }),
+          status: 403
+        })
+      );
+    apiHandler = vi.fn(async config =>
+      config.url === "/auth/profile"
+        ? ok(config, { data: staffProfile(["INVENTORY_READ"]) })
+        : denied(config)
+    );
+    const outcomes = await Promise.allSettled([
+      axiosRequest.post("/products", {}),
+      axiosRequest.get("/reports/sales")
+    ]);
+    expect(outcomes.map(result => result.status)).toEqual(["rejected", "rejected"]);
+    expect(
+      vi.mocked(apiHandler).mock.calls.filter(([config]) => config.url === "/products")
+    ).toHaveLength(1);
+    expect(
+      vi.mocked(apiHandler).mock.calls.filter(([config]) => config.url === "/auth/profile")
+    ).toHaveLength(1);
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-old");
+    expect(useAppStore.getState().profile?.access.permissions).toEqual(["INVENTORY_READ"]);
+  });
+
+  it("clears a real membership denial", async () => {
+    useAppStore.getState().setProfile(ownerProfile);
+    apiHandler = async config => {
+      throw new AxiosError("denied", "403", config, null, {
+        ...ok(config, { message: "Forbidden", errors: { code: "CMS_MEMBERSHIP_REQUIRED" } }),
+        status: 403
+      });
+    };
+    await expect(axiosRequest.get("/products")).rejects.toMatchObject({ status: 403 });
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBeUndefined();
+    expect(useAppStore.getState().profile).toBeNull();
+  });
+
+  it("ignores membership denial from an account replaced in another tab", async () => {
+    let release!: () => void;
+    let start!: () => void;
+    const started = new Promise<void>(resolve => {
+      start = resolve;
+    });
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    apiHandler = async config => {
+      start();
+      await gate;
+      throw new AxiosError("denied", "403", config, null, {
+        ...ok(config, { message: "Forbidden", errors: { code: "CMS_MEMBERSHIP_REQUIRED" } }),
+        status: 403
+      });
+    };
+    const pending = axiosRequest.get("/orders");
+    await started;
+    const revision = useAppStore.getState().sessionRevision;
+    clearSession();
+    saveTokens(tokens("other-tab"));
+    useAppStore.setState({ sessionRevision: revision });
+    release();
+    await expect(pending).rejects.toMatchObject({ status: 403 });
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-other-tab");
+  });
+
+  it("does not recurse when profile itself returns feature denial", async () => {
+    apiHandler = vi.fn(async config => {
+      throw new AxiosError("denied", "403", config, null, {
+        ...ok(config, { message: "Forbidden", errors: { code: "CMS_ACCESS_DENIED" } }),
+        status: 403
+      });
+    });
+    await expect(axiosRequest.get("/auth/profile")).rejects.toMatchObject({ status: 403 });
+    expect(apiHandler).toHaveBeenCalledTimes(1);
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-old");
+  });
+
+  it("keeps the new account when an older token refresh is rejected late", async () => {
+    let start!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>(resolve => {
+      start = resolve;
+    });
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    authHandler = async config => {
+      start();
+      await gate;
+      return fail(config, 401);
+    };
+    apiHandler = async config => fail(config, 401);
+    const pending = axiosRequest.get("/auth/profile");
+    await started;
+    clearSession();
+    saveTokens(tokens("new-account"));
+    useAppStore.getState().setProfile(staffProfile([]));
+    release();
+    await expect(pending).rejects.toMatchObject({ status: 401 });
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-new-account");
+    expect(useAppStore.getState().profile?._id).toBe("staff");
   });
 
   it("401 → refresh 1 lần → retry bằng token mới, cookie được cập nhật", async () => {
