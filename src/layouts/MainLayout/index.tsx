@@ -23,6 +23,7 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
   [PATH.POLICIES]: ["Nội dung", "Trang chính sách"],
   [PATH.SETTINGS_CHECKOUT]: ["Cài đặt", "Đặt hàng"],
   [PATH.SETTINGS_ROLES]: ["Cài đặt", "Tài khoản & phân quyền", "Vai trò"],
+  [PATH.SETTINGS_ACCESS]: ["Cài đặt", "Tài khoản & phân quyền", "Nhân viên"],
   [PATH.REVIEWS]: ["Bán hàng", "Đánh giá"],
   [PATH.REPORTS]: ["Báo cáo bán hàng"],
   [PATH.INVENTORY]: ["Catalog", "Tồn kho"],
@@ -107,6 +108,11 @@ const MainLayout = () => {
           ? "Thêm combo"
           : "Chi tiết combo"
     });
+  }
+  // Trang đăng ký nằm dưới mục Nhân viên: giữ crumb cha dạng link về trang danh sách
+  if (pathname === PATH.SETTINGS_ACCESS_NEW) {
+    breadcrumbs[2] = { title: <Link to={PATH.SETTINGS_ACCESS}>Nhân viên</Link> };
+    breadcrumbs.push({ title: "Mời nhân viên" });
   }
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);

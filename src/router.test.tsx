@@ -71,6 +71,51 @@ describe("CMS data router", () => {
     expect(screen.queryByRole("menuitem", { name: /Vai trò/ })).toBeNull();
   });
 
+  it("opens the staff entry for a USER_CREATE-only account with menu and breadcrumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? staffProfile(["USER_CREATE"]) : []);
+    const router = renderRoute("/");
+    await screen.findByRole("heading", { name: "Nhân viên & phân quyền" });
+    expect(router.state.location.pathname).toBe("/settings/access");
+    expect((await screen.findByRole("menuitem", { name: /Nhân viên/ })).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    const breadcrumb = document.querySelector(".ant-breadcrumb")!;
+    expect(breadcrumb.textContent).toContain("Cài đặt");
+    expect(breadcrumb.textContent).toContain("Tài khoản & phân quyền");
+    expect(breadcrumb.textContent).toContain("Nhân viên");
+  });
+
+  it("serves staff registration under the access area with a linked parent crumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? ownerProfile : []);
+    const router = renderRoute("/settings/access/new");
+    await screen.findByRole("heading", { name: "Mời nhân viên" });
+    expect(screen.getByRole("menuitem", { name: /Nhân viên/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    const crumbs = within(screen.getByRole("navigation"));
+    expect(crumbs.getByRole("link", { name: "Nhân viên" }).getAttribute("href")).toBe(
+      "/settings/access"
+    );
+    expect(crumbs.getByText("Mời nhân viên")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/settings/access/new");
+  });
+
+  it("blocks the staff entry for staff without USER_CREATE without fetching invitations", async () => {
+    const staffLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      staffLoad(config.url);
+      return response(config, []);
+    };
+    renderRoute("/settings/access");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(staffLoad).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menuitem", { name: /Nhân viên/ })).toBeNull();
+  });
+
   it("opens the first permitted route from home and filters menu groups", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(

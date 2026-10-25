@@ -15,7 +15,8 @@ import {
   LayoutOutlined,
   SettingOutlined,
   ShopOutlined,
-  GiftOutlined
+  GiftOutlined,
+  UserAddOutlined
 } from "@ant-design/icons";
 import type { Profile } from "@/store/useAppStore";
 import { canAccess, NAVIGATION_POLICIES } from "@/utils/access";
@@ -62,7 +63,10 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
     title: "Cài đặt",
     items: [
       { key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" },
-      { key: PATH.SETTINGS_ROLES, icon: <TeamOutlined />, label: "Vai trò" }
+      // "Vai trò" đứng trước "Nhân viên": menuKeyOf khớp tiền tố đầu tiên,
+      // /settings/access/roles phải khớp đúng mục Vai trò chứ không phải /settings/access
+      { key: PATH.SETTINGS_ROLES, icon: <TeamOutlined />, label: "Vai trò" },
+      { key: PATH.SETTINGS_ACCESS, icon: <UserAddOutlined />, label: "Nhân viên" }
     ]
   }
 ];

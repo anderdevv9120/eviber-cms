@@ -17,6 +17,13 @@ interface Props {
   roleId?: string;
   onSaved(role: RoleView): void;
   onCancel(): void;
+  /**
+   * Trang nhúng (vd đăng ký nhân viên) đã có blocker riêng: tắt blocker nội bộ
+   * để không đăng ký hai useBlocker cùng lúc (router chỉ hỗ trợ một) và nhận
+   * dirtiness qua onDirtyChange để chặn navigation từ trang ngoài.
+   */
+  manageUnsavedWarning?: boolean;
+  onDirtyChange?(dirty: boolean): void;
 }
 interface Loaded {
   role?: RoleView;
@@ -38,7 +45,13 @@ export default function RoleEditor(props: Props) {
   );
 }
 
-function OwnerRoleEditor({ roleId, onSaved, onCancel }: Props) {
+function OwnerRoleEditor({
+  roleId,
+  onSaved,
+  onCancel,
+  manageUnsavedWarning,
+  onDirtyChange
+}: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -80,7 +93,16 @@ function OwnerRoleEditor({ roleId, onSaved, onCancel }: Props) {
         </Flex>
       </Flex>
     );
-  return <RoleForm {...loaded} onSaved={onSaved} onCancel={onCancel} onReload={reload} />;
+  return (
+    <RoleForm
+      {...loaded}
+      onSaved={onSaved}
+      onCancel={onCancel}
+      onReload={reload}
+      manageUnsavedWarning={manageUnsavedWarning}
+      onDirtyChange={onDirtyChange}
+    />
+  );
 }
 
 function RoleForm({
@@ -88,7 +110,9 @@ function RoleForm({
   catalog,
   onSaved,
   onCancel,
-  onReload
+  onReload,
+  manageUnsavedWarning = true,
+  onDirtyChange
 }: Loaded & Omit<Props, "roleId"> & { onReload(): void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,10 +127,9 @@ function RoleForm({
     };
   }, []);
   const readOnly = role?.code === "SUPER_ADMIN";
-  useUnsavedOrderWarning(dirty && !readOnly, {
-    title: "Vai trò chưa được lưu",
-    content: "Rời trang sẽ bỏ thay đổi tên, mô tả và quyền chưa lưu."
-  });
+  useEffect(() => {
+    onDirtyChange?.(dirty && !readOnly);
+  }, [dirty, readOnly, onDirtyChange]);
   const [selected, setSelected] = useState(() =>
     catalog.filter(entry => role?.permissionIds.includes(entry.id)).map(entry => entry.id)
   );
@@ -178,6 +201,7 @@ function RoleForm({
       onValuesChange={() => setDirty(true)}
       disabled={saving || readOnly}
     >
+      {manageUnsavedWarning && <RoleDraftWarning dirty={dirty && !readOnly} />}
       <Typography.Title level={3}>{role ? "Chi tiết vai trò" : "Tạo vai trò"}</Typography.Title>
       {readOnly ? (
         <Alert
@@ -291,4 +315,13 @@ function RoleForm({
       </Flex>
     </Form>
   );
+}
+
+/** Tách blocker ra component con để trang nhúng có thể không render nó (một blocker/router) */
+function RoleDraftWarning({ dirty }: { dirty: boolean }) {
+  useUnsavedOrderWarning(dirty, {
+    title: "Vai trò chưa được lưu",
+    content: "Rời trang sẽ bỏ thay đổi tên, mô tả và quyền chưa lưu."
+  });
+  return null;
 }

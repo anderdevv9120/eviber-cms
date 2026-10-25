@@ -23,6 +23,8 @@ export const PATH = {
   POLICIES: "/policies",
   REPORTS: "/reports",
   SETTINGS_CHECKOUT: "/settings/checkout",
+  SETTINGS_ACCESS: "/settings/access",
+  SETTINGS_ACCESS_NEW: "/settings/access/new",
   SETTINGS_ROLES: "/settings/access/roles"
 };
 
