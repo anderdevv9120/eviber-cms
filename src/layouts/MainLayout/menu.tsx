@@ -16,7 +16,8 @@ import {
   SettingOutlined,
   ShopOutlined,
   GiftOutlined,
-  UserAddOutlined
+  UserAddOutlined,
+  CreditCardOutlined
 } from "@ant-design/icons";
 import type { Profile } from "@/store/useAppStore";
 import { canAccess, NAVIGATION_POLICIES } from "@/utils/access";
@@ -66,7 +67,8 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
       // "Vai trò" đứng trước "Nhân viên": menuKeyOf khớp tiền tố đầu tiên,
       // /settings/access/roles phải khớp đúng mục Vai trò chứ không phải /settings/access
       { key: PATH.SETTINGS_ROLES, icon: <TeamOutlined />, label: "Vai trò" },
-      { key: PATH.SETTINGS_ACCESS, icon: <UserAddOutlined />, label: "Nhân viên" }
+      { key: PATH.SETTINGS_ACCESS, icon: <UserAddOutlined />, label: "Nhân viên" },
+      { key: PATH.SETTINGS_PAYMENT, icon: <CreditCardOutlined />, label: "Thanh toán" }
     ]
   }
 ];

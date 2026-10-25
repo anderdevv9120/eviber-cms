@@ -35,6 +35,7 @@ const CheckoutSettings = lazy(() => import("./pages/Settings/CheckoutSettings"))
 const RoleSettings = lazy(() => import("./pages/Staff/RoleSettings"));
 const StaffManagement = lazy(() => import("./pages/Staff"));
 const StaffRegistration = lazy(() => import("./pages/Staff/StaffRegistration"));
+const PaymentSettings = lazy(() => import("./pages/PaymentSettings"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
@@ -275,6 +276,14 @@ export const routes: RouteObject[] = [
         element: (
           <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_CHECKOUT]}>
             <CheckoutSettings />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_PAYMENT,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_PAYMENT]}>
+            <PaymentSettings />
           </PermissionGuard>
         )
       }

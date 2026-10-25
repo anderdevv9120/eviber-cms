@@ -24,6 +24,7 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
   [PATH.SETTINGS_CHECKOUT]: ["Cài đặt", "Đặt hàng"],
   [PATH.SETTINGS_ROLES]: ["Cài đặt", "Tài khoản & phân quyền", "Vai trò"],
   [PATH.SETTINGS_ACCESS]: ["Cài đặt", "Tài khoản & phân quyền", "Nhân viên"],
+  [PATH.SETTINGS_PAYMENT]: ["Cài đặt", "Thanh toán"],
   [PATH.REVIEWS]: ["Bán hàng", "Đánh giá"],
   [PATH.REPORTS]: ["Báo cáo bán hàng"],
   [PATH.INVENTORY]: ["Catalog", "Tồn kho"],
