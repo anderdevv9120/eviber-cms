@@ -23,7 +23,8 @@ export const PATH = {
   POLICIES: "/policies",
   REPORTS: "/reports",
   SETTINGS_CHECKOUT: "/settings/checkout",
-  SETTINGS_PAYMENT: "/settings/payment"
+  SETTINGS_PAYMENT: "/settings/payment",
+  SETTINGS_EMAIL: "/settings/email"
 };
 
 export const PATH_AUTH = {

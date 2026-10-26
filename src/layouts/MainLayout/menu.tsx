@@ -16,13 +16,14 @@ import {
   SettingOutlined,
   ShopOutlined,
   GiftOutlined,
-  CreditCardOutlined
+  CreditCardOutlined,
+  MailOutlined
 } from "@ant-design/icons";
 import { PATH } from "@/constants/paths";
 
 type MenuItem = { key: string; icon: ReactNode; label: string };
 
-// Cài đặt › Thanh toán và Tài khoản & phân quyền chưa có màn: không render để tránh link chết
+// Cài đặt › Tài khoản & phân quyền chưa có màn: không render để tránh link chết
 export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   {
     title: null,
@@ -61,8 +62,9 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   {
     title: "Cài đặt",
     items: [
-      { key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" },
-      { key: PATH.SETTINGS_PAYMENT, icon: <CreditCardOutlined />, label: "Thanh toán" }
+      { key: PATH.SETTINGS_PAYMENT, icon: <CreditCardOutlined />, label: "Thanh toán" },
+      { key: PATH.SETTINGS_EMAIL, icon: <MailOutlined />, label: "Email" },
+      { key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" }
     ]
   }
 ];
