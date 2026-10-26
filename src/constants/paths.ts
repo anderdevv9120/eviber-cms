@@ -26,7 +26,8 @@ export const PATH = {
   SETTINGS_ACCESS: "/settings/access",
   SETTINGS_ACCESS_NEW: "/settings/access/new",
   SETTINGS_ROLES: "/settings/access/roles",
-  SETTINGS_PAYMENT: "/settings/payment"
+  SETTINGS_PAYMENT: "/settings/payment",
+  SETTINGS_EMAIL: "/settings/email"
 };
 
 export const PATH_AUTH = {

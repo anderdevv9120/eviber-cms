@@ -345,6 +345,47 @@ describe("CMS data router", () => {
     expect(breadcrumb.getByText("Cài đặt")).toBeTruthy();
   });
 
+  it("blocks Cài đặt › Email for staff (owner only) without fetching the Gmail settings", async () => {
+    const settingsLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile")
+        return response(config, staffProfile(["CHECKOUT_SETTINGS_READ"]));
+      settingsLoad(config.url);
+      return response(config, {});
+    };
+    renderRoute("/settings/email");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(settingsLoad).not.toHaveBeenCalledWith("/email-settings");
+    expect(screen.queryByRole("menuitem", { name: /Email/ })).toBeNull();
+  });
+
+  it("opens Cài đặt › Email with the Gmail settings form, Đặt hàng listed last", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? profile
+          : {
+              status: "not_configured",
+              address: null,
+              appPasswordLast4: null,
+              senderName: null,
+              revision: 0,
+              updatedAt: null,
+              updatedBy: null
+            }
+      );
+    const router = renderRoute("/dashboard");
+    const settingsItems = (await screen.findAllByRole("menuitem"))
+      .map(item => item.textContent ?? "")
+      .filter(label => ["Thanh toán", "Email", "Vai trò", "Nhân viên", "Đặt hàng"].includes(label));
+    expect(settingsItems).toEqual(["Thanh toán", "Email", "Vai trò", "Nhân viên", "Đặt hàng"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: /Email/ }));
+    await screen.findByRole("heading", { name: "Email" });
+    expect(router.state.location.pathname).toBe("/settings/email");
+    expect(await screen.findByText("Chưa cấu hình")).toBeTruthy();
+  });
+
   it("drops the removed Payments, Banner and old content routes", () => {
     const paths = routes.flatMap(route => route.children ?? []).map(route => route.path);
     for (const removed of ["/payments", "/banners", "/store-content", "/categories"])
