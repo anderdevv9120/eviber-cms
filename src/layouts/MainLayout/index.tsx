@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Layout, Breadcrumb, Spin, Flex, Result, Button, theme } from "antd";
 import { Link, matchPath, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
-import { refreshProfile } from "@/services/auth";
+import { isProfileFresh, refreshProfile } from "@/services/auth";
 import { clearSession, hasSession } from "@/utils/session";
 import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
@@ -118,7 +118,7 @@ const MainLayout = () => {
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const [checkedPath, setCheckedPath] = useState<string | null>(null);
+  const [checkedLocation, setCheckedLocation] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,11 +126,11 @@ const MainLayout = () => {
       refreshProfile().catch(() => {
         if (!cancelled) setLoadFailed(true);
       });
-    void refresh().finally(() => {
-      if (!cancelled) setCheckedPath(pathname);
+    refresh().finally(() => {
+      if (!cancelled) setCheckedLocation(locationKey);
     });
     const onFocus = () => {
-      void refresh();
+      refresh();
     };
     window.addEventListener("focus", onFocus);
     return () => {
@@ -179,7 +179,7 @@ const MainLayout = () => {
     );
   }
 
-  if (!profile || checkedPath !== pathname) {
+  if (!profile) {
     return (
       <Flex
         justify='center'
@@ -206,7 +206,13 @@ const MainLayout = () => {
                 </Flex>
               }
             >
-              <Outlet />
+              {!isProfileFresh() && checkedLocation !== locationKey ? (
+                <Flex justify='center' align='center' className='min-h-full'>
+                  <Spin size='large' />
+                </Flex>
+              ) : (
+                <Outlet />
+              )}
             </Suspense>
           </div>
         </Content>

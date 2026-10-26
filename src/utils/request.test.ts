@@ -6,6 +6,7 @@ import { clearSession, saveTokens } from "./session";
 import axiosRequest, { ApiError } from "./request";
 import { useAppStore } from "@/store/useAppStore";
 import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { refreshProfile } from "@/services/auth";
 
 vi.mock("./notification", () => ({
   errorNotification: vi.fn(),
@@ -112,7 +113,8 @@ describe("request interceptor", () => {
   });
 
   it("refreshes profile once after concurrent feature denial without retrying writes or losing session", async () => {
-    useAppStore.getState().setProfile(ownerProfile);
+    apiHandler = async config => ok(config, { data: ownerProfile });
+    await refreshProfile();
     const denied = (config: InternalAxiosRequestConfig) =>
       Promise.reject(
         new AxiosError("denied", "403", config, null, {

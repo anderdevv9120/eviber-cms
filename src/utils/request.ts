@@ -222,7 +222,7 @@ axiosRequest.interceptors.response.use(
         !requestUrl.includes("/auth/profile")
       ) {
         // Refresh authority once; a rejected write must never be replayed.
-        await refreshProfile().catch(() => undefined);
+        await refreshProfile(true).catch(() => undefined);
       }
     }
     if (!axios.isCancel(error) && error.code !== AxiosError.ERR_CANCELED) {

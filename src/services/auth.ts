@@ -30,13 +30,32 @@ export const getProfileAPI = (): Promise<ApiResponse<Profile>> => {
 };
 
 let pendingProfile: { revision: number; sessionId: string; promise: Promise<void> } | null = null;
+let cachedProfile: {
+  revision: number;
+  sessionId: string;
+  expiresAt: number;
+  profile: Profile;
+} | null = null;
 
-export const refreshProfile = (): Promise<void> => {
+export const isProfileFresh = (): boolean => {
+  const { profile, sessionRevision } = useAppStore.getState();
+  return !!(
+    cachedProfile &&
+    cachedProfile.profile === profile &&
+    cachedProfile.revision === sessionRevision &&
+    cachedProfile.sessionId === getSessionId() &&
+    Date.now() < cachedProfile.expiresAt
+  );
+};
+
+export const refreshProfile = (force = false): Promise<void> => {
   const revision = useAppStore.getState().sessionRevision;
   const sessionId = getSessionId();
   if (!sessionId) return Promise.resolve();
   if (pendingProfile?.revision === revision && pendingProfile.sessionId === sessionId)
     return pendingProfile.promise;
+  if (!force && isProfileFresh()) return Promise.resolve();
+  cachedProfile = null;
   const isCurrent = () =>
     useAppStore.getState().sessionRevision === revision &&
     getSessionId() === sessionId &&
@@ -48,6 +67,12 @@ export const refreshProfile = (): Promise<void> => {
         throw new Error("Invalid profile response");
       }
       useAppStore.getState().setProfile(data);
+      cachedProfile = {
+        revision: useAppStore.getState().sessionRevision,
+        sessionId,
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        profile: useAppStore.getState().profile!
+      };
     })
     .catch((error: unknown) => {
       if (isCurrent() && error instanceof Error && "status" in error && error.status === 401) {

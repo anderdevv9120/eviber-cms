@@ -182,7 +182,7 @@ describe("CMS data router", () => {
     await screen.findByText("Đăng nhập vào CMS");
   });
 
-  it("refreshes permissions before mounting the destination after navigation", async () => {
+  it("refreshes expired permissions before mounting the destination after navigation", async () => {
     let current = ownerProfile;
     const featureLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
@@ -194,6 +194,7 @@ describe("CMS data router", () => {
     await screen.findByRole("heading", { name: "Trang chính sách" });
     current = staffProfile(["INVENTORY_READ"]);
     featureLoad.mockClear();
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000);
     await act(() => router.navigate("/products"));
     await screen.findByText("Bạn không có quyền truy cập trang này");
     expect(featureLoad).not.toHaveBeenCalled();
