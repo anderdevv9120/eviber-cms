@@ -1,3 +1,5 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -27,6 +29,7 @@ const checked = () => control().getAttribute("aria-checked") === "true";
 const disabled = () => (control() as HTMLButtonElement).disabled;
 
 beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
   vi.mocked(settings.getCheckoutSettingsAPI).mockReset().mockResolvedValue(confirmed(true));
   vi.mocked(settings.updateCheckoutSettingsAPI).mockReset().mockResolvedValue(confirmed(false));
   vi.mocked(successNotification).mockClear();
@@ -34,6 +37,29 @@ beforeEach(() => {
 });
 
 describe("Guest checkout switch", () => {
+  it.each([null, staffProfile(["CHECKOUT_SETTINGS_READ"])])(
+    "denies checkout changes for %j",
+    async profile => {
+      useAppStore.setState({ profile });
+      render(<GuestCheckoutSwitch />);
+      await screen.findByText("Đang bật");
+      expect(disabled()).toBe(true);
+      (control() as HTMLButtonElement).disabled = false;
+      fireEvent.click(control());
+      await act(async () => {});
+      expect(settings.updateCheckoutSettingsAPI).not.toHaveBeenCalled();
+    }
+  );
+
+  it("updates checkout authority reactively without discarding the confirmed value", async () => {
+    render(<GuestCheckoutSwitch />);
+    await waitFor(() => expect(disabled()).toBe(false));
+    act(() => useAppStore.getState().setProfile(staffProfile(["CHECKOUT_SETTINGS_READ"])));
+    expect(disabled()).toBe(true);
+    expect(checked()).toBe(true);
+    expect(settings.getCheckoutSettingsAPI).toHaveBeenCalledTimes(1);
+  });
+
   it("stays disabled and unknown until the initial GET confirms true", async () => {
     const pending = deferred<SettingsResponse>();
     vi.mocked(settings.getCheckoutSettingsAPI).mockReturnValueOnce(pending.promise);

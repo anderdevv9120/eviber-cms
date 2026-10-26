@@ -1,6 +1,8 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
@@ -43,10 +45,38 @@ const save = () => fireEvent.click(screen.getByRole("button", { name: "Lưu thô
 
 describe("store info page", () => {
   beforeEach(() => {
+    useAppStore.getState().setProfile(ownerProfile);
     vi.mocked(api.getStoreInfoAPI).mockReset().mockResolvedValue(ok(settings));
     vi.mocked(api.saveStoreInfoAPI)
       .mockReset()
       .mockImplementation(async input => ok({ ...input, revision: input.revision + 1 }));
+  });
+
+  it("keeps store information readonly without fetching unrelated refund policy", async () => {
+    useAppStore.getState().setProfile(staffProfile(["STORE_INFO_READ"]));
+    const refunds = await import("@/services/refunds");
+    vi.mocked(refunds.getRefundPolicyAPI).mockClear();
+    setup();
+    const phone = (await screen.findByLabelText("Số điện thoại")) as HTMLInputElement;
+    expect(phone.disabled).toBe(true);
+    expect(refunds.getRefundPolicyAPI).not.toHaveBeenCalled();
+    const button = screen.getByRole("button", { name: "Lưu thông tin" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    button.disabled = false;
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(api.saveStoreInfoAPI).not.toHaveBeenCalled();
+  });
+
+  it("preserves an information draft after write permission is revoked", async () => {
+    setup();
+    const phone = (await screen.findByLabelText("Số điện thoại")) as HTMLInputElement;
+    fireEvent.change(phone, { target: { value: "090 draft" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["STORE_INFO_READ"])));
+    expect(phone.value).toBe("090 draft");
+    expect(
+      (screen.getByRole("button", { name: "Lưu thông tin" }) as HTMLButtonElement).disabled
+    ).toBe(true);
   });
 
   it("saves the info payload with the loaded revision", async () => {

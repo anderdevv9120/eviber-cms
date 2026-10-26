@@ -1,6 +1,7 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/request";
@@ -10,7 +11,7 @@ import * as categoriesApi from "@/services/categories";
 import * as combosApi from "@/services/combos";
 import Products from "./index";
 
-vi.mock("@/services/categories", () => ({ listCategoriesAPI: vi.fn() }));
+vi.mock("@/services/categories", () => ({ listCategoryOptionsAPI: vi.fn() }));
 vi.mock("@/services/products", () => ({
   listProductsAPI: vi.fn(),
   changeProductStatusAPI: vi.fn()
@@ -47,7 +48,8 @@ const profile = {
   phone: "",
   firstName: "Admin",
   lastName: "",
-  roles: ["ADMIN"],
+  roles: ["SUPER_ADMIN"],
+  access: ownerProfile.access,
   status: "ACTIVE"
 };
 const renderList = (path = "/products") => {
@@ -75,7 +77,7 @@ beforeEach(() => {
     .mockImplementation(async query =>
       page(query.status === "DELETED" ? [{ ...row, status: "DELETED" }] : [row])
     );
-  vi.mocked(categoriesApi.listCategoriesAPI)
+  vi.mocked(categoriesApi.listCategoryOptionsAPI)
     .mockReset()
     .mockResolvedValue({
       data: [{ _id: categoryId, name: "Áo" }] as categoriesApi.Category[],
@@ -92,6 +94,34 @@ beforeEach(() => {
 });
 
 describe("Products list", () => {
+  it("shows affected combo names without forbidden links for a product-only editor", async () => {
+    useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));
+    vi.mocked(combosApi.listAffectedCombosAPI).mockResolvedValue({
+      data: { combos: [{ _id: "combo-1", name: "Combo liên quan", status: "PUBLISH" }] },
+      message: "success"
+    });
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Combo liên quan")).toBeTruthy();
+    expect(within(dialog).queryByRole("link", { name: "Combo liên quan" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tiếp tục" }));
+    await waitFor(() => expect(api.changeProductStatusAPI).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(warningNotification).mock.lastCall?.[1]?.actions).toBeUndefined();
+  });
+
+  it("does not mutate after update permission is removed while confirming impact", async () => {
+    useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ", "PRODUCT_UPDATE"]));
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ Áo thun" }));
+    const dialog = await screen.findByRole("dialog");
+    act(() => useAppStore.getState().setProfile(staffProfile(["PRODUCT_READ"])));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tiếp tục" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Lưu trữ Áo thun" })).toBeNull()
+    );
+    expect(api.changeProductStatusAPI).not.toHaveBeenCalled();
+  });
   it("renders thumbnail, status, variants, price range and stock", async () => {
     renderList();
     const cells = within((await screen.findByText("Áo thun")).closest("tr")!);

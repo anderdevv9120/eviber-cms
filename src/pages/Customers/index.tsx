@@ -32,6 +32,8 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import { formatOrderDate } from "@/pages/Orders/order-display";
 import { parseCustomerListQuery, serializeCustomerListQuery } from "./customer-list-query";
 import CustomerForm from "./CustomerForm";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 type ListResult =
   CustomerListResult<RegisteredCustomerSummary> | CustomerListResult<GuestBuyerSummary>;
@@ -150,6 +152,8 @@ function useCustomersList() {
 }
 
 export default function Customers() {
+  const profile = useAppStore(state => state.profile);
+  const canCreate = !!profile && canAccess(profile, { anyOf: ["CUSTOMER_CREATE"] });
   const navigate = useNavigate();
   const { query, result, error, loading, changeQuery, reload, isCurrent } = useCustomersList();
   const listSearch = serializeCustomerListQuery(query).toString();
@@ -176,7 +180,7 @@ export default function Customers() {
     !query.status &&
     !loading &&
     !!result;
-  const createBlocked = saving || (!!recovery && !reviewed);
+  const createBlocked = !canCreate || saving || (!!recovery && !reviewed);
   const closeCreate = () => {
     if (!savingRef.current) setCreating(false);
   };
@@ -218,7 +222,14 @@ export default function Customers() {
     }
   };
   const create = async (input: CreateCustomerInput) => {
-    if (recovery || savingRef.current) return;
+    const current = useAppStore.getState().profile;
+    if (
+      !current ||
+      !canAccess(current, { anyOf: ["CUSTOMER_CREATE"] }) ||
+      recovery ||
+      savingRef.current
+    )
+      return;
     let createdId: string;
     savingRef.current = true;
     setSaving(true);
@@ -311,6 +322,8 @@ export default function Customers() {
               type='primary'
               disabled={createBlocked}
               onClick={() => {
+                const current = useAppStore.getState().profile;
+                if (!current || !canAccess(current, { anyOf: ["CUSTOMER_CREATE"] })) return;
                 setRecovery(null);
                 setCreating(true);
               }}
@@ -431,7 +444,7 @@ export default function Customers() {
             />
           )}
           <CustomerForm
-            disabled={!!recovery}
+            disabled={!canCreate || !!recovery}
             onCancel={closeCreate}
             onSubmit={async input => {
               if ("email" in input) await create(input);

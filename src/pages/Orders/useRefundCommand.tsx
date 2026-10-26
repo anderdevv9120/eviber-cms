@@ -4,9 +4,13 @@ import type { ApiResponse } from "@/services/auth";
 import type { AdminRefundOrderView, RefundCommand } from "@/services/refunds";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 export interface RefundContext {
   view: AdminRefundOrderView;
+  /** False while the retained snapshot belongs to an earlier read authority. */
+  readable?: boolean;
   /** Re-reads the refund view (and the order); rejects when the newest state cannot be read. */
   reload: () => Promise<void>;
   /** Adopts the committed view and refreshes the order actions. Never rejects. */
@@ -29,7 +33,18 @@ const CLAIM_CONFLICT_CODE = "refund00015";
 
 // One command = one idempotency key. The key only changes when the staff member edits the command,
 // never because a network call failed, so a lost response can be replayed safely.
-export function useRefundCommand(ctx: RefundContext, options?: { onClaimConflict?: () => void }) {
+export function useRefundCommand(
+  ctx: RefundContext,
+  permission: "ORDER_REFUND_REVIEW" | "ORDER_REFUND_PAY",
+  options?: { onClaimConflict?: () => void }
+) {
+  const profile = useAppStore(state => state.profile);
+  const capability = permission === "ORDER_REFUND_REVIEW" ? ctx.view.canReview : ctx.view.canPay;
+  const allowed =
+    ctx.readable !== false &&
+    !!profile &&
+    canAccess(profile, { anyOf: [permission] }) &&
+    capability;
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>();
@@ -47,7 +62,17 @@ export function useRefundCommand(ctx: RefundContext, options?: { onClaimConflict
   const submit = async (
     call: (command: RefundCommand) => Promise<ApiResponse<AdminRefundOrderView>>
   ) => {
-    if (inFlight.current) return;
+    const current = useAppStore.getState().profile;
+    if (
+      !current ||
+      !canAccess(current, { anyOf: [permission] }) ||
+      ctx.readable === false ||
+      !capability ||
+      inFlight.current ||
+      reloadError ||
+      (needsAck && !acknowledged)
+    )
+      return;
     inFlight.current = true;
     setBusy(true);
     setNotice(undefined);
@@ -101,14 +126,18 @@ export function useRefundCommand(ctx: RefundContext, options?: { onClaimConflict
           showIcon
           className='mt-3'
           title={`Không tải được dữ liệu mới nhất: ${reloadError}`}
-          action={<Button onClick={refresh}>Tải lại dữ liệu</Button>}
+          action={
+            <Button disabled={false} onClick={refresh}>
+              Tải lại dữ liệu
+            </Button>
+          }
         />
       )}
       {needsAck && (
         <Checkbox
           className='mt-3'
           checked={acknowledged}
-          disabled={busy}
+          disabled={!allowed || busy}
           onChange={event => setAcknowledged(event.target.checked)}
         >
           Tôi đã xem lại dữ liệu mới nhất
@@ -119,8 +148,9 @@ export function useRefundCommand(ctx: RefundContext, options?: { onClaimConflict
 
   return {
     busy,
+    canEdit: allowed && !busy,
     notices,
-    canSubmit: !busy && !reloadError && (!needsAck || acknowledged),
+    canSubmit: allowed && !busy && !reloadError && (!needsAck || acknowledged),
     edited: () => setKey(crypto.randomUUID()),
     submit
   };

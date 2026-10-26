@@ -9,20 +9,14 @@ import { attribute, value, list, response, deferred } from "@/test/attribute-fix
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
 import { order, orderList } from "@/test/order-fixtures";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { roleList } from "@/test/role-fixtures";
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
   errorNotification: vi.fn()
 }));
-const profile = {
-  _id: "admin",
-  email: "admin@example.test",
-  phone: "",
-  firstName: "Admin",
-  lastName: "User",
-  status: "ACTIVE",
-  roles: ["ADMIN"]
-};
+const profile = ownerProfile;
 // Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
 configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
@@ -50,6 +44,187 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens independent refund settings for refund-policy-only staff without unrelated reads", async () => {
+    const urls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      urls.push(config.url!);
+      return response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile(["REFUND_POLICY_READ"])
+          : { enabled: true, windowDays: 7, revision: 1 }
+      );
+    };
+    const router = renderRoute("/");
+    await screen.findByText("Chính sách hoàn tiền", { selector: ".ant-card-head-title" });
+    expect(router.state.location.pathname).toBe("/policies");
+    await waitFor(() => expect(urls).toContain("/refund-policy"));
+    expect(urls.some(url => url === "/policies" || url.startsWith("/store-settings/"))).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: "Lưu chính sách hoàn tiền" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
+  it("opens owner role settings from its menu with the access-area breadcrumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? ownerProfile : roleList());
+    renderRoute("/settings/access/roles");
+    await screen.findByRole("heading", { name: "Vai trò" });
+    expect(screen.getByRole("menuitem", { name: /Vai trò/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    const breadcrumb = document.querySelector(".ant-breadcrumb")!;
+    expect(breadcrumb.textContent).toContain("Cài đặt");
+    expect(breadcrumb.textContent).toContain("Tài khoản & phân quyền");
+    expect(breadcrumb.textContent).toContain("Vai trò");
+  });
+
+  it("blocks the direct role-settings URL for a delegated creator without loading its data", async () => {
+    const roleEditorLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, staffProfile(["USER_CREATE"]));
+      roleEditorLoad();
+      return response(config, roleList());
+    };
+    renderRoute("/settings/access/roles");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(roleEditorLoad).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menuitem", { name: /Vai trò/ })).toBeNull();
+  });
+
+  it("opens the staff entry for a USER_CREATE-only account with menu and breadcrumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? staffProfile(["USER_CREATE"]) : []);
+    const router = renderRoute("/");
+    await screen.findByRole("heading", { name: "Nhân viên & phân quyền" });
+    expect(router.state.location.pathname).toBe("/settings/access");
+    expect((await screen.findByRole("menuitem", { name: /Nhân viên/ })).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    const breadcrumb = document.querySelector(".ant-breadcrumb")!;
+    expect(breadcrumb.textContent).toContain("Cài đặt");
+    expect(breadcrumb.textContent).toContain("Tài khoản & phân quyền");
+    expect(breadcrumb.textContent).toContain("Nhân viên");
+  });
+
+  it("serves staff registration under the access area with a linked parent crumb", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(config, config.url === "/auth/profile" ? ownerProfile : []);
+    const router = renderRoute("/settings/access/new");
+    await screen.findByRole("heading", { name: "Mời nhân viên" });
+    expect(screen.getByRole("menuitem", { name: /Nhân viên/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    const crumbs = within(screen.getByRole("navigation"));
+    expect(crumbs.getByRole("link", { name: "Nhân viên" }).getAttribute("href")).toBe(
+      "/settings/access"
+    );
+    expect(crumbs.getByText("Mời nhân viên")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/settings/access/new");
+  });
+
+  it("blocks the staff entry for staff without USER_CREATE without fetching invitations", async () => {
+    const staffLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      staffLoad(config.url);
+      return response(config, []);
+    };
+    renderRoute("/settings/access");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(staffLoad).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menuitem", { name: /Nhân viên/ })).toBeNull();
+  });
+
+  it("opens the first permitted route from home and filters menu groups", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile(["INVENTORY_READ"])
+          : {
+              data: [],
+              total: 0,
+              totalPage: 0,
+              page: 1,
+              pageSize: 10,
+              metadata: { lowStockThreshold: 5, stock: "all" }
+            }
+      );
+    const router = renderRoute("/");
+    await screen.findByRole("heading", { name: "Tồn kho" });
+    expect(router.state.location.pathname).toBe("/inventory");
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.queryByText("Bán hàng")).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Tổng quan|Sản phẩm/ })).toBeNull();
+  });
+
+  it("sends no feature request for a forbidden direct URL", async () => {
+    const forbiddenPageLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      forbiddenPageLoad(config.url);
+      return response(config, []);
+    };
+    renderRoute("/products");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(forbiddenPageLoad).not.toHaveBeenCalled();
+  });
+
+  it("shows no-access and sign-out for staff without permissions", async () => {
+    axiosRequest.defaults.adapter = async config => response(config, staffProfile([]));
+    renderRoute("/");
+    await screen.findByText("Bạn chưa được cấp quyền sử dụng CMS");
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
+    await screen.findByText("Đăng nhập vào CMS");
+  });
+
+  it("refreshes expired permissions before mounting the destination after navigation", async () => {
+    let current = ownerProfile;
+    const featureLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile") return response(config, current);
+      featureLoad(config.url);
+      return response(config, []);
+    };
+    const router = renderRoute("/policies");
+    await screen.findByRole("heading", { name: "Trang chính sách" });
+    current = staffProfile(["INVENTORY_READ"]);
+    featureLoad.mockClear();
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000);
+    await act(() => router.navigate("/products"));
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(featureLoad).not.toHaveBeenCalled();
+  });
+
+  it("logs in through home to the first allowed page", async () => {
+    clearSession();
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/login"
+          ? {
+              accessToken: "staff-token",
+              refreshToken: "staff-refresh",
+              accessExpiresIn: 60000,
+              refreshExpiresIn: 60000
+            }
+          : config.url === "/auth/profile"
+            ? staffProfile(["POLICY_READ"])
+            : []
+      );
+    const router = renderRoute("/auth/login");
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "staff@example.test" }
+    });
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "Password123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    await screen.findByRole("heading", { name: "Trang chính sách" });
+    expect(router.state.location.pathname).toBe("/policies");
+  });
   it("opens the combo list from Catalog and keeps its menu selected", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(
@@ -170,6 +345,20 @@ describe("CMS data router", () => {
     expect(breadcrumb.getByText("Cài đặt")).toBeTruthy();
   });
 
+  it("blocks Cài đặt › Email for staff (owner only) without fetching the Gmail settings", async () => {
+    const settingsLoad = vi.fn();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/auth/profile")
+        return response(config, staffProfile(["CHECKOUT_SETTINGS_READ"]));
+      settingsLoad(config.url);
+      return response(config, {});
+    };
+    renderRoute("/settings/email");
+    await screen.findByText("Bạn không có quyền truy cập trang này");
+    expect(settingsLoad).not.toHaveBeenCalledWith("/email-settings");
+    expect(screen.queryByRole("menuitem", { name: /Email/ })).toBeNull();
+  });
+
   it("opens Cài đặt › Email with the Gmail settings form, Đặt hàng listed last", async () => {
     axiosRequest.defaults.adapter = async config =>
       response(
@@ -189,8 +378,8 @@ describe("CMS data router", () => {
     const router = renderRoute("/dashboard");
     const settingsItems = (await screen.findAllByRole("menuitem"))
       .map(item => item.textContent ?? "")
-      .filter(label => ["Thanh toán", "Email", "Đặt hàng"].includes(label));
-    expect(settingsItems).toEqual(["Thanh toán", "Email", "Đặt hàng"]);
+      .filter(label => ["Thanh toán", "Email", "Vai trò", "Nhân viên", "Đặt hàng"].includes(label));
+    expect(settingsItems).toEqual(["Thanh toán", "Email", "Vai trò", "Nhân viên", "Đặt hàng"]);
     fireEvent.click(screen.getByRole("menuitem", { name: /Email/ }));
     await screen.findByRole("heading", { name: "Email" });
     expect(router.state.location.pathname).toBe("/settings/email");
@@ -605,7 +794,7 @@ describe("CMS data router", () => {
         headers: {},
         status: 403,
         statusText: "Forbidden",
-        data: { message: "Forbidden" }
+        data: { message: "Forbidden", errors: { code: "CMS_MEMBERSHIP_REQUIRED" } }
       });
     };
     const router = renderRoute("/catalog/attributes");

@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useRef, useState } from "react";
 import { Alert, Button, Flex, Form, Input } from "antd";
 import type {
@@ -19,12 +21,23 @@ interface Fields {
 }
 
 export default function AttributeForm({ attribute, disabled = false, onSubmit, onCancel }: Props) {
+  const profile = useAppStore(state => state.profile);
+  const permitted =
+    !!profile &&
+    canAccess(profile, { anyOf: [attribute ? "ATTRIBUTE_UPDATE" : "ATTRIBUTE_CREATE"] });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
 
   const submit = async (fields: Fields) => {
-    if (disabled || submittingRef.current) return;
+    const latest = useAppStore.getState().profile;
+    if (
+      !latest ||
+      !canAccess(latest, { anyOf: [attribute ? "ATTRIBUTE_UPDATE" : "ATTRIBUTE_CREATE"] }) ||
+      disabled ||
+      submittingRef.current
+    )
+      return;
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);
@@ -45,7 +58,7 @@ export default function AttributeForm({ attribute, disabled = false, onSubmit, o
       layout='vertical'
       initialValues={attribute ? { name: attribute.name, code: attribute.code } : undefined}
       onFinish={submit}
-      disabled={disabled || submitting}
+      disabled={disabled || submitting || !permitted}
     >
       {error && <Alert type='error' showIcon title={error} className='mb-4' />}
       {attribute && (

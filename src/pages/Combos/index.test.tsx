@@ -1,3 +1,4 @@
+import { ownerProfile } from "@/test/access-fixtures";
 import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -41,7 +42,8 @@ const profile = {
   phone: "",
   firstName: "Admin",
   lastName: "",
-  roles: ["ADMIN"],
+  roles: ["SUPER_ADMIN"],
+  access: ownerProfile.access,
   status: "ACTIVE"
 };
 const renderList = (path = "/catalog/combos") => {

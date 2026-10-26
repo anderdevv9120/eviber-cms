@@ -14,8 +14,9 @@ import {
 } from "@/services/products";
 import { PATH } from "@/constants/paths";
 import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
-import { listCategoriesAPI } from "@/services/categories";
+import { listCategoryOptionsAPI } from "@/services/categories";
 import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
@@ -28,7 +29,7 @@ import { useComboImpact } from "./useComboImpact";
 import type { ComboRef } from "@/services/combos";
 import ProductInfoSection from "./ProductInfoSection";
 import ProductImagesSection from "./ProductImagesSection";
-import ProductOptionsSection, { type OptionState } from "./ProductOptionsSection";
+import ProductOptionsSection, { type OptionState, type ValueOption } from "./ProductOptionsSection";
 import { useAttributeCatalog } from "./useAttributeCatalog";
 import VariantGrid, { type CellErrors } from "./VariantGrid";
 import ProductSeoSection from "./ProductSeoSection";
@@ -44,6 +45,8 @@ import {
 const EDITOR_SETTLE_MS = 400;
 const CONFLICT_MESSAGE = "Sản phẩm đã thay đổi ở nơi khác. Tải lại để bỏ bản nháp trước khi lưu.";
 const GRID_INVALID_MESSAGE = "Kiểm tra lại các ô được đánh dấu trong bảng biến thể";
+const SAVE_PERMISSION_CHANGED =
+  "Quyền lưu sản phẩm đã thay đổi. Bản nháp được giữ lại; hãy thử lại khi có quyền.";
 const REQUIRED = "Bắt buộc";
 const UNSAVED_COPY = {
   title: "Sản phẩm chưa được lưu",
@@ -93,6 +96,12 @@ function validateRows(rows: GridRow[]): CellErrors {
 }
 
 function ProductEditorPage({ id }: { id?: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canWrite =
+    !!profile && canAccess(profile, { anyOf: [id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["PRODUCT_UPDATE"] });
+  const canRead = !!profile && canAccess(profile, { anyOf: ["PRODUCT_READ"] });
+  const canReadInventory = !!profile && canAccess(profile, { anyOf: ["INVENTORY_READ"] });
   const navigate = useNavigate();
   const comboImpact = useComboImpact();
   const { modal } = App.useApp();
@@ -104,6 +113,7 @@ function ProductEditorPage({ id }: { id?: string }) {
     { options: [], error: null }
   );
   const [options, setOptions] = useState<OptionState[]>([]);
+  const [optionValues, setOptionValues] = useState<Record<string, ValueOption[]>>({});
   const [images, setImages] = useState<string[]>([]);
   const [rows, setRows] = useState<GridRow[]>(() => buildGrid([], [], []));
   const [description, setDescription] = useState("");
@@ -124,7 +134,10 @@ function ProductEditorPage({ id }: { id?: string }) {
   const baselineHtml = useRef<string | null>(null);
   const categoryIds = (Form.useWatch("categoryIds", form) as string[] | undefined) ?? [];
   const slug = (Form.useWatch("slug", form) as string | undefined) ?? "";
-  const catalog = useAttributeCatalog(options.map(option => option.attributeId));
+  const catalog = useAttributeCatalog(
+    options.map(option => option.attributeId),
+    canWrite && (!id || !!product)
+  );
 
   const applyView = useCallback(
     (view: ProductEditorView, keep?: GridRow[]) => {
@@ -134,6 +147,9 @@ function ProductEditorPage({ id }: { id?: string }) {
       const grid = buildGrid(selections(nextOptions), view.variants, unsaved);
       setProduct(view);
       setOptions(nextOptions);
+      setOptionValues(
+        Object.fromEntries(view.options.map(option => [option.attributeId, option.values]))
+      );
       setImages(view.images);
       // Unsaved combinations of a loaded product start skipped; after a save, skipped stay skipped
       setRows(keep ? grid : grid.map(row => (row.saved ? row : { ...row, include: false })));
@@ -172,8 +188,9 @@ function ProductEditorPage({ id }: { id?: string }) {
   }, [id, attempt, applyView]);
 
   useEffect(() => {
+    if (!canRead) return;
     const controller = new AbortController();
-    listCategoriesAPI(controller.signal).then(
+    listCategoryOptionsAPI(controller.signal).then(
       ({ data }) => setCategories({ options: Array.isArray(data) ? data : [], error: null }),
       (cause: unknown) => {
         if (!controller.signal.aborted)
@@ -181,10 +198,10 @@ function ProductEditorPage({ id }: { id?: string }) {
       }
     );
     return () => controller.abort();
-  }, []);
+  }, [canRead]);
 
   const readOnly = product?.status === "DELETED";
-  useUnsavedOrderWarning(dirty && !readOnly, UNSAVED_COPY);
+  useUnsavedOrderWarning(dirty && product?.status !== "DELETED", UNSAVED_COPY);
   // Declared after the blocker so its effect already sees the saved (clean) state
   useEffect(() => {
     if (createdId) navigate(productDetailPath(createdId), { replace: true });
@@ -192,11 +209,11 @@ function ProductEditorPage({ id }: { id?: string }) {
 
   const savedVariants = product?.variants ?? [];
   const valueLabels = new Map<string, string>([
-    ...Object.values(catalog.values).flatMap(values =>
+    ...Object.values(optionValues).flatMap(values =>
       values.map(value => [value._id, value.value] as const)
     ),
-    ...(product?.options ?? []).flatMap(option =>
-      option.values.map(value => [value._id, value.value] as const)
+    ...Object.values(catalog.values).flatMap(values =>
+      values.map(value => [value._id, value.value] as const)
     )
   ]);
   const labelsOf = (row: GridRow) =>
@@ -204,6 +221,21 @@ function ProductEditorPage({ id }: { id?: string }) {
   const missing = publishMissing({ images, categoryIds, description, rows });
 
   const changeOptions = (next: OptionState[]) => {
+    setOptionValues(
+      Object.fromEntries(
+        next.map(option => [
+          option.attributeId,
+          [
+            ...(catalog.values[option.attributeId] ?? []),
+            ...(optionValues[option.attributeId] ?? [])
+          ].filter(
+            (value, index, values) =>
+              option.valueIds.includes(value._id) &&
+              values.findIndex(other => other._id === value._id) === index
+          )
+        ])
+      )
+    );
     setOptions(next);
     setRows(previous => buildGrid(selections(next), savedVariants, previous));
     setDirty(true);
@@ -284,7 +316,7 @@ function ProductEditorPage({ id }: { id?: string }) {
   };
 
   const save = async (publish: boolean) => {
-    if (saving || conflict || readOnly) return;
+    if (!canWrite || saving || conflict || readOnly) return;
     setSaving(true);
     setError(null);
     setServerMissing([]);
@@ -301,6 +333,12 @@ function ProductEditorPage({ id }: { id?: string }) {
       if (hasInvalidDescriptionImage(html.current)) {
         return setDescriptionError(DESCRIPTION_IMAGE_INVALID);
       }
+      const saveProfile = useAppStore.getState().profile;
+      if (
+        !saveProfile ||
+        !canAccess(saveProfile, { anyOf: [id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"] })
+      )
+        return setError(SAVE_PERMISSION_CHANGED);
       const input = buildInput(values);
       const changes = impactOf(savedVariants, rows);
       let affected: ComboRef[] = [];
@@ -312,6 +350,9 @@ function ProductEditorPage({ id }: { id?: string }) {
         if (confirmed === null) return;
         affected = confirmed;
       }
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: [id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"] }))
+        return setError(SAVE_PERMISSION_CHANGED);
       let view: ProductEditorView;
       try {
         view = product
@@ -323,7 +364,8 @@ function ProductEditorPage({ id }: { id?: string }) {
       }
       applyView(view, rows);
       let published = false;
-      if (publish) {
+      const publishProfile = useAppStore.getState().profile;
+      if (publish && publishProfile && canAccess(publishProfile, { anyOf: ["PRODUCT_UPDATE"] })) {
         try {
           view = (
             await changeProductStatusAPI(view._id, {
@@ -342,7 +384,10 @@ function ProductEditorPage({ id }: { id?: string }) {
               duration: 0
             });
         }
-      }
+      } else if (publish)
+        errorNotification("Đã lưu nháp nhưng chưa đăng bán được: quyền đăng bán đã thay đổi.", {
+          duration: 0
+        });
       successNotification(published ? "Đã lưu và đăng bán sản phẩm" : "Đã lưu sản phẩm");
       if (changes.deactivated) comboImpact.notify(affected);
       if (!product) setCreatedId(view._id);
@@ -352,7 +397,7 @@ function ProductEditorPage({ id }: { id?: string }) {
   };
 
   const changeStatus = async (status: ProductStatus) => {
-    if (!product || saving) return;
+    if (!canUpdate || !product || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -365,6 +410,8 @@ function ProductEditorPage({ id }: { id?: string }) {
         if (confirmed === null) return;
         affected = confirmed;
       }
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: ["PRODUCT_UPDATE"] })) return;
       const { data } = await changeProductStatusAPI(product._id, {
         status,
         expectedRevision: product.revision
@@ -400,7 +447,7 @@ function ProductEditorPage({ id }: { id?: string }) {
     );
 
   const locked = lockedValueIds(savedVariants);
-  const busy = saving || readOnly;
+  const busy = saving || readOnly || !canWrite;
   return (
     <section className='min-w-0'>
       <Flex align='center' gap={12} className='mb-4'>
@@ -416,9 +463,11 @@ function ProductEditorPage({ id }: { id?: string }) {
           className='mb-4'
           title='Sản phẩm đã lưu trữ — chỉ xem. Khôi phục để chỉnh sửa.'
           action={
-            <Button loading={saving} onClick={() => void changeStatus("DRAFT")}>
-              Khôi phục
-            </Button>
+            canUpdate ? (
+              <Button loading={saving} onClick={() => void changeStatus("DRAFT")}>
+                Khôi phục
+              </Button>
+            ) : undefined
           }
         />
       )}
@@ -457,6 +506,7 @@ function ProductEditorPage({ id }: { id?: string }) {
               onDescriptionChange={onDescriptionChange}
             />
             <ProductImagesSection
+              permission={id ? "PRODUCT_UPDATE" : "PRODUCT_CREATE"}
               images={images}
               disabled={busy}
               onChange={next => {
@@ -477,16 +527,14 @@ function ProductEditorPage({ id }: { id?: string }) {
                   option.values.map(value => value._id)
                 ])
               )}
-              productValues={Object.fromEntries(
-                (product?.options ?? []).map(option => [option.attributeId, option.values])
-              )}
+              productValues={optionValues}
               catalog={catalog}
               locked={locked}
               hasSavedVariants={savedVariants.length > 0}
               disabled={busy}
               onChange={changeOptions}
             />
-            {product && (
+            {product && canReadInventory && (
               <Flex justify='end'>
                 <Link to={`${PATH.INVENTORY}?productId=${encodeURIComponent(product._id)}`}>
                   Xem tồn kho
@@ -507,7 +555,7 @@ function ProductEditorPage({ id }: { id?: string }) {
         </Form>
         <Flex vertical gap={12} style={{ width: 280 }} className='sticky top-4'>
           <PublishChecklist missing={missing} serverMissing={serverMissing} />
-          {!readOnly && (
+          {!readOnly && canWrite && (
             <>
               <Button
                 type='primary'
@@ -517,7 +565,7 @@ function ProductEditorPage({ id }: { id?: string }) {
               >
                 Lưu
               </Button>
-              {product?.status !== "PUBLISH" && (
+              {canUpdate && product?.status !== "PUBLISH" && (
                 <Button
                   disabled={conflict || saving || missing.length > 0}
                   onClick={() => void save(true)}

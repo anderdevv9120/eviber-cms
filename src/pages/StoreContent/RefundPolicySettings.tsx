@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { Alert, Button, Card, Form, InputNumber, Spin, Switch, Typography } from "antd";
 import useRevisionedSettings from "@/components/StoreContent/useRevisionedSettings";
 import { CONFLICT_MESSAGE } from "@/components/StoreContent/rules";
@@ -8,7 +10,11 @@ type PolicyValues = Pick<RefundPolicy, "enabled" | "windowDays">;
 const savePolicy = ({ enabled, windowDays, revision }: RefundPolicy) =>
   saveRefundPolicyAPI({ enabled, windowDays, expectedRevision: revision });
 
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["REFUND_POLICY_UPDATE"] });
+
 export default function RefundPolicySettings() {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
   const [form] = Form.useForm<PolicyValues>();
   const { settings, loadError, saving, saveError, conflict, reload, submit } =
     useRevisionedSettings<PolicyValues>({ form, load: getRefundPolicyAPI, save: savePolicy });
@@ -46,8 +52,10 @@ export default function RefundPolicySettings() {
             form={form}
             layout='vertical'
             initialValues={settings}
-            disabled={saving}
-            onFinish={submit}
+            disabled={saving || !canUpdate}
+            onFinish={values => {
+              if (mayUpdate(useAppStore.getState().profile)) void submit(values);
+            }}
           >
             <Form.Item
               name='enabled'
@@ -72,7 +80,12 @@ export default function RefundPolicySettings() {
             >
               <InputNumber />
             </Form.Item>
-            <Button type='primary' htmlType='submit' loading={saving} disabled={conflict}>
+            <Button
+              type='primary'
+              htmlType='submit'
+              loading={saving}
+              disabled={!canUpdate || conflict}
+            >
               Lưu chính sách hoàn tiền
             </Button>
           </Form>

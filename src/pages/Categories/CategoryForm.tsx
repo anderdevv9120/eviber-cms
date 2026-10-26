@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useState } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
@@ -35,6 +37,19 @@ const toValues = (category?: Category): Values => ({
 });
 
 export default function CategoryForm({ open, category, onClose, onSaved, onReload }: Props) {
+  const profile = useAppStore(state => state.profile);
+  const permission = category ? "CATEGORY_UPDATE" : "CATEGORY_CREATE";
+  const canWrite = !!profile && canAccess(profile, { anyOf: [permission] });
+  const uploadPermissions = [
+    "PRODUCT_CREATE",
+    "PRODUCT_UPDATE",
+    "COMBO_CREATE",
+    "COMBO_UPDATE",
+    "CONTENT_HOME_UPDATE",
+    "STORE_INFO_UPDATE",
+    "POLICY_UPDATE"
+  ] as const;
+  const canUpload = canWrite && !!profile && canAccess(profile, { anyOf: [...uploadPermissions] });
   const [form] = Form.useForm<Values>();
   const imageUrl = Form.useWatch("imageUrl", form);
   // Bản đang sửa — đổi sau "Tải lại" để gửi revision mới
@@ -46,9 +61,11 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
   const busy = saving || uploading;
 
   const submit = async () => {
-    if (busy || stale) return;
+    const latest = useAppStore.getState().profile;
+    if (busy || stale || !latest || !canAccess(latest, { anyOf: [permission] })) return;
     const values = await form.validateFields().catch(() => null);
-    if (!values) return;
+    const currentProfile = useAppStore.getState().profile;
+    if (!values || !currentProfile || !canAccess(currentProfile, { anyOf: [permission] })) return;
     setSaving(true);
     setError(null);
     const input: CategoryInput = {
@@ -93,6 +110,14 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
   };
 
   const upload = async (file: File) => {
+    const latest = useAppStore.getState().profile;
+    if (
+      busy ||
+      !latest ||
+      !canAccess(latest, { anyOf: [permission] }) ||
+      !canAccess(latest, { anyOf: [...uploadPermissions] })
+    )
+      return;
     setUploading(true);
     setError(null);
     try {
@@ -116,7 +141,13 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
         <Button key='cancel' onClick={onClose} disabled={busy}>
           Hủy
         </Button>,
-        <Button key='save' type='primary' loading={saving} disabled={stale} onClick={submit}>
+        <Button
+          key='save'
+          type='primary'
+          loading={saving}
+          disabled={stale || busy || !canWrite}
+          onClick={submit}
+        >
           Lưu danh mục
         </Button>
       ]}
@@ -137,7 +168,7 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
       <Form<Values>
         form={form}
         layout='vertical'
-        disabled={busy}
+        disabled={busy || !canWrite}
         initialValues={toValues(category)}
       >
         <Form.Item
@@ -178,7 +209,7 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
               />
             )}
             <Upload
-              disabled={busy}
+              disabled={busy || !canUpload}
               accept='image/png,image/jpeg,image/webp,image/gif'
               showUploadList={false}
               beforeUpload={file => {
@@ -186,7 +217,7 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
                 return false;
               }}
             >
-              <Button icon={<UploadOutlined />} loading={uploading} disabled={busy}>
+              <Button icon={<UploadOutlined />} loading={uploading} disabled={busy || !canUpload}>
                 {imageUrl ? "Đổi ảnh" : "Tải ảnh lên"}
               </Button>
             </Upload>
@@ -194,6 +225,13 @@ export default function CategoryForm({ open, category, onClose, onSaved, onReloa
         </Form.Item>
       </Form>
       {error && <Alert type='error' showIcon title={error} />}
+      {canWrite && !canUpload && (
+        <Alert
+          type='info'
+          showIcon
+          title='Bạn chưa có quyền tải ảnh danh mục. Liên hệ chủ cửa hàng để được hỗ trợ.'
+        />
+      )}
     </Modal>
   );
 }

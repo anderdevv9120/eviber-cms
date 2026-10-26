@@ -6,6 +6,8 @@ import type {
   UpdateCustomerInput
 } from "@/services/customers";
 import { getErrorMessage } from "@/utils/getErrorMessage";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 interface Props {
   customer?: RegisteredCustomerDetail;
@@ -16,13 +18,23 @@ interface Props {
 type Fields = CreateCustomerInput;
 
 export default function CustomerForm({ customer, disabled = false, onSubmit, onCancel }: Props) {
+  const profile = useAppStore(state => state.profile);
+  const permission = customer ? "CUSTOMER_UPDATE" : "CUSTOMER_CREATE";
+  const allowed = !!profile && canAccess(profile, { anyOf: [permission] });
   const [form] = Form.useForm<Fields>();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
 
   const submit = async (fields: Fields) => {
-    if (disabled || submittingRef.current) return;
+    const current = useAppStore.getState().profile;
+    if (
+      !current ||
+      !canAccess(current, { anyOf: [permission] }) ||
+      disabled ||
+      submittingRef.current
+    )
+      return;
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);
@@ -68,7 +80,7 @@ export default function CustomerForm({ customer, disabled = false, onSubmit, onC
           : undefined
       }
       onFinish={submit}
-      disabled={disabled || submitting}
+      disabled={!allowed || disabled || submitting}
     >
       {error && <Alert type='error' showIcon title={error} className='mb-4' />}
       {!customer && (
@@ -161,7 +173,9 @@ export default function CustomerForm({ customer, disabled = false, onSubmit, onC
         <Input maxLength={255} />
       </Form.Item>
       <Flex gap={8} wrap justify='end'>
-        <Button onClick={onCancel}>Hủy</Button>
+        <Button onClick={onCancel} disabled={submitting}>
+          Hủy
+        </Button>
         <Button type='primary' htmlType='submit' loading={submitting}>
           {customer ? "Lưu hồ sơ" : "Tạo khách hàng"}
         </Button>

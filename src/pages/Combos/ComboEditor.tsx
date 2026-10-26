@@ -17,7 +17,7 @@ import { useNavigate, useParams } from "react-router";
 import { RichEditor } from "@/components/RichEditor";
 import { PATH } from "@/constants/paths";
 import useUnsavedOrderWarning from "@/hooks/useUnsavedOrderWarning";
-import { listCategoriesAPI } from "@/services/categories";
+import { listCategoryOptionsAPI } from "@/services/categories";
 import { type CategoryOption, type ProductStatus } from "@/services/products";
 import {
   changeComboStatusAPI,
@@ -30,6 +30,7 @@ import {
   type ComboWriteInput
 } from "@/services/combos";
 import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { uploadImageAPI } from "@/services/images";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { errorNotification, successNotification } from "@/utils/notification";
@@ -51,6 +52,8 @@ import { productStatusLabels } from "./combo-list-query";
 
 const EDITOR_SETTLE_MS = 400;
 const CONFLICT_MESSAGE = "Combo đã thay đổi ở nơi khác. Tải lại để bỏ bản nháp trước khi lưu.";
+const SAVE_PERMISSION_CHANGED =
+  "Quyền lưu combo đã thay đổi. Bản nháp và các ảnh đã tải lên được giữ lại; hãy thử lại khi có quyền.";
 const UNSAVED_COPY = {
   title: "Combo chưa được lưu",
   content: "Rời trang sẽ bỏ các thay đổi chưa lưu."
@@ -75,6 +78,11 @@ const rowsOf = (view: ComboEditorView): ComboPieceRow[] =>
   }));
 
 function ComboEditorPage({ id }: { id?: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canWrite =
+    !!profile && canAccess(profile, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] });
+  const canUpdate = !!profile && canAccess(profile, { anyOf: ["COMBO_UPDATE"] });
+  const canRead = !!profile && canAccess(profile, { anyOf: ["COMBO_READ"] });
   const navigate = useNavigate();
   App.useApp();
   const [form] = Form.useForm<FormValues>();
@@ -160,8 +168,9 @@ function ComboEditorPage({ id }: { id?: string }) {
   }, [id, attempt, applyView]);
 
   useEffect(() => {
+    if (!canRead) return;
     const controller = new AbortController();
-    listCategoriesAPI(controller.signal).then(
+    listCategoryOptionsAPI(controller.signal).then(
       ({ data }) => {
         if (!controller.signal.aborted)
           setCategories({ options: Array.isArray(data) ? data : [], error: null });
@@ -172,10 +181,10 @@ function ComboEditorPage({ id }: { id?: string }) {
       }
     );
     return () => controller.abort();
-  }, []);
+  }, [canRead]);
 
   const readOnly = combo?.status === "DELETED";
-  useUnsavedOrderWarning(dirty && !readOnly, UNSAVED_COPY);
+  useUnsavedOrderWarning(dirty && combo?.status !== "DELETED", UNSAVED_COPY);
   useEffect(() => {
     if (createdId) navigate(detailPath(createdId), { replace: true });
   }, [createdId, navigate]);
@@ -194,7 +203,7 @@ function ComboEditorPage({ id }: { id?: string }) {
     Object.keys(validateComboPieces(pieces)).length === 0 &&
     !invalidPrice &&
     !!name.trim();
-  const busy = saving || readOnly;
+  const busy = saving || readOnly || !canWrite;
 
   const onValuesChange = (changed: Partial<FormValues>) => {
     setDirty(true);
@@ -249,7 +258,7 @@ function ComboEditorPage({ id }: { id?: string }) {
   };
 
   const save = async (publish: boolean) => {
-    if (saving || conflict || readOnly) return;
+    if (!canWrite || saving || conflict || readOnly) return;
     setSaving(true);
     setError(null);
     setServerMissing([]);
@@ -271,6 +280,9 @@ function ComboEditorPage({ id }: { id?: string }) {
       if (hasInvalidDescriptionImage(html.current))
         return setDescriptionError(DESCRIPTION_IMAGE_INVALID);
       if (publish && !canPublish) return setError("Chưa đủ điều kiện đăng bán combo.");
+      const current = useAppStore.getState().profile;
+      if (!current || !canAccess(current, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] }))
+        return setError(SAVE_PERMISSION_CHANGED);
       const input = buildInput(values);
       const selectedImages = input.images.map(url => ({
         url,
@@ -279,6 +291,12 @@ function ComboEditorPage({ id }: { id?: string }) {
       const uploadedImages: string[] = [];
       try {
         for (const { url, file } of selectedImages) {
+          const uploadProfile = useAppStore.getState().profile;
+          if (
+            !uploadProfile ||
+            !canAccess(uploadProfile, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] })
+          )
+            return setError(SAVE_PERMISSION_CHANGED);
           if (!file) {
             uploadedImages.push(url);
             continue;
@@ -293,6 +311,12 @@ function ComboEditorPage({ id }: { id?: string }) {
         return setError(getErrorMessage(cause));
       }
       input.images = uploadedImages;
+      const writeProfile = useAppStore.getState().profile;
+      if (
+        !writeProfile ||
+        !canAccess(writeProfile, { anyOf: [id ? "COMBO_UPDATE" : "COMBO_CREATE"] })
+      )
+        return setError(SAVE_PERMISSION_CHANGED);
       let view: ComboEditorView;
       try {
         view = combo
@@ -306,7 +330,8 @@ function ComboEditorPage({ id }: { id?: string }) {
       }
       applyView(view);
       let published = false;
-      if (publish) {
+      const publishProfile = useAppStore.getState().profile;
+      if (publish && publishProfile && canAccess(publishProfile, { anyOf: ["COMBO_UPDATE"] })) {
         try {
           view = (
             await changeComboStatusAPI(view._id, {
@@ -323,7 +348,10 @@ function ComboEditorPage({ id }: { id?: string }) {
               duration: 0
             });
         }
-      }
+      } else if (publish)
+        errorNotification("Đã lưu nháp nhưng chưa đăng bán được: quyền đăng bán đã thay đổi.", {
+          duration: 0
+        });
       successNotification(published ? "Đã lưu và đăng bán combo" : "Đã lưu combo");
       if (!combo) setCreatedId(view._id);
     } finally {
@@ -332,7 +360,9 @@ function ComboEditorPage({ id }: { id?: string }) {
   };
 
   const changeStatus = async (status: ProductStatus) => {
-    if (!combo || saving || dirty) return;
+    const current = useAppStore.getState().profile;
+    if (!current || !canAccess(current, { anyOf: ["COMBO_UPDATE"] }) || !combo || saving || dirty)
+      return;
     setSaving(true);
     setError(null);
     try {
@@ -384,9 +414,11 @@ function ComboEditorPage({ id }: { id?: string }) {
           className='mb-4'
           title='Combo đã lưu trữ — chỉ xem. Khôi phục để chỉnh sửa.'
           action={
-            <Button loading={saving} onClick={() => changeStatus("DRAFT")}>
-              Khôi phục
-            </Button>
+            canUpdate ? (
+              <Button loading={saving} onClick={() => changeStatus("DRAFT")}>
+                Khôi phục
+              </Button>
+            ) : undefined
           }
         />
       )}
@@ -460,6 +492,7 @@ function ComboEditorPage({ id }: { id?: string }) {
               </Form.Item>
             </Card>
             <ProductImagesSection
+              permission={id ? "COMBO_UPDATE" : "COMBO_CREATE"}
               title='Ảnh combo'
               images={images}
               disabled={busy}
@@ -494,6 +527,7 @@ function ComboEditorPage({ id }: { id?: string }) {
             <ComboPiecesSection
               items={pieces}
               errors={pieceErrors}
+              canWrite={canWrite}
               disabled={busy}
               onChange={next => {
                 setPieces(next);
@@ -516,7 +550,7 @@ function ComboEditorPage({ id }: { id?: string }) {
         </Form>
         <Flex vertical gap={12} style={{ width: 280 }} className='sticky top-4'>
           <ComboPublishChecklist missing={missing} serverMissing={serverMissing} />
-          {!readOnly && (
+          {!readOnly && canWrite && (
             <>
               <Button
                 type='primary'
@@ -526,7 +560,7 @@ function ComboEditorPage({ id }: { id?: string }) {
               >
                 Lưu
               </Button>
-              {combo?.status !== "PUBLISH" && (
+              {canUpdate && combo?.status !== "PUBLISH" && (
                 <Button disabled={conflict || saving || !canPublish} onClick={() => save(true)}>
                   Lưu &amp; Đăng bán
                 </Button>

@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 import { ConfigProvider } from "antd";
 import dayjs from "dayjs";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
@@ -196,6 +198,7 @@ const fillPayout = (
 const notTransferred = "Ghi nhận hoàn tiền không thực hiện chuyển khoản.";
 
 beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-25T12:00:00.000Z"));
 });
@@ -205,6 +208,55 @@ afterEach(() => {
 });
 
 describe("refund payout claim and completion", () => {
+  it("RBAC current review-only profile cannot claim despite stale server pay capability", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]));
+    serve({ [`get ${REFUNDS}`]: config => response(config, awaitingPayout) });
+    renderSection();
+    const claimButton = (await screen.findByRole("button", {
+      name: "Nhận xử lý hoàn tiền"
+    })) as HTMLButtonElement;
+    expect(claimButton.disabled).toBe(true);
+    claimButton.disabled = false;
+    fireEvent.click(claimButton);
+    expect(writes()).toHaveLength(0);
+  });
+  it("RBAC keeps payout draft on permission refresh and rejects forced submission", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, claimed()) });
+    renderSection();
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
+    fillPayout();
+    await act(async () =>
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]))
+    );
+    const confirm = screen.getByRole("button", {
+      name: "Ghi nhận đã hoàn tiền"
+    }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    expect(
+      (screen.getByRole("spinbutton", { name: "Số tiền đã hoàn" }) as HTMLInputElement).disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole("textbox", { name: "Thời điểm đã chuyển tiền" }) as HTMLInputElement)
+        .disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }) as HTMLInputElement)
+        .disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }) as HTMLInputElement).value
+    ).toBe("FT-123");
+    fireEvent.submit(confirm.closest("form")!);
+    expect(writes()).toHaveLength(0);
+    await act(async () => useAppStore.getState().setProfile(ownerProfile));
+    expect(
+      (screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }) as HTMLInputElement)
+        .disabled
+    ).toBe(false);
+    expect(
+      (screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }) as HTMLInputElement).value
+    ).toBe("FT-123");
+  });
   it("claim_before_transfer_then_record_completed_payout", async () => {
     serve({
       [`get ${REFUNDS}`]: config => response(config, awaitingPayout),

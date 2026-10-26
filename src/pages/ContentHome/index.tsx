@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useRef, useState } from "react";
 import {
   Alert,
@@ -78,6 +80,7 @@ function TileFields({
         <Input maxLength={300} placeholder='/collection' />
       </Form.Item>
       <ImageField
+        permission='CONTENT_HOME_UPDATE'
         name={tileImage(index)}
         alt={`Ảnh ô khuyến mãi ${index + 1}`}
         uploading={uploading}
@@ -120,12 +123,14 @@ function BrandStoryFields({
         <Input.TextArea maxLength={600} showCount autoSize={{ minRows: 4, maxRows: 10 }} />
       </Form.Item>
       <ImageField
+        permission='CONTENT_HOME_UPDATE'
         name={STORY_IMAGE}
         alt='Ảnh câu chuyện thương hiệu'
         uploading={uploading.includes(imageKey(STORY_IMAGE))}
         onUpload={file => onUpload(STORY_IMAGE, file)}
       />
       <ImageField
+        permission='CONTENT_HOME_UPDATE'
         name={STORY_IMAGE2}
         label='Ảnh thứ 2'
         optional
@@ -184,6 +189,9 @@ const toBrandStory = (story: BrandStory): BrandStory => {
 };
 
 // BannerBlock cảnh báo rời trang khi thứ tự chưa lưu, cần modal từ antd <App>
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["CONTENT_HOME_UPDATE"] });
+
 export default function ContentHome() {
   return (
     <App component={false}>
@@ -193,6 +201,7 @@ export default function ContentHome() {
 }
 
 function ContentHomeForm() {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
   const [form] = Form.useForm<StoreHomeSettings>();
   const [storyOn, setStoryOn] = useState(false);
   // Mỗi ô chỉ nhận lượt upload mới nhất (ảnh chọn sau cùng); Tải lại bỏ mọi lượt đang chạy để ảnh
@@ -210,6 +219,7 @@ function ContentHomeForm() {
     });
 
   const uploadImage = async (name: ImagePath, file: File) => {
+    if (!mayUpdate(useAppStore.getState().profile) || saving) return;
     const key = imageKey(name);
     const token = ++uploadSeq.current;
     const isLatest = () => pendingUploads.current.get(key) === token;
@@ -236,8 +246,10 @@ function ContentHomeForm() {
   };
 
   const save = async () => {
+    if (!mayUpdate(useAppStore.getState().profile) || saving || conflict || uploading.length > 0)
+      return;
     const values = await form.validateFields().catch(() => null);
-    if (!values) return;
+    if (!values || !mayUpdate(useAppStore.getState().profile)) return;
     // Công tắc tắt: các ô ẩn không có trong values nhưng vẫn giữ bản nháp khi bật lại
     const brandStory = storyOn && values.brandStory ? toBrandStory(values.brandStory) : null;
     await submit({ ...values, brandStory });
@@ -299,7 +311,7 @@ function ContentHomeForm() {
             form={form}
             layout='vertical'
             initialValues={settings}
-            disabled={saving}
+            disabled={saving || !canUpdate}
           >
             <Flex vertical gap={16}>
               <Card
@@ -329,7 +341,9 @@ function ContentHomeForm() {
                     <Switch
                       aria-labelledby='brand-story-toggle'
                       checked={storyOn}
-                      onChange={setStoryOn}
+                      onChange={value => {
+                        if (mayUpdate(useAppStore.getState().profile)) setStoryOn(value);
+                      }}
                     />
                   </Flex>
                 }
@@ -374,7 +388,7 @@ function ContentHomeForm() {
             <Button
               type='primary'
               loading={saving}
-              disabled={conflict || uploading.length > 0}
+              disabled={!canUpdate || conflict || uploading.length > 0}
               onClick={save}
             >
               Lưu trang chủ

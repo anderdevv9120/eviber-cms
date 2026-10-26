@@ -9,6 +9,8 @@ import CustomerForm from "./CustomerForm";
 import RegisteredCustomerDetail from "./RegisteredCustomerDetail";
 import GuestBuyerDetail from "./GuestBuyerDetail";
 import { order } from "@/test/order-fixtures";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 vi.mock("@/services/customers", () => ({
   listCustomersAPI: vi.fn(),
@@ -63,6 +65,7 @@ const fillCreate = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Tạo khách hàng" }));
 };
 beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
   vi.mocked(api.getCustomerAPI)
     .mockReset()
     .mockImplementation(async id => ({ data: { ...customer, _id: id }, message: "success" }));
@@ -93,6 +96,65 @@ beforeEach(() => {
 });
 
 describe("Customers list and creation", () => {
+  it("RBAC backend create denial preserves the draft and never navigates to a new customer", async () => {
+    useAppStore.getState().setProfile(staffProfile(["CUSTOMER_READ", "CUSTOMER_CREATE"]));
+    vi.mocked(api.createCustomerAPI).mockRejectedValueOnce(
+      new ApiError("Customer access denied", 403)
+    );
+    const { router } = renderList();
+    await fillCreate();
+    await screen.findByText("Customer access denied");
+    expect(api.createCustomerAPI).toHaveBeenCalledTimes(1);
+    expect(router.state.location.pathname).toBe("/customers");
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("AN@example.test");
+    expect((screen.getByLabelText("Mật khẩu") as HTMLInputElement).value).toBe("Example1!");
+  });
+  it("RBAC customer read cannot create, edit profile or link to full orders", async () => {
+    useAppStore.getState().setProfile(staffProfile(["CUSTOMER_READ"]));
+    const { router } = renderList();
+    await screen.findByText("an@example.test");
+    expect(
+      (screen.getByRole("button", { name: "Thêm khách hàng" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    await act(async () => router.navigate("/customers/registered/customer-id"));
+    await screen.findByRole("region", { name: "Lịch sử mua hàng" });
+    expect((screen.getByRole("button", { name: "Sửa hồ sơ" }) as HTMLButtonElement).disabled).toBe(
+      true
+    );
+    await screen.findByText("ORD-SNAPSHOT");
+    expect(screen.queryByRole("link", { name: "ORD-SNAPSHOT" })).toBeNull();
+  });
+  it.each([false, true])(
+    "RBAC preserves an open customer draft on refresh (edit %s)",
+    async editing => {
+      useAppStore
+        .getState()
+        .setProfile(
+          staffProfile(["CUSTOMER_READ", editing ? "CUSTOMER_UPDATE" : "CUSTOMER_CREATE"])
+        );
+      const onSubmit = vi.fn(async () => undefined);
+      render(
+        <CustomerForm
+          customer={editing ? customer : undefined}
+          onSubmit={onSubmit}
+          onCancel={() => {}}
+        />
+      );
+      fireEvent.change(screen.getByLabelText("Tên"), { target: { value: "Unsaved" } });
+      if (!editing) {
+        fireEvent.change(screen.getByLabelText("Email"), {
+          target: { value: "draft@example.test" }
+        });
+        fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "Example1!" } });
+      }
+      await act(async () => useAppStore.getState().setProfile(staffProfile(["CUSTOMER_READ"])));
+      const button = screen.getByRole("button", { name: editing ? "Lưu hồ sơ" : "Tạo khách hàng" });
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByLabelText("Tên") as HTMLInputElement).value).toBe("Unsaved");
+      await act(async () => fireEvent.submit(button.closest("form")!));
+      expect(onSubmit).not.toHaveBeenCalled();
+    }
+  );
   it("loads only guests and shows complete grouped count/latest contact", async () => {
     renderList("/customers?tab=guests&status=VERIFIED");
     expect(await screen.findByText("Latest Contact")).toBeTruthy();

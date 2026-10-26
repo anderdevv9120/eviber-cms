@@ -4,7 +4,8 @@ import { matchPath, useLocation, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
 import { readOrderReturnTo } from "@/pages/Orders/order-list-query";
 import Brand from "../Brand";
-import { MENU_ITEMS, menuKeyOf } from "./menu";
+import { useAppStore } from "@/store/useAppStore";
+import { menuItemsFor, menuKeyOf } from "./menu";
 
 const { Sider } = Layout;
 const COLLAPSED_KEY = "cms.sidebarCollapsed";
@@ -19,6 +20,7 @@ const readCollapsed = () => {
 };
 
 const Sidebar = () => {
+  const profile = useAppStore(state => state.profile);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
@@ -77,7 +79,7 @@ const Sidebar = () => {
           inlineIndent={14}
           selectedKeys={[selectedKey]}
           onClick={({ key }) => navigate(key)}
-          items={MENU_ITEMS}
+          items={profile ? menuItemsFor(profile) : []}
           className='cms-sider-menu'
         />
       </div>

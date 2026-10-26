@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useState } from "react";
 import { Alert, Button, Descriptions, Drawer, Flex, Spin, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
@@ -62,40 +64,44 @@ async function loadMovements(
 
 const signed = (delta: number) => `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
 
-const columns: TableColumnsType<InventoryMovement> = [
-  {
-    title: "Thời gian",
-    key: "createdAt",
-    render: (_, { createdAt }) => formatOrderDate(createdAt)
-  },
-  {
-    title: "Lý do",
-    key: "reason",
-    render: (_, { reason }) => <Tag>{reasonLabels[reason] ?? reason}</Tag>
-  },
-  {
-    title: "Thay đổi",
-    key: "delta",
-    render: (_, { delta }) => (
-      <Typography.Text type={delta > 0 ? "success" : "danger"}>{signed(delta)}</Typography.Text>
-    )
-  },
-  { title: "Tồn sau", dataIndex: "stockAfter" },
-  { title: "Người thực hiện", key: "actor", render: (_, { actor }) => actor?.name ?? "—" },
-  { title: "Ghi chú", key: "note", render: (_, { note }) => note ?? "—" },
-  {
-    title: "Đơn hàng",
-    key: "order",
-    render: (_, { order }) =>
-      order ? (
-        <Link to={generatePath(PATH.ORDER_DETAIL, { orderId: order.id })}>{order.orderNumber}</Link>
-      ) : (
-        "—"
-      )
-  }
-];
-
 export default function StockHistoryDrawer({ variantId, open, onClose, refreshKey }: Props) {
+  const profile = useAppStore(state => state.profile);
+  const canReadOrder = !!profile && canAccess(profile, { anyOf: ["ORDER_READ"] });
+  const columns: TableColumnsType<InventoryMovement> = [
+    {
+      title: "Thời gian",
+      key: "createdAt",
+      render: (_, { createdAt }) => formatOrderDate(createdAt)
+    },
+    {
+      title: "Lý do",
+      key: "reason",
+      render: (_, { reason }) => <Tag>{reasonLabels[reason] ?? reason}</Tag>
+    },
+    {
+      title: "Thay đổi",
+      key: "delta",
+      render: (_, { delta }) => (
+        <Typography.Text type={delta > 0 ? "success" : "danger"}>{signed(delta)}</Typography.Text>
+      )
+    },
+    { title: "Tồn sau", dataIndex: "stockAfter" },
+    { title: "Người thực hiện", key: "actor", render: (_, { actor }) => actor?.name ?? "—" },
+    { title: "Ghi chú", key: "note", render: (_, { note }) => note ?? "—" },
+    {
+      title: "Đơn hàng",
+      key: "order",
+      render: (_, { order }) =>
+        order && canReadOrder ? (
+          <Link to={generatePath(PATH.ORDER_DETAIL, { orderId: order.id })}>
+            {order.orderNumber}
+          </Link>
+        ) : (
+          (order?.orderNumber ?? "—")
+        )
+    }
+  ];
+
   // A refreshKey newer than the page choice resets to page 1.
   const [choice, setChoice] = useState({ page: 1, refreshKey });
   const page = choice.refreshKey === refreshKey ? choice.page : 1;

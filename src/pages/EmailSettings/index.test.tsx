@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import "@/test/attribute-fixtures";
+import { ownerProfile } from "@/test/access-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/email-settings";
 import { useAppStore } from "@/store/useAppStore";
@@ -53,17 +54,7 @@ const type = async (label: string, value: string) =>
 
 describe("email settings page", () => {
   beforeEach(() => {
-    useAppStore.setState({
-      profile: {
-        _id: "admin-1",
-        email: "admin@demo.local",
-        phone: "",
-        status: "VERIFIED",
-        firstName: "Admin",
-        lastName: "",
-        roles: ["ADMIN"]
-      }
-    });
+    useAppStore.setState({ profile: { ...ownerProfile, email: "admin@demo.local" } });
     vi.mocked(api.getEmailSettingsAPI).mockReset().mockResolvedValue(ok(configured));
     vi.mocked(api.saveEmailSettingsAPI)
       .mockReset()

@@ -4,11 +4,14 @@ import { Navigate, type RouteObject } from "react-router";
 import { PATH, PATH_AUTH } from "./constants/paths";
 import PublicGuard from "./guards/PublicGuard";
 import AuthenticatedGuard from "./guards/AuthenticatedGuard";
+import PermissionGuard from "./guards/PermissionGuard";
+import { ROUTE_POLICIES } from "./utils/access";
 import NotFound from "./layouts/NotFound";
 import MainLayout from "./layouts/MainLayout";
 
 const ForgetPassword = lazy(() => import("./pages/auth/ForgetPassword"));
 const Login = lazy(() => import("./pages/auth/Login"));
+const AcceptStaffInvitation = lazy(() => import("./pages/auth/AcceptStaffInvitation"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
 const Combos = lazy(() => import("./pages/Combos"));
@@ -29,11 +32,22 @@ const Vouchers = lazy(() => import("./pages/Vouchers"));
 const ContentHome = lazy(() => import("./pages/ContentHome"));
 const StoreInfo = lazy(() => import("./pages/StoreInfo"));
 const CheckoutSettings = lazy(() => import("./pages/Settings/CheckoutSettings"));
+const RoleSettings = lazy(() => import("./pages/Staff/RoleSettings"));
+const StaffManagement = lazy(() => import("./pages/Staff"));
+const StaffRegistration = lazy(() => import("./pages/Staff/StaffRegistration"));
 const PaymentSettings = lazy(() => import("./pages/PaymentSettings"));
 const EmailSettings = lazy(() => import("./pages/EmailSettings"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
+  {
+    path: PATH_AUTH.STAFF_INVITATION,
+    element: (
+      <Suspense fallback={<div>Đang tải lời mời...</div>}>
+        <AcceptStaffInvitation />
+      </Suspense>
+    )
+  },
   {
     path: PATH_AUTH.AUTH,
     element: (
@@ -57,32 +71,231 @@ export const routes: RouteObject[] = [
       </Suspense>
     ),
     children: [
-      { path: PATH.HOME, element: <Navigate to={PATH.DASHBOARD} /> },
-      { path: PATH.DASHBOARD, element: <Dashboard /> },
-      { path: PATH.PRODUCTS, element: <Products /> },
-      { path: PATH.COMBOS, element: <Combos /> },
-      { path: PATH.COMBO_NEW, element: <ComboEditor /> },
-      { path: PATH.COMBO_DETAIL, element: <ComboEditor /> },
-      { path: PATH.INVENTORY, element: <Inventory /> },
-      { path: PATH.PRODUCT_NEW, element: <ProductEditor /> },
-      { path: PATH.PRODUCT_DETAIL, element: <ProductEditor /> },
-      { path: PATH.ORDER, element: <Orders /> },
-      { path: PATH.CUSTOMERS, element: <Customers /> },
-      { path: PATH.CUSTOMER_DETAIL, element: <RegisteredCustomerDetail /> },
-      { path: PATH.GUEST_BUYER_DETAIL, element: <GuestBuyerDetail /> },
-      { path: PATH.ORDER_DETAIL, element: <OrderDetail /> },
-      { path: PATH.CATEGORIES, element: <Categories /> },
-      { path: PATH.ATTRIBUTES, element: <Attributes /> },
-      { path: PATH.ATTRIBUTE_DETAIL, element: <AttributeDetail /> },
-      { path: PATH.REVIEWS, element: <Reviews /> },
-      { path: PATH.VOUCHERS, element: <Vouchers /> },
-      { path: PATH.CONTENT_HOME, element: <ContentHome /> },
-      { path: PATH.CONTENT_INFO, element: <StoreInfo /> },
-      { path: PATH.POLICIES, element: <Policies /> },
-      { path: PATH.REPORTS, element: <Reports /> },
-      { path: PATH.SETTINGS_CHECKOUT, element: <CheckoutSettings /> },
-      { path: PATH.SETTINGS_PAYMENT, element: <PaymentSettings /> },
-      { path: PATH.SETTINGS_EMAIL, element: <EmailSettings /> }
+      { path: PATH.HOME, element: <PermissionGuard /> },
+      {
+        path: PATH.SETTINGS_ROLES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_ROLES]}>
+            <RoleSettings />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_ACCESS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_ACCESS]}>
+            <StaffManagement />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_ACCESS_NEW,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_ACCESS_NEW]}>
+            <StaffRegistration />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.DASHBOARD,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.DASHBOARD]}>
+            <Dashboard />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.PRODUCTS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.PRODUCTS]}>
+            <Products />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.COMBOS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.COMBOS]}>
+            <Combos />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.COMBO_NEW,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.COMBO_NEW]}>
+            <ComboEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.COMBO_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.COMBO_DETAIL]}>
+            <ComboEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.INVENTORY,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.INVENTORY]}>
+            <Inventory />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.PRODUCT_NEW,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.PRODUCT_NEW]}>
+            <ProductEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.PRODUCT_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.PRODUCT_DETAIL]}>
+            <ProductEditor />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ORDER,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ORDER]}>
+            <Orders />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CUSTOMERS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CUSTOMERS]}>
+            <Customers />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CUSTOMER_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CUSTOMER_DETAIL]}>
+            <RegisteredCustomerDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.GUEST_BUYER_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.GUEST_BUYER_DETAIL]}>
+            <GuestBuyerDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ORDER_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ORDER_DETAIL]}>
+            <OrderDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CATEGORIES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CATEGORIES]}>
+            <Categories />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ATTRIBUTES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ATTRIBUTES]}>
+            <Attributes />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.ATTRIBUTE_DETAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.ATTRIBUTE_DETAIL]}>
+            <AttributeDetail />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.REVIEWS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.REVIEWS]}>
+            <Reviews />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.VOUCHERS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.VOUCHERS]}>
+            <Vouchers />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CONTENT_HOME,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CONTENT_HOME]}>
+            <ContentHome />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.CONTENT_INFO,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.CONTENT_INFO]}>
+            <StoreInfo />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.POLICIES,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.POLICIES]}>
+            <Policies />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.REPORTS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.REPORTS]}>
+            <Reports />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_CHECKOUT,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_CHECKOUT]}>
+            <CheckoutSettings />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_PAYMENT,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_PAYMENT]}>
+            <PaymentSettings />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_EMAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_EMAIL]}>
+            <EmailSettings />
+          </PermissionGuard>
+        )
+      }
     ]
   },
   { path: "*", element: <NotFound /> }

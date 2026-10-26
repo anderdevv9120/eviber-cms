@@ -1,3 +1,5 @@
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useState } from "react";
 import { Alert, Button, Flex, Input, Pagination, Radio, Select, Spin, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
@@ -84,6 +86,9 @@ function ThresholdInput({ value, onCommit }: { value: number; onCommit: (value: 
 }
 
 export default function Inventory() {
+  const profile = useAppStore(state => state.profile);
+  const canAdjust = !!profile && canAccess(profile, { anyOf: ["INVENTORY_ADJUST"] });
+  const canReadProduct = !!profile && canAccess(profile, { anyOf: ["PRODUCT_READ"] });
   const [params, setParams] = useSearchParams();
   const { query, errors } = parseInventoryQuery(params);
   // Stable identity keeps the read Effect from re-running on unrelated renders.
@@ -144,7 +149,12 @@ export default function Inventory() {
     {
       title: "Sản phẩm",
       key: "product",
-      render: (_, row) => <Link to={productPath(row.productId)}>{row.productName}</Link>
+      render: (_, row) =>
+        canReadProduct ? (
+          <Link to={productPath(row.productId)}>{row.productName}</Link>
+        ) : (
+          row.productName
+        )
     },
     {
       title: "Thuộc tính",
@@ -195,7 +205,10 @@ export default function Inventory() {
           <Button
             size='small'
             aria-label={`Điều chỉnh ${row.sku}`}
-            onClick={() => rowActions.onAdjust(row)}
+            disabled={!canAdjust}
+            onClick={() => {
+              if (canAdjust) rowActions.onAdjust(row);
+            }}
           >
             Điều chỉnh
           </Button>

@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import { Alert, Button, Input, Radio } from "antd";
+import { ConfigProvider, Alert, Button, Input, Radio } from "antd";
 import type {
   AdminOrderDetail,
   PaymentAction,
@@ -8,6 +8,8 @@ import type {
 } from "@/services/orders";
 import { validateNote, validateReference, type ActionDraft } from "./order-action-input";
 import { paymentStatusLabels } from "./order-display";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 export interface PaymentFormProps {
   order: AdminOrderDetail;
@@ -28,6 +30,8 @@ export default function PaymentForm({
   disabled,
   submitting
 }: PaymentFormProps) {
+  const profile = useAppStore(state => state.profile);
+  const allowed = !!profile && canAccess(profile, { anyOf: ["ORDER_PAYMENT_UPDATE"] });
   const noteId = useId();
   const referenceId = useId();
   const [attempted, setAttempted] = useState(false);
@@ -47,7 +51,18 @@ export default function PaymentForm({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setAttempted(true);
-    if (blocked || !target || noteError || referenceError) return;
+    const current = useAppStore.getState().profile;
+    if (
+      !current ||
+      !canAccess(current, { anyOf: ["ORDER_PAYMENT_UPDATE"] }) ||
+      disabled ||
+      submitting ||
+      blocked ||
+      !target ||
+      noteError ||
+      referenceError
+    )
+      return;
     const note = draft.note.trim();
     const reference = draft.reference.trim();
     onSubmit({
@@ -70,76 +85,80 @@ export default function PaymentForm({
     );
 
   return (
-    <form onSubmit={submit} noValidate className='mt-4'>
-      {eligibility && !eligibility.enabled ? (
-        <Alert
-          type='warning'
-          showIcon
-          title={eligibility.reason ?? "Thao tác này không còn khả dụng"}
+    <ConfigProvider componentDisabled={!allowed || disabled || submitting}>
+      <form onSubmit={submit} noValidate className='mt-4'>
+        {eligibility && !eligibility.enabled ? (
+          <Alert
+            type='warning'
+            showIcon
+            title={eligibility.reason ?? "Thao tác này không còn khả dụng"}
+          />
+        ) : (
+          <Alert
+            type='info'
+            showIcon
+            className='mb-3'
+            title={
+              action === "correction"
+                ? "Điều chỉnh trạng thái thanh toán không gửi email biên nhận và bắt buộc có lý do."
+                : "Ghi nhận khách đã thanh toán cho toàn bộ đơn hàng."
+            }
+          />
+        )}
+        {action === "receipt" && order.status === "cancelled" && (
+          <Alert
+            type='warning'
+            showIcon
+            className='mb-3'
+            title='Đơn hàng vẫn ở trạng thái đã hủy và tồn kho đã được hoàn lại trước đó. Thao tác này chỉ ghi nhận khoản thanh toán muộn.'
+          />
+        )}
+        {action === "correction" && (
+          <Radio.Group
+            className='mb-3 flex flex-col gap-1'
+            value={target}
+            onChange={event =>
+              onDraftChange({ target: event.target.value as WritablePaymentStatus })
+            }
+          >
+            {targets.map(item => (
+              <Radio key={item} value={item}>
+                {paymentStatusLabels[item]}
+              </Radio>
+            ))}
+          </Radio.Group>
+        )}
+        <label htmlFor={noteId} className='mb-1 block'>
+          {eligibility?.requiresNote ? "Ghi chú (bắt buộc)" : "Ghi chú"}
+        </label>
+        <Input.TextArea
+          id={noteId}
+          rows={3}
+          value={draft.note}
+          status={attempted && noteError ? "error" : undefined}
+          onChange={event => onDraftChange({ note: event.target.value })}
         />
-      ) : (
-        <Alert
-          type='info'
-          showIcon
-          className='mb-3'
-          title={
-            action === "correction"
-              ? "Điều chỉnh trạng thái thanh toán không gửi email biên nhận và bắt buộc có lý do."
-              : "Ghi nhận khách đã thanh toán cho toàn bộ đơn hàng."
-          }
+        {attempted && noteError && <div className='mt-1 text-red-600'>{noteError}</div>}
+        <label htmlFor={referenceId} className='mt-3 mb-1 block'>
+          Mã tham chiếu
+        </label>
+        <Input
+          id={referenceId}
+          value={draft.reference}
+          status={attempted && referenceError ? "error" : undefined}
+          onChange={event => onDraftChange({ reference: event.target.value })}
         />
-      )}
-      {action === "receipt" && order.status === "cancelled" && (
-        <Alert
-          type='warning'
-          showIcon
-          className='mb-3'
-          title='Đơn hàng vẫn ở trạng thái đã hủy và tồn kho đã được hoàn lại trước đó. Thao tác này chỉ ghi nhận khoản thanh toán muộn.'
-        />
-      )}
-      {action === "correction" && (
-        <Radio.Group
-          className='mb-3 flex flex-col gap-1'
-          value={target}
-          onChange={event => onDraftChange({ target: event.target.value as WritablePaymentStatus })}
+        {attempted && referenceError && <div className='mt-1 text-red-600'>{referenceError}</div>}
+        <Button
+          type='primary'
+          htmlType='submit'
+          className='mt-4'
+          loading={submitting}
+          disabled={!allowed || blocked || disabled || submitting}
         >
-          {targets.map(item => (
-            <Radio key={item} value={item}>
-              {paymentStatusLabels[item]}
-            </Radio>
-          ))}
-        </Radio.Group>
-      )}
-      <label htmlFor={noteId} className='mb-1 block'>
-        {eligibility?.requiresNote ? "Ghi chú (bắt buộc)" : "Ghi chú"}
-      </label>
-      <Input.TextArea
-        id={noteId}
-        rows={3}
-        value={draft.note}
-        status={attempted && noteError ? "error" : undefined}
-        onChange={event => onDraftChange({ note: event.target.value })}
-      />
-      {attempted && noteError && <div className='mt-1 text-red-600'>{noteError}</div>}
-      <label htmlFor={referenceId} className='mt-3 mb-1 block'>
-        Mã tham chiếu
-      </label>
-      <Input
-        id={referenceId}
-        value={draft.reference}
-        status={attempted && referenceError ? "error" : undefined}
-        onChange={event => onDraftChange({ reference: event.target.value })}
-      />
-      {attempted && referenceError && <div className='mt-1 text-red-600'>{referenceError}</div>}
-      <Button
-        type='primary'
-        htmlType='submit'
-        className='mt-4'
-        loading={submitting}
-        disabled={blocked || disabled || submitting}
-      >
-        Xác nhận
-      </Button>
-    </form>
+          Xác nhận
+        </Button>
+      </form>
+    </ConfigProvider>
   );
 }

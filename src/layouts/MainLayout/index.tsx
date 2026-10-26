@@ -2,9 +2,8 @@ import { Suspense, useEffect, useState } from "react";
 import { Layout, Breadcrumb, Spin, Flex, Result, Button, theme } from "antd";
 import { Link, matchPath, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAppStore } from "@/store/useAppStore";
-import { getProfileAPI } from "@/services/auth";
+import { isProfileFresh, refreshProfile } from "@/services/auth";
 import { clearSession, hasSession } from "@/utils/session";
-import { ApiError } from "@/utils/request";
 import { PATH, PATH_AUTH } from "@/constants/paths";
 import Sidebar from "./Sidebar";
 import HeaderMain from "./Header";
@@ -23,6 +22,8 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
   [PATH.CONTENT_INFO]: ["Nội dung", "Thông tin cửa hàng"],
   [PATH.POLICIES]: ["Nội dung", "Trang chính sách"],
   [PATH.SETTINGS_CHECKOUT]: ["Cài đặt", "Đặt hàng"],
+  [PATH.SETTINGS_ROLES]: ["Cài đặt", "Tài khoản & phân quyền", "Vai trò"],
+  [PATH.SETTINGS_ACCESS]: ["Cài đặt", "Tài khoản & phân quyền", "Nhân viên"],
   [PATH.SETTINGS_PAYMENT]: ["Cài đặt", "Thanh toán"],
   [PATH.SETTINGS_EMAIL]: ["Cài đặt", "Email"],
   [PATH.REVIEWS]: ["Bán hàng", "Đánh giá"],
@@ -33,10 +34,10 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
 };
 
 const MainLayout = () => {
-  const { profile, setProfile } = useAppStore();
+  const profile = useAppStore(state => state.profile);
   const { token } = theme.useToken();
   const navigate = useNavigate();
-  const { pathname, search } = useLocation();
+  const { pathname, search, key: locationKey } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
   const customerDetail = !!matchPath(PATH.CUSTOMER_DETAIL, pathname);
@@ -110,30 +111,34 @@ const MainLayout = () => {
           : "Chi tiết combo"
     });
   }
+  // Trang đăng ký nằm dưới mục Nhân viên: giữ crumb cha dạng link về trang danh sách
+  if (pathname === PATH.SETTINGS_ACCESS_NEW) {
+    breadcrumbs[2] = { title: <Link to={PATH.SETTINGS_ACCESS}>Nhân viên</Link> };
+    breadcrumbs.push({ title: "Mời nhân viên" });
+  }
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
+  const [checkedLocation, setCheckedLocation] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    getProfileAPI()
-      .then(res => {
-        // Đăng xuất trong lúc request còn bay: không ghi lại profile vừa dọn
-        if (cancelled || !hasSession()) return;
-        if (!res?.data?._id) throw new Error("Invalid profile response");
-        setProfile(res.data);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        // Server từ chối phiên (chưa đăng nhập / hết hạn / mất quyền) → về login thay vì màn lỗi
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          clearSession();
-        }
-        setLoadFailed(true);
+    const refresh = () =>
+      refreshProfile().catch(() => {
+        if (!cancelled) setLoadFailed(true);
       });
+    refresh().finally(() => {
+      if (!cancelled) setCheckedLocation(locationKey);
+    });
+    const onFocus = () => {
+      refresh();
+    };
+    window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
     };
-  }, [attempt, setProfile]);
+  }, [attempt, locationKey, pathname]);
 
   const handleRetry = () => {
     setLoadFailed(false);
@@ -202,7 +207,13 @@ const MainLayout = () => {
                 </Flex>
               }
             >
-              <Outlet />
+              {!isProfileFresh() && checkedLocation !== locationKey ? (
+                <Flex justify='center' align='center' className='min-h-full'>
+                  <Spin size='large' />
+                </Flex>
+              ) : (
+                <Outlet />
+              )}
             </Suspense>
           </div>
         </Content>

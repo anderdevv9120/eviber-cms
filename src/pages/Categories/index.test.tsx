@@ -1,5 +1,7 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import "@/test/attribute-fixtures";
@@ -222,5 +224,52 @@ describe("categories page", () => {
     expect(within(dialog).getAllByText("Thứ tự chưa được lưu").length).toBeGreaterThan(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Bỏ thay đổi và rời đi" }));
     expect(await screen.findByText("Trang khác")).toBeTruthy();
+  });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+describe("category permission actions", () => {
+  it.each([
+    ["CATEGORY_CREATE", false, true, true, true],
+    ["CATEGORY_UPDATE", true, false, true, false],
+    ["CATEGORY_DELETE", true, true, false, true]
+  ] as const)(
+    "uses %s only for its corresponding actions",
+    async (permission, create, update, remove, reorder) => {
+      useAppStore.getState().setProfile(staffProfile(["CATEGORY_READ", permission]));
+      setup();
+      await screen.findByText("Ao So Mi");
+      expect(isDisabled("Thêm danh mục")).toBe(create);
+      expect(isDisabled("Sửa Ao So Mi")).toBe(update);
+      expect(isDisabled("Xóa Quan Jean")).toBe(remove);
+      expect(isDisabled("Sắp xếp Ao So Mi")).toBe(reorder);
+    }
+  );
+
+  beforeEach(() => {
+    vi.mocked(api.listCategoriesAPI)
+      .mockReset()
+      .mockResolvedValue(ok([shirts, pants]));
+    vi.mocked(api.deleteCategoryAPI).mockReset().mockResolvedValue(ok(true));
+  });
+  it("keeps read data but denies create/update/delete/reorder to read-only staff", async () => {
+    useAppStore.getState().setProfile(staffProfile(["CATEGORY_READ"]));
+    setup();
+    await screen.findByText("Ao So Mi");
+    for (const name of ["Thêm danh mục", "Sửa Ao So Mi", "Xóa Ao So Mi", "Sắp xếp Ao So Mi"])
+      expect(isDisabled(name)).toBe(true);
+    expect(api.deleteCategoryAPI).not.toHaveBeenCalled();
+  });
+  it("rechecks a pending delete confirmation after permission removal", async () => {
+    setup();
+    await screen.findByText("Quan Jean");
+    fireEvent.click(screen.getByRole("button", { name: "Xóa Quan Jean" }));
+    const confirm = await screen.findByRole("button", { name: "Xóa danh mục" });
+    act(() => useAppStore.getState().setProfile(staffProfile(["CATEGORY_READ"])));
+    fireEvent.click(confirm);
+    expect(api.deleteCategoryAPI).not.toHaveBeenCalled();
   });
 });

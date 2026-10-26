@@ -17,6 +17,8 @@ import {
   paymentStatusLabels
 } from "@/pages/Orders/order-display";
 import { getErrorMessage } from "@/utils/getErrorMessage";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 
 type Buyer = { kind: "registered"; id: string } | { kind: "guest"; email: string };
 export default function CustomerOrders({ buyer }: { buyer: Buyer }) {
@@ -24,6 +26,8 @@ export default function CustomerOrders({ buyer }: { buyer: Buyer }) {
   return <OrderHistory key={`${buyer.kind}:${identity}`} kind={buyer.kind} identity={identity} />;
 }
 function OrderHistory({ kind, identity }: { kind: Buyer["kind"]; identity: string }) {
+  const profile = useAppStore(state => state.profile);
+  const canReadOrder = !!profile && canAccess(profile, { anyOf: ["ORDER_READ"] });
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}`;
   const [query, setQuery] = useState({ page: 1, pageSize: 10, attempt: 0 });
@@ -94,13 +98,16 @@ function OrderHistory({ kind, identity }: { kind: Buyer["kind"]; identity: strin
               {
                 title: "Đơn hàng",
                 key: "order",
-                render: (_, row) => (
-                  <Link
-                    to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
-                  >
-                    {row.orderNumber?.trim() || "Chi tiết đơn hàng"}
-                  </Link>
-                )
+                render: (_, row) =>
+                  canReadOrder ? (
+                    <Link
+                      to={`${PATH.ORDER}/${encodeURIComponent(row._id)}?${new URLSearchParams({ returnTo })}`}
+                    >
+                      {row.orderNumber?.trim() || "Chi tiết đơn hàng"}
+                    </Link>
+                  ) : (
+                    row.orderNumber?.trim() || "Chi tiết đơn hàng"
+                  )
               },
               {
                 title: "Ngày tạo",

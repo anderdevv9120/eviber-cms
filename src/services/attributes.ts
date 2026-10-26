@@ -5,6 +5,12 @@ export interface UsageCounts {
   productUsageCount: number;
   variantUsageCount: number;
 }
+export interface AttributeOption {
+  _id: string;
+  code: string;
+  name: string;
+  values: { _id: string; value: string }[];
+}
 export interface AttributeSummary extends UsageCounts {
   _id: string;
   code: string;
@@ -79,6 +85,16 @@ const attributePath = (id: string) => `/attributes/${encodeURIComponent(id)}`;
 const valuePath = (id: string, valueId: string) =>
   `${attributePath(id)}/values/${encodeURIComponent(valueId)}`;
 const inlineErrors = { toastError: false };
+
+export const listAttributeOptionsAPI = (
+  attributeIds: string[],
+  signal?: AbortSignal
+): Promise<ApiResponse<AttributeOption[]>> =>
+  axiosRequest.get("/attributes/options", {
+    ...inlineErrors,
+    params: attributeIds.length ? { attributeIds: attributeIds.join(",") } : undefined,
+    signal
+  });
 
 export const listAttributesAPI = (
   query: AttributeListQuery,

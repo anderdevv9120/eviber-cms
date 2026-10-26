@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { deferred } from "@/test/attribute-fixtures";
 import { ApiError } from "@/utils/request";
 import * as api from "@/services/customers";
 import CustomerAddresses from "./CustomerAddresses";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 vi.mock("@/services/customers", () => ({
   getCustomerAddressesAPI: vi.fn(),
@@ -25,6 +27,7 @@ const address: api.CustomerAddress = {
 };
 const response = (data: api.CustomerAddress[]) => ({ data, message: "success" });
 beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
   vi.mocked(api.getCustomerAddressesAPI)
     .mockReset()
     .mockResolvedValue(response([address]));
@@ -39,6 +42,54 @@ beforeEach(() => {
     .mockResolvedValue({ data: { success: true }, message: "success" });
 });
 describe("Customer address book", () => {
+  it("does not carry an uncertain save notice into a new delete confirmation", async () => {
+    vi.mocked(api.updateCustomerAddressAPI).mockRejectedValueOnce(
+      new ApiError("Write uncertain", 503)
+    );
+    render(<CustomerAddresses customerId='customer-id' />);
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa địa chỉ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu địa chỉ" }));
+    await screen.findByText(/Write uncertain/);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Xóa địa chỉ" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
+  });
+  it("shows a denied delete once inside its confirmation", async () => {
+    vi.mocked(api.deleteCustomerAddressAPI).mockRejectedValueOnce(
+      new ApiError("Delete denied", 403)
+    );
+    render(<CustomerAddresses customerId='customer-id' />);
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa địa chỉ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận xóa" }));
+    await within(screen.getByRole("dialog")).findByText("Delete denied");
+    expect(screen.getAllByText("Delete denied")).toHaveLength(1);
+    expect(api.getCustomerAddressesAPI).toHaveBeenCalledTimes(1);
+  });
+  it("RBAC rechecks a pending delete confirmation after authority changes", async () => {
+    render(<CustomerAddresses customerId='customer-id' />);
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa địa chỉ" }));
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["CUSTOMER_READ"])));
+    const confirm = screen.getByRole("button", { name: "Xác nhận xóa" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    confirm.disabled = false;
+    fireEvent.click(confirm);
+    expect(api.deleteCustomerAddressAPI).not.toHaveBeenCalled();
+  });
+  it("RBAC disables an open address form preserving its draft and blocks forced submit", async () => {
+    render(<CustomerAddresses customerId='customer-id' />);
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa địa chỉ" }));
+    fireEvent.change(screen.getByLabelText("Địa chỉ cụ thể"), {
+      target: { value: "Unsaved street" }
+    });
+    await act(async () => useAppStore.getState().clearProfile());
+    const button = screen.getByRole("button", { name: "Lưu địa chỉ" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect((screen.getByLabelText("Địa chỉ cụ thể") as HTMLInputElement).value).toBe(
+      "Unsaved street"
+    );
+    await act(async () => fireEvent.submit(button.closest("form")!));
+    expect(api.updateCustomerAddressAPI).not.toHaveBeenCalled();
+  });
   it("displays primary and sends full address input on PUT before reloading", async () => {
     render(<CustomerAddresses customerId='customer-id' />);
     // scroll.x của bảng sinh thêm dòng đo độ rộng ẩn (ant-table-measure-row) lặp lại tiêu đề.

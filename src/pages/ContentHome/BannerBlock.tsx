@@ -1,3 +1,5 @@
+import { useAppStore, type Profile } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Flex, Popconfirm, Spin, Switch, Typography } from "antd";
 import type { TableProps } from "antd";
@@ -20,7 +22,11 @@ import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import BannerForm from "./BannerForm";
 
 // useUnsavedOrderWarning cần modal từ antd <App>: màn chứa khối này phải bọc <App>
+const mayUpdate = (profile: Profile | null) =>
+  !!profile && canAccess(profile, { anyOf: ["CONTENT_HOME_UPDATE"] });
+
 export default function BannerBlock() {
+  const canUpdate = mayUpdate(useAppStore(state => state.profile));
   const [banners, setBanners] = useState<Banner[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -29,7 +35,7 @@ export default function BannerBlock() {
   // ponytail: banner không có revision — truyền 0; xung đột bắt bằng 409 khi lưu thứ tự
   const draft = useOrderDraft(banners?.map(b => b._id) ?? [], 0);
   useUnsavedOrderWarning(draft.dirty);
-  const writesDisabled = busy || draft.dirty;
+  const writesDisabled = !canUpdate || busy || draft.dirty;
 
   // .then thay vì async/await: react-hooks/set-state-in-effect coi setState sau await là đồng bộ
   const load = useCallback(
@@ -52,6 +58,7 @@ export default function BannerBlock() {
   }, [load]);
 
   const run = async (action: () => Promise<unknown>, success: string) => {
+    if (!mayUpdate(useAppStore.getState().profile) || busy) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -70,6 +77,7 @@ export default function BannerBlock() {
   };
 
   const submit = async (input: BannerInput) => {
+    if (!mayUpdate(useAppStore.getState().profile) || busy || draft.dirty) return;
     if (editing === "new") await createBannerAPI(input);
     else if (editing) await updateBannerAPI(editing._id, input);
     successNotification(editing === "new" ? "Đã thêm banner" : "Đã lưu banner");
@@ -114,6 +122,7 @@ export default function BannerBlock() {
           checked={row.isActive}
           disabled={writesDisabled}
           onChange={checked =>
+            !draft.dirty &&
             void run(
               () => updateBannerAPI(row._id, { isActive: checked }),
               checked ? "Đã bật banner" : "Đã tắt banner"
@@ -130,7 +139,9 @@ export default function BannerBlock() {
           <Button
             aria-label={`Sửa ${row.title}`}
             disabled={writesDisabled}
-            onClick={() => setEditing(row)}
+            onClick={() => {
+              if (mayUpdate(useAppStore.getState().profile) && !writesDisabled) setEditing(row);
+            }}
           >
             Sửa
           </Button>
@@ -140,7 +151,9 @@ export default function BannerBlock() {
             okText='Xóa banner'
             cancelText='Hủy'
             okButtonProps={{ danger: true }}
-            onConfirm={() => run(() => deleteBannerAPI(row._id), "Đã xóa banner")}
+            onConfirm={() => {
+              if (!draft.dirty) return run(() => deleteBannerAPI(row._id), "Đã xóa banner");
+            }}
           >
             <Button danger aria-label={`Xóa ${row.title}`} disabled={writesDisabled}>
               Xóa
@@ -174,6 +187,7 @@ export default function BannerBlock() {
               <Button
                 type='primary'
                 loading={busy}
+                disabled={!canUpdate}
                 onClick={() =>
                   void run(() => reorderBannersAPI(draft.valueIds), "Đã lưu thứ tự banner")
                 }
@@ -182,7 +196,13 @@ export default function BannerBlock() {
               </Button>
             </>
           )}
-          <Button type='primary' disabled={writesDisabled} onClick={() => setEditing("new")}>
+          <Button
+            type='primary'
+            disabled={writesDisabled}
+            onClick={() => {
+              if (mayUpdate(useAppStore.getState().profile) && !writesDisabled) setEditing("new");
+            }}
+          >
             Thêm banner
           </Button>
         </Flex>
@@ -193,9 +213,13 @@ export default function BannerBlock() {
         columns={columns}
         rowLabel={row => row.title}
         itemNoun='banner'
-        disabled={busy}
-        onMove={draft.move}
-        onMoveTo={draft.moveTo}
+        disabled={busy || !canUpdate}
+        onMove={(id, direction) => {
+          if (mayUpdate(useAppStore.getState().profile) && !busy) draft.move(id, direction);
+        }}
+        onMoveTo={(id, targetId) => {
+          if (mayUpdate(useAppStore.getState().profile) && !busy) draft.moveTo(id, targetId);
+        }}
         emptyText='Chưa có banner'
       />
       {editing && (

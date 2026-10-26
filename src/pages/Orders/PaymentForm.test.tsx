@@ -1,5 +1,7 @@
+import { ownerProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { AdminOrderDetail, PaymentAction, UpdatePaymentInput } from "@/services/orders";
 import { order } from "@/test/order-fixtures";
@@ -61,6 +63,8 @@ const reference = () => screen.getByRole("textbox", { name: "Mã tham chiếu" }
 const confirm = () => fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
 const targets = () =>
   screen.queryAllByRole("radio").map(radio => (radio as HTMLInputElement).value);
+
+beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
 
 describe("payment form", () => {
   it.each<PaymentAction>(["receipt", "correction"])(

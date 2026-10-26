@@ -1,28 +1,116 @@
 import "@/test/attribute-fixtures";
-import { beforeEach, describe, expect, it } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import axiosRequest from "@/utils/request";
-import { response } from "@/test/attribute-fixtures";
+import { deferred, response } from "@/test/attribute-fixtures";
 import { useAppStore } from "@/store/useAppStore";
 import MainLayout from ".";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
 
 beforeEach(() => {
   localStorage.clear();
   useAppStore.getState().clearProfile();
-  axiosRequest.defaults.adapter = async config =>
-    response(config, {
-      _id: "admin",
-      email: "admin@example.test",
-      phone: "",
-      firstName: "Admin",
-      lastName: "User",
-      status: "ACTIVE",
-      roles: ["ADMIN"]
-    });
+  axiosRequest.defaults.adapter = async config => response(config, ownerProfile);
 });
 
 describe("CMS breadcrumb hierarchy", () => {
+  it("keeps the shell and cached permissions through sidebar navigation", async () => {
+    const adapter = vi.fn(async config => response(config, ownerProfile));
+    axiosRequest.defaults.adapter = adapter;
+    const router = createMemoryRouter(
+      [
+        {
+          element: <MainLayout />,
+          children: [
+            { path: "/products", element: <p>Product page</p> },
+            { path: "/inventory", element: <p>Inventory page</p> }
+          ]
+        }
+      ],
+      { initialEntries: ["/products"] }
+    );
+    render(<RouterProvider router={router} />);
+    await screen.findByText("Product page");
+    const menu = screen.getByRole("menu");
+    const header = screen.getByRole("navigation");
+    fireEvent.click(screen.getByRole("menuitem", { name: /Tồn kho/ }));
+    await screen.findByText("Inventory page");
+    expect(screen.getByRole("menu")).toBe(menu);
+    expect(screen.getByRole("navigation")).toBe(header);
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the shell mounted while expired permissions are checked before the destination", async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          element: <MainLayout />,
+          children: [
+            { path: "/products", element: <p>Product page</p> },
+            { path: "/inventory", element: <p>Inventory page</p> }
+          ]
+        }
+      ],
+      { initialEntries: ["/products"] }
+    );
+    render(<RouterProvider router={router} />);
+    await screen.findByText("Product page");
+    const menu = screen.getByRole("menu");
+    const header = screen.getByRole("navigation");
+    const pending = deferred<typeof ownerProfile>();
+    axiosRequest.defaults.adapter = async config => response(config, await pending.promise);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000);
+    await act(() => router.navigate("/inventory"));
+    expect(screen.getByRole("menu")).toBe(menu);
+    expect(screen.getByRole("navigation")).toBe(header);
+    expect(screen.queryByText("Inventory page")).toBeNull();
+    pending.resolve(ownerProfile);
+    await screen.findByText("Inventory page");
+    expect(screen.getByRole("menu")).toBe(menu);
+  });
+
+  it("preserves the mounted page and focused draft through query-only navigation", async () => {
+    const Page = () => {
+      const [draft, setDraft] = useState("");
+      return (
+        <input
+          aria-label='Draft search'
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+        />
+      );
+    };
+    const router = createMemoryRouter(
+      [{ element: <MainLayout />, children: [{ path: "/products", element: <Page /> }] }],
+      { initialEntries: ["/products"] }
+    );
+    render(<RouterProvider router={router} />);
+    const input = await screen.findByRole("textbox", { name: "Draft search" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "shirt" } });
+    await act(() => router.navigate("/products?search=shirt"));
+    const next = await screen.findByRole("textbox", { name: "Draft search" });
+    expect(next).toBe(input);
+    expect((next as HTMLInputElement).value).toBe("shirt");
+    expect(document.activeElement).toBe(input);
+  });
+  it("refreshes the current menu on window focus after the cache expires", async () => {
+    let current = ownerProfile;
+    axiosRequest.defaults.adapter = async config => response(config, current);
+    const router = createMemoryRouter([{ path: "*", element: <MainLayout /> }], {
+      initialEntries: ["/inventory"]
+    });
+    render(<RouterProvider router={router} />);
+    await screen.findByRole("menuitem", { name: /Sản phẩm/ });
+    current = staffProfile(["INVENTORY_READ"]);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000);
+    fireEvent.focus(window);
+    const { waitFor } = await import("@testing-library/react");
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: /Sản phẩm/ })).toBeNull());
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
   it.each([
     ["/dashboard", ["Tổng quan"]],
     ["/reports", ["Báo cáo bán hàng"]],

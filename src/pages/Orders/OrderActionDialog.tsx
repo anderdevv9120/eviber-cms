@@ -14,6 +14,8 @@ import { getErrorMessage } from "@/utils/getErrorMessage";
 import FulfillmentForm from "./FulfillmentForm";
 import PaymentForm from "./PaymentForm";
 import type { ActionDraft } from "./order-action-input";
+import { useAppStore } from "@/store/useAppStore";
+import { canAccess } from "@/utils/access";
 import {
   displayOrderText,
   formatOrderAmount,
@@ -96,6 +98,9 @@ export default function OrderActionDialog({
   onClose,
   onOrderChanged
 }: OrderActionDialogProps) {
+  const profile = useAppStore(state => state.profile);
+  const permission = intent.type === "payment" ? "ORDER_PAYMENT_UPDATE" : "ORDER_UPDATE";
+  const allowed = !!profile && canAccess(profile, { anyOf: [permission] });
   const [reload, setReload] = useState<Reload>({ id: 0, kind: "initial" });
   const [view, setView] = useState<View>({ stage: "loading" });
   const [draft, setDraft] = useState<ActionDraft>({ note: "", reference: "" });
@@ -179,7 +184,8 @@ export default function OrderActionDialog({
     request: () => Promise<ApiResponse<AdminOrderDetail>>,
     reviewed: AdminOrderDetail
   ) => {
-    if (inFlight.current) return;
+    const current = useAppStore.getState().profile;
+    if (!current || !canAccess(current, { anyOf: [permission] }) || inFlight.current) return;
     inFlight.current = true;
     setView(current => ({ ...current, stage: "submitting", notice: undefined }));
     let committed: AdminOrderDetail;
@@ -221,7 +227,8 @@ export default function OrderActionDialog({
 
   const { stage, order } = view;
   const submitting = stage === "submitting";
-  const formDisabled = Boolean(view.refreshError) || Boolean(view.needsAck && !view.acknowledged);
+  const formDisabled =
+    !allowed || Boolean(view.refreshError) || Boolean(view.needsAck && !view.acknowledged);
   const targetGone =
     paymentAction === "correction" &&
     order &&

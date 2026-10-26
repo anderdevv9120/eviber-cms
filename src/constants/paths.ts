@@ -23,6 +23,9 @@ export const PATH = {
   POLICIES: "/policies",
   REPORTS: "/reports",
   SETTINGS_CHECKOUT: "/settings/checkout",
+  SETTINGS_ACCESS: "/settings/access",
+  SETTINGS_ACCESS_NEW: "/settings/access/new",
+  SETTINGS_ROLES: "/settings/access/roles",
   SETTINGS_PAYMENT: "/settings/payment",
   SETTINGS_EMAIL: "/settings/email"
 };
@@ -30,5 +33,6 @@ export const PATH = {
 export const PATH_AUTH = {
   AUTH: "/auth",
   LOGIN: "/auth/login",
+  STAFF_INVITATION: "/auth/staff-invitation",
   FORGET_PASSWORD: "/auth/forget-password"
 };

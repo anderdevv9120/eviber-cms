@@ -16,14 +16,16 @@ import {
   SettingOutlined,
   ShopOutlined,
   GiftOutlined,
+  UserAddOutlined,
   CreditCardOutlined,
   MailOutlined
 } from "@ant-design/icons";
+import type { Profile } from "@/store/useAppStore";
+import { canAccess, NAVIGATION_POLICIES } from "@/utils/access";
 import { PATH } from "@/constants/paths";
 
 type MenuItem = { key: string; icon: ReactNode; label: string };
 
-// Cài đặt › Tài khoản & phân quyền chưa có màn: không render để tránh link chết
 export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
   {
     title: null,
@@ -64,16 +66,23 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
     items: [
       { key: PATH.SETTINGS_PAYMENT, icon: <CreditCardOutlined />, label: "Thanh toán" },
       { key: PATH.SETTINGS_EMAIL, icon: <MailOutlined />, label: "Email" },
+      // "Vai trò" đứng trước "Nhân viên": menuKeyOf khớp tiền tố đầu tiên,
+      // /settings/access/roles phải khớp đúng mục Vai trò chứ không phải /settings/access
+      { key: PATH.SETTINGS_ROLES, icon: <TeamOutlined />, label: "Vai trò" },
+      { key: PATH.SETTINGS_ACCESS, icon: <UserAddOutlined />, label: "Nhân viên" },
       { key: PATH.SETTINGS_CHECKOUT, icon: <SettingOutlined />, label: "Đặt hàng" }
     ]
   }
 ];
 
-export const MENU_ITEMS: MenuProps["items"] = MENU_SECTIONS.flatMap<
-  NonNullable<MenuProps["items"]>[number]
->(({ title, items }, index) =>
-  title ? [{ type: "group", key: `group-${index}`, label: title, children: items }] : items
-);
+export const menuItemsFor = (profile: Profile): MenuProps["items"] =>
+  MENU_SECTIONS.flatMap<NonNullable<MenuProps["items"]>[number]>(({ title, items }, index) => {
+    const allowed = items.filter(item => canAccess(profile, NAVIGATION_POLICIES[item.key]));
+    if (!allowed.length) return [];
+    return title
+      ? [{ type: "group", key: `group-${index}`, label: title, children: allowed }]
+      : allowed;
+  });
 
 const MENU_PATHS = MENU_SECTIONS.flatMap(({ items }) => items.map(({ key }) => key));
 

@@ -1,6 +1,8 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import { StrictMode, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { response } from "@/test/attribute-fixtures";
@@ -36,6 +38,7 @@ const save = () =>
   screen.getByRole("button", { name: "Lưu chính sách hoàn tiền" }) as HTMLButtonElement;
 
 beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
   policy = { enabled: true, windowDays: 7, revision: 12 };
   failure = null;
   calls = [];
@@ -81,6 +84,32 @@ beforeEach(() => {
 });
 
 describe("refund policy settings", () => {
+  it("preserves a refund draft and blocks form submission after write authority is revoked", async () => {
+    setup();
+    await screen.findByRole("spinbutton", { name: "Số ngày sau khi giao hàng" });
+    fireEvent.change(days(), { target: { value: "21" } });
+    act(() => useAppStore.getState().setProfile(staffProfile(["REFUND_POLICY_READ"])));
+    expect(days().value).toBe("21");
+    expect(days().disabled).toBe(true);
+    expect(save().disabled).toBe(true);
+    fireEvent.submit(save().closest("form")!);
+    await act(async () => {});
+    expect(writes()).toHaveLength(0);
+  });
+
+  it.each([null, staffProfile(["REFUND_POLICY_READ"])])(
+    "denies refund writes for %j",
+    async profile => {
+      useAppStore.setState({ profile });
+      setup();
+      await screen.findByRole("spinbutton", { name: "Số ngày sau khi giao hàng" });
+      expect(save().disabled).toBe(true);
+      fireEvent.submit(save().closest("form")!);
+      await act(async () => {});
+      expect(writes()).toHaveLength(0);
+    }
+  );
+
   it("round-trips support and duration through the policy API with its own revision", async () => {
     setup();
     await screen.findByRole("switch", { name: "Hỗ trợ hoàn tiền thông thường" });

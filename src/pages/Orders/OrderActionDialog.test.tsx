@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { useAppStore } from "@/store/useAppStore";
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import axiosRequest from "@/utils/request";
@@ -112,7 +114,48 @@ const submitDisabled = () =>
     true
   );
 
+beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
+
 describe("order action dialog", () => {
+  it("RBAC backend denial wins even when a permitted payment button is forced enabled", async () => {
+    useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_PAYMENT_UPDATE"]));
+    const calls = script([get(order), failure("patch", 403, "Payment access denied"), get(order)]);
+    const { onOrderChanged } = renderDialog(receipt);
+    const button = (await ready()) as HTMLButtonElement;
+    button.disabled = false;
+    fireEvent.click(button);
+    await screen.findByText("Payment access denied");
+    expect(calls.map(call => call.method)).toEqual(["get", "patch", "get"]);
+    expect(onOrderChanged).not.toHaveBeenCalled();
+    expect(screen.queryByText("Đã ghi nhận thao tác.")).toBeNull();
+    expect(useAppStore.getState().profile?._id).toBe("staff");
+  });
+  it.each([cancelIntent, receipt])(
+    "RBAC disables an open $type draft on permission refresh and blocks forced submission",
+    async intent => {
+      const permission = intent.type === "payment" ? "ORDER_PAYMENT_UPDATE" : "ORDER_UPDATE";
+      useAppStore.getState().setProfile(staffProfile(["ORDER_READ", permission]));
+      const calls = script([get(order), patch({ ...order, revision: 5 })]);
+      renderDialog(intent);
+      await ready();
+      fireEvent.change(note(), { target: { value: "Keep this draft" } });
+      await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+      submitDisabled();
+      expect((note() as HTMLInputElement).value).toBe("Keep this draft");
+      expect((note() as HTMLInputElement).disabled).toBe(true);
+      if (intent.type === "payment")
+        expect(
+          (dialog().getByRole("textbox", { name: "Mã tham chiếu" }) as HTMLInputElement).disabled
+        ).toBe(true);
+      fireEvent.submit(dialog().getByRole("button", { name: "Xác nhận" }).closest("form")!);
+      expect(calls.map(call => call.method)).toEqual(["get"]);
+      await act(async () =>
+        useAppStore.getState().setProfile(staffProfile(["ORDER_READ", permission]))
+      );
+      expect((note() as HTMLInputElement).disabled).toBe(false);
+      expect((note() as HTMLInputElement).value).toBe("Keep this draft");
+    }
+  );
   it("reviews fresh order number, total and both statuses, and sends the fresh revision", async () => {
     const calls = script([get({ ...order, revision: 9 }), patch({ ...order, revision: 10 })]);
     renderDialog();

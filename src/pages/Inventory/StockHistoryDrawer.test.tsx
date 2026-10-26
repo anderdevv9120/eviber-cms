@@ -1,3 +1,5 @@
+import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import { useAppStore } from "@/store/useAppStore";
 import "@/test/attribute-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -158,4 +160,15 @@ describe("StockHistoryDrawer", () => {
       expect.anything()
     );
   });
+});
+
+beforeEach(() => {
+  useAppStore.getState().setProfile(ownerProfile);
+});
+
+it("retains order numbers as plain text without ORDER_READ", async () => {
+  useAppStore.getState().setProfile(staffProfile(["INVENTORY_READ"]));
+  renderDrawer();
+  await screen.findByText("DH-001");
+  expect(screen.queryByRole("link", { name: "DH-001" })).toBeNull();
 });

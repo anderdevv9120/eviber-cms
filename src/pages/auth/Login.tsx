@@ -13,8 +13,7 @@ import { PATH_AUTH } from "@/constants/paths";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { loginAPI } from "@/services/auth";
-import { saveTokens } from "@/utils/session";
-import { useAppStore } from "@/store/useAppStore";
+import { clearSession, saveTokens } from "@/utils/session";
 import { successNotification, errorNotification } from "@/utils/notification";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { PATH } from "@/constants/paths";
@@ -37,11 +36,11 @@ const Login = () => {
       setIsSubmitting(true);
       const response = await loginAPI({ email, password });
 
-      useAppStore.getState().clearProfile();
+      clearSession();
       saveTokens(response.data);
 
       successNotification("Đăng nhập thành công!");
-      navigate(PATH.DASHBOARD, { replace: true });
+      navigate(PATH.HOME, { replace: true });
     } catch (error) {
       errorNotification(getErrorMessage(error));
     } finally {
