@@ -181,6 +181,34 @@ const open = async (name: string) => fireEvent.click(await screen.findByRole("bu
 const reviewButtons = () => screen.queryAllByRole("button").map(button => button.textContent);
 
 describe("admin refund section", () => {
+  it("focuses only the requested refund after loading without opening a write form", async () => {
+    const id = "000000000000000000000012";
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(config, {
+          ...view,
+          requests: [request, { ...request, requestId: id }]
+        })
+    });
+    const { rerender } = renderSection({ requestId: id });
+    const target = await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 2" });
+    await waitFor(() => expect(document.activeElement).toBe(target));
+    expect(document.querySelector("#refunds")).toBeTruthy();
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(writes()).toHaveLength(0);
+    fireEvent.click(within(target).getByRole("button", { name: "Duyệt yêu cầu" }));
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Keep destination draft");
+    rerender({ requestId: "000000000000000000000013" });
+    expect(await screen.findByText("Yêu cầu hoàn tiền không còn khả dụng")).toBeTruthy();
+    expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe("Keep destination draft");
+  });
+
+  it("reports a missing refund request without focusing another request", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection({ requestId: "000000000000000000000012" });
+    expect(await screen.findByText("Yêu cầu hoàn tiền không còn khả dụng")).toBeTruthy();
+    expect(document.activeElement?.getAttribute("aria-label")).not.toBe("Yêu cầu hoàn tiền 1");
+  });
   beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
   it("hides loaded refund reads on revocation while retaining a closable review draft", async () => {
     serve({ [`get ${REFUNDS}`]: config => response(config, view) });

@@ -49,6 +49,24 @@ export function serializeNotificationQuery(query: NotificationListQuery): URLSea
   return params;
 }
 
+export function safeNotificationReturnTo(value: string | null): string | null {
+  if (!value || value.includes("#")) return null;
+  const [path, search = "", extra] = value.split("?");
+  if (path !== PATH.NOTIFICATIONS || extra !== undefined) return null;
+  const params = new URLSearchParams(search);
+  const query = parseNotificationQuery(params);
+  for (const [key, raw] of params) {
+    if (
+      params.getAll(key).length !== 1 ||
+      !["status", "event", "page", "pageSize"].includes(key) ||
+      String(query[key as keyof NotificationListQuery]) !== raw
+    )
+      return null;
+  }
+  const normalized = serializeNotificationQuery(query).toString();
+  return path + (normalized ? `?${normalized}` : "");
+}
+
 export function notificationHref(target: NotificationTarget, returnTo?: string): string {
   const id = (value: string) => /^[a-f\d]{24}$/i.test(value);
   if (
@@ -56,12 +74,7 @@ export function notificationHref(target: NotificationTarget, returnTo?: string):
     id(target.orderId) &&
     (target.requestId === undefined || id(target.requestId))
   ) {
-    const [path, search = ""] = (returnTo ?? "").split("?");
-    const historyQuery =
-      path === PATH.NOTIFICATIONS && !returnTo?.includes("#")
-        ? serializeNotificationQuery(parseNotificationQuery(new URLSearchParams(search))).toString()
-        : "";
-    const history = PATH.NOTIFICATIONS + (historyQuery ? `?${historyQuery}` : "");
+    const history = safeNotificationReturnTo(returnTo ?? null) ?? PATH.NOTIFICATIONS;
     const params = new URLSearchParams();
     if (target.requestId) params.set("requestId", target.requestId);
     params.set("returnTo", history);

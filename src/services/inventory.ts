@@ -49,6 +49,7 @@ export interface AdjustStockResult {
 
 export interface InventoryQuery {
   search?: string;
+  variantId?: string;
   productId?: string;
   productStatus?: Exclude<ProductStatus, "DELETED">;
   variantStatus?: ProductVariantStatus;

@@ -51,6 +51,7 @@ describe("inventory transport through the shared Axios client", () => {
     const query: api.InventoryQuery = {
       search: "áo",
       productId: "p1",
+      variantId: "000000000000000000000012",
       productStatus: "DRAFT",
       variantStatus: "INACTIVE",
       stock: "low",
@@ -69,7 +70,7 @@ describe("inventory transport through the shared Axios client", () => {
     expect(calls.map(c => [c.method, path(c), c.signal, c.toastError])).toEqual([
       [
         "get",
-        "/inventory?search=%C3%A1o&productId=p1&productStatus=DRAFT&variantStatus=INACTIVE&stock=low&lowStockThreshold=7&page=2&pageSize=20",
+        "/inventory?search=%C3%A1o&productId=p1&variantId=000000000000000000000012&productStatus=DRAFT&variantStatus=INACTIVE&stock=low&lowStockThreshold=7&page=2&pageSize=20",
         signal,
         false
       ],

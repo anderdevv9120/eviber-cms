@@ -568,6 +568,11 @@ describe("CMS data router", () => {
 
   it.each([
     ["", "/orders", "Đơn hàng"],
+    [
+      "?returnTo=%2Fnotifications%3Fstatus%3Dunread%26event%3Drefund.submitted%26page%3D3",
+      "/notifications?status=unread&event=refund.submitted&page=3",
+      "Đơn hàng"
+    ],
     ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Đơn hàng"],
     [
       "?returnTo=%2Forders%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
@@ -591,6 +596,10 @@ describe("CMS data router", () => {
       const crumbs = within(screen.getByRole("navigation"));
       expect(crumbs.getByText("Chi tiết đơn hàng")).toBeTruthy();
       expect(crumbs.getByRole("link").getAttribute("href")).toBe(destination);
+      if (destination.startsWith("/notifications")) {
+        expect(crumbs.getByRole("link", { name: "Thông báo" })).toBeTruthy();
+        expect(crumbs.queryByText("Bán hàng")).toBeNull();
+      }
       expect(crumbs.queryByText("Sản phẩm")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
       await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });

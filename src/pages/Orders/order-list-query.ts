@@ -1,6 +1,7 @@
 import type { RefundFilter } from "@/services/refunds";
 import { matchPath } from "react-router";
 import { PATH } from "@/constants/paths";
+import { safeNotificationReturnTo } from "@/pages/Notifications/notification-query";
 import type { OrderAttention, OrderListQuery, OrderStatus, PaymentStatus } from "@/services/orders";
 import {
   orderAttentionLabels,
@@ -72,6 +73,8 @@ export const isCustomerOrigin = (path: string): boolean =>
 
 export function safeOrderReturnTo(value: string | null): string {
   if (!value || value.includes("#")) return PATH.ORDER;
+  const notifications = safeNotificationReturnTo(value);
+  if (notifications) return notifications;
   const separator = value.indexOf("?");
   const path = separator < 0 ? value : value.slice(0, separator);
   if (isCustomerOrigin(path)) return value;
@@ -82,10 +85,18 @@ export function safeOrderReturnTo(value: string | null): string {
 }
 
 // Order detail, sidebar and breadcrumb must agree on where "back" goes; a repeated returnTo is ignored
-export function readOrderReturnTo(search: string): { returnTo: string; fromCustomer: boolean } {
+export function readOrderReturnTo(search: string): {
+  returnTo: string;
+  fromCustomer: boolean;
+  fromNotifications: boolean;
+} {
   const params = new URLSearchParams(search);
   const returnTo = safeOrderReturnTo(
     params.getAll("returnTo").length === 1 ? params.get("returnTo") : null
   );
-  return { returnTo, fromCustomer: isCustomerOrigin(returnTo.split("?")[0]) };
+  return {
+    returnTo,
+    fromCustomer: isCustomerOrigin(returnTo.split("?")[0]),
+    fromNotifications: returnTo.split("?")[0] === PATH.NOTIFICATIONS
+  };
 }

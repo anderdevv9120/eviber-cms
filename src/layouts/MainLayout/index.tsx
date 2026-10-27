@@ -46,7 +46,7 @@ const MainLayout = () => {
   const customerDetail = !!matchPath(PATH.CUSTOMER_DETAIL, pathname);
   const guestDetail = pathname === PATH.GUEST_BUYER_DETAIL;
   const params = new URLSearchParams(search);
-  const { returnTo, fromCustomer } = readOrderReturnTo(search);
+  const { returnTo, fromCustomer, fromNotifications } = readOrderReturnTo(search);
   const customerOrigin = orderDetail && fromCustomer;
   const breadcrumbs =
     pathname === PATH.CUSTOMERS || customerDetail || guestDetail
@@ -82,17 +82,19 @@ const MainLayout = () => {
             ...(attributeDetail ? [{ title: "Chi tiết thuộc tính" }] : [])
           ]
         : orderDetail || pathname === PATH.ORDER
-          ? [
-              { title: "Bán hàng" },
-              {
-                title: orderDetail ? (
-                  <Link to={returnTo}>{customerOrigin ? "Khách hàng" : "Quản lý Đơn hàng"}</Link>
-                ) : (
-                  "Quản lý Đơn hàng"
-                )
-              },
-              ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
-            ]
+          ? orderDetail && fromNotifications
+            ? [{ title: <Link to={returnTo}>Thông báo</Link> }, { title: "Chi tiết đơn hàng" }]
+            : [
+                { title: "Bán hàng" },
+                {
+                  title: orderDetail ? (
+                    <Link to={returnTo}>{customerOrigin ? "Khách hàng" : "Quản lý Đơn hàng"}</Link>
+                  ) : (
+                    "Quản lý Đơn hàng"
+                  )
+                },
+                ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
+              ]
           : (
               STATIC_BREADCRUMBS[pathname] ??
               STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ??

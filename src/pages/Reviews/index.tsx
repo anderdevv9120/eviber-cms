@@ -39,7 +39,14 @@ export default function Reviews() {
   const key = serializeReviewListQuery(query).toString();
   const [result, setResult] = useState<ReviewListResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const targets = params.getAll("reviewId");
+  const selectedId = targets.length === 1 && /^[a-f\d]{24}$/i.test(targets[0]) ? targets[0] : null;
+  const selectReview = (id: string | null) => {
+    const next = new URLSearchParams(params);
+    if (id) next.set("reviewId", id);
+    else next.delete("reviewId");
+    setParams(next);
+  };
   const [reloadKey, setReloadKey] = useState(0);
   // loading suy ra từ key: react-hooks/set-state-in-effect cấm setLoading(true) đồng bộ trong effect
   const requestKey = `${key}#${reloadKey}`;
@@ -62,8 +69,11 @@ export default function Reviews() {
     return () => controller.abort();
   }, [key, reloadKey]);
 
-  const changeQuery = (patch: Partial<ReviewListQuery>) =>
-    setParams(serializeReviewListQuery({ ...query, page: 1, ...patch }));
+  const changeQuery = (patch: Partial<ReviewListQuery>) => {
+    const next = serializeReviewListQuery({ ...query, page: 1, ...patch });
+    if (selectedId) next.set("reviewId", selectedId);
+    setParams(next);
+  };
 
   const columns: NonNullable<TableProps<AdminReview>["columns"]> = [
     {
@@ -113,7 +123,10 @@ export default function Reviews() {
       render: (_, row) => (
         <Button
           aria-label={`Xem đánh giá của ${row.displayName}`}
-          onClick={() => setSelectedId(row._id)}
+          onClick={event => {
+            event.stopPropagation();
+            selectReview(row._id);
+          }}
         >
           Xem
         </Button>
@@ -126,6 +139,9 @@ export default function Reviews() {
       <Typography.Title level={4} style={{ margin: 0 }}>
         Đánh giá sản phẩm
       </Typography.Title>
+      {targets.length > 0 && !selectedId && (
+        <Alert type='warning' showIcon title='Đánh giá không còn khả dụng' />
+      )}
       <Tabs
         activeKey={query.status}
         onChange={status => changeQuery({ status: status as ReviewStatus })}
@@ -170,7 +186,7 @@ export default function Reviews() {
             dataSource={result.data}
             pagination={false}
             locale={{ emptyText: "Không có đánh giá" }}
-            onRow={row => ({ onClick: () => setSelectedId(row._id), style: { cursor: "pointer" } })}
+            onRow={row => ({ onClick: () => selectReview(row._id), style: { cursor: "pointer" } })}
           />
           <Flex justify='space-between' align='center' wrap gap={12}>
             <Typography.Text>Tổng {result.total} đánh giá</Typography.Text>
@@ -189,7 +205,7 @@ export default function Reviews() {
         <ReviewDrawer
           key={selectedId}
           reviewId={selectedId}
-          onClose={() => setSelectedId(null)}
+          onClose={() => selectReview(null)}
           onChanged={() => setReloadKey(k => k + 1)}
         />
       )}

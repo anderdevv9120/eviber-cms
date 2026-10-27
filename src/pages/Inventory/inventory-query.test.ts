@@ -5,6 +5,17 @@ const parse = (search: string) => parseInventoryQuery(new URLSearchParams(search
 const productId = "000000000000000000000001";
 
 describe("inventory URL query", () => {
+  it("retains exact variant targets in bookmarks and API queries", () => {
+    const { query, errors } = parse(`variantId=${productId}`);
+    expect(errors).toEqual([]);
+    expect(toInventorySearch(query).toString()).toBe(`variantId=${productId}`);
+    expect(toInventoryApiQuery(query)).toEqual({ variantId: productId, page: 1, pageSize: 10 });
+  });
+
+  it.each(["variantId=bad", `variantId=${productId}&variantId=${productId}`])(
+    "blocks invalid exact target %s",
+    search => expect(parse(search).errors).toHaveLength(1)
+  );
   it("uses defaults for an empty URL and serializes them to an empty search", () => {
     const { query, errors } = parse("");
     expect(errors).toEqual([]);
