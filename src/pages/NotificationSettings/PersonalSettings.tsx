@@ -1,12 +1,147 @@
 import { Button, Empty, Flex, Select, Table, Typography } from "antd";
+import { useEffect, useState } from "react";
 import {
   getNotificationPreferencesAPI,
+  getNotificationScope,
   updateNotificationPreferencesAPI,
   type NotificationPreferencesView,
   type NotificationChannel
 } from "@/services/notifications";
 import { NOTIFICATION_EVENT_LABELS } from "@/pages/Notifications/notification-query";
 import useNotificationSettings from "./useNotificationSettings";
+import {
+  desktopAvailability,
+  requestDesktopPermission,
+  readDesktopEnabled,
+  setDesktopEnabled,
+  showDesktopTestNotification,
+  subscribeDesktopDeviceChanges
+} from "@/utils/desktop-notifications";
+
+function DesktopDevice({ scope }: { scope: string }) {
+  const [device, setDevice] = useState({
+    enabled: false,
+    busy: true,
+    error: "",
+    availability: desktopAvailability()
+  });
+  const current = () => getNotificationScope()?.key === scope;
+  useEffect(() => {
+    let disposed = false;
+    const sync = async () => {
+      const identity = getNotificationScope();
+      if (identity?.key !== scope) return;
+      const availability = desktopAvailability();
+      try {
+        const enabled =
+          availability === "unsupported" || availability === "insecure"
+            ? false
+            : await readDesktopEnabled(identity.deviceKey);
+        if (!disposed && getNotificationScope()?.key === scope)
+          setDevice({ enabled, availability, busy: false, error: "" });
+      } catch {
+        if (!disposed && getNotificationScope()?.key === scope)
+          setDevice({
+            enabled: false,
+            availability,
+            busy: false,
+            error: "Không thể truy cập bộ nhớ thông báo. Thông báo trong ứng dụng vẫn hoạt động."
+          });
+      }
+    };
+    const refresh = () => {
+      sync().catch(() => {});
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    const unsubscribeDevice = subscribeDesktopDeviceChanges(key => {
+      if (key === getNotificationScope()?.deviceKey) refresh();
+    });
+    return () => {
+      disposed = true;
+      window.removeEventListener("focus", refresh);
+      unsubscribeDevice();
+    };
+  }, [scope]);
+  const change = async () => {
+    const identity = getNotificationScope();
+    if (identity?.key !== scope || device.busy) return;
+    try {
+      // Keep the browser prompt inside the original user gesture, before any await.
+      const permission = device.enabled
+        ? Promise.resolve(desktopAvailability())
+        : requestDesktopPermission();
+      setDevice(previous => ({ ...previous, busy: true, error: "" }));
+      const granted = await permission;
+      if (!current()) return;
+      if (!device.enabled && granted !== "granted") {
+        setDevice(previous => ({ ...previous, busy: false, availability: desktopAvailability() }));
+        return;
+      }
+      await setDesktopEnabled(identity.deviceKey, !device.enabled);
+      if (current())
+        setDevice({
+          enabled: !device.enabled,
+          busy: false,
+          error: "",
+          availability: desktopAvailability()
+        });
+    } catch {
+      if (current())
+        setDevice(previous => ({
+          ...previous,
+          busy: false,
+          error:
+            "Không thể bật/tắt thông báo máy tính. Kiểm tra quyền trình duyệt và bộ nhớ thiết bị."
+        }));
+    }
+  };
+  const test = async () => {
+    const identity = getNotificationScope();
+    if (identity?.key !== scope) return;
+    try {
+      const enabled = await readDesktopEnabled(identity.deviceKey);
+      if (!current() || !enabled || desktopAvailability() !== "granted") return;
+      showDesktopTestNotification();
+      setDevice(previous => ({ ...previous, error: "" }));
+    } catch {
+      if (current())
+        setDevice(previous => ({
+          ...previous,
+          error: "Không thể gửi thông báo thử. Kiểm tra cài đặt trình duyệt và hệ điều hành."
+        }));
+    }
+  };
+  const unavailable = ["unsupported", "insecure", "denied"].includes(device.availability);
+  const description =
+    device.availability === "unsupported"
+      ? "Trình duyệt không hỗ trợ thông báo máy tính."
+      : device.availability === "insecure"
+        ? "Cần HTTPS để bật thông báo máy tính."
+        : device.availability === "denied"
+          ? "Trình duyệt đã chặn thông báo. Mở cài đặt trang để cho phép."
+          : device.enabled
+            ? "Đã bật thông báo máy tính trên thiết bị này."
+            : "Chưa bật thông báo máy tính trên thiết bị này.";
+  return (
+    <Flex vertical gap={8}>
+      <Typography.Text role='status'>{device.error || description}</Typography.Text>
+      <Flex gap={8}>
+        <Button
+          disabled={device.busy || (!device.enabled && (unavailable || !!device.error))}
+          onClick={change}
+        >
+          {device.enabled ? "Tắt thông báo trên máy tính" : "Bật thông báo trên máy tính"}
+        </Button>
+        {device.enabled && device.availability === "granted" && (
+          <Button disabled={device.busy} onClick={test}>
+            Gửi thông báo thử
+          </Button>
+        )}
+      </Flex>
+    </Flex>
+  );
+}
 
 const save = (draft: NotificationPreferencesView, saved: NotificationPreferencesView) =>
   updateNotificationPreferencesAPI({
@@ -129,6 +264,7 @@ export default function PersonalSettings(props: { scope: string; access: string 
         Thông báo máy tính cần được bật riêng trên thiết bị và được trình duyệt cho phép. CMS phải
         đang mở; chế độ ngủ hoặc đóng trang có thể ngừng thông báo.
       </Typography.Paragraph>
+      <DesktopDevice scope={props.scope} />
     </Flex>
   );
 }

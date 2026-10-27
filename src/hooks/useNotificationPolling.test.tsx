@@ -14,8 +14,27 @@ import { useNotificationStore } from "@/store/useNotificationStore";
 import type { NotificationSummary, NotificationView } from "@/services/notifications";
 import { useNotificationPolling } from "./useNotificationPolling";
 import { refreshProfile } from "@/services/auth";
+import * as desktop from "@/utils/desktop-notifications";
+import { notification } from "@/test/notification-fixtures";
+import type { DesktopFeedPage } from "@/services/notifications";
 
-const environment = vi.hoisted(() => ({ url: "https://cms.test/admin/store-a/v1/" }));
+vi.mock("@/utils/desktop-notifications", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/utils/desktop-notifications")>()),
+  desktopAvailability: vi.fn(() => "unsupported"),
+  readDesktopEnabled: vi.fn(),
+  readDesktopDevice: vi.fn(async (key: string) => ({
+    enabled: await desktop.readDesktopEnabled(key),
+    activationId: environment.activationId
+  })),
+  claimDesktopDelivery: vi.fn(),
+  showDesktopNotification: vi.fn(),
+  DESKTOP_DEVICE_CHANGED: "cms-desktop-device-changed"
+}));
+
+const environment = vi.hoisted(() => ({
+  url: "https://cms.test/admin/store-a/v1/",
+  activationId: "initial-enable"
+}));
 vi.mock("@/constants/env", () => ({
   get ADMIN_API_URL() {
     return environment.url;
@@ -69,6 +88,17 @@ const visibility = (state: "visible" | "hidden") => {
 };
 
 beforeEach(() => {
+  environment.activationId = "initial-enable";
+  vi.mocked(desktop.desktopAvailability).mockReturnValue("unsupported");
+  vi.mocked(desktop.readDesktopEnabled).mockReset().mockResolvedValue(true);
+  vi.mocked(desktop.readDesktopDevice)
+    .mockReset()
+    .mockImplementation(async key => ({
+      enabled: await desktop.readDesktopEnabled(key),
+      activationId: environment.activationId
+    }));
+  vi.mocked(desktop.claimDesktopDelivery).mockReset().mockResolvedValue(true);
+  vi.mocked(desktop.showDesktopNotification).mockReset();
   vi.mocked(refreshProfile).mockReset().mockResolvedValue(undefined);
   vi.mocked(errorNotification).mockClear();
   vi.useFakeTimers();
@@ -78,6 +108,308 @@ beforeEach(() => {
   useAppStore.getState().setProfile(ownerProfile);
   useNotificationStore.getState().reset(null);
   axiosRequest.defaults.adapter = async config => response(config, summary);
+});
+
+describe("desktop feed orchestration (mocked browser storage/display)", () => {
+  const page = (
+    items = [notification],
+    cursor = 43,
+    hasMore = false,
+    through = cursor
+  ): DesktopFeedPage => ({
+    items,
+    cursor,
+    through,
+    hasMore,
+    serverTime: "2026-10-27T00:00:00.000Z",
+    eligibleEvents: ["order.created"]
+  });
+  let feeds: Array<Record<string, number>>;
+  let next: DesktopFeedPage;
+  beforeEach(() => {
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("granted");
+    feeds = [];
+    next = page([], 42);
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/notifications/desktop-feed") {
+        feeds.push(config.params ?? {});
+        return response(config, next);
+      }
+      return response(config, { ...summary, unreadCount: 1 });
+    };
+  });
+  it("silences first/reload baselines and keeps permission separate from per-account enablement", async () => {
+    next = page([notification], 42);
+    const first = renderHook(() => useNotificationPolling());
+    await flush();
+    expect(feeds).toEqual([{ limit: 50 }]);
+    expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+    first.unmount();
+    renderHook(() => useNotificationPolling());
+    await flush();
+    expect(feeds).toEqual([{ limit: 50 }, { limit: 50 }]);
+    expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+    vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(false);
+    await advance(30_000);
+    expect(feeds).toHaveLength(2);
+    expect(useNotificationStore.getState().summary?.unreadCount).toBe(1);
+  });
+  it("baselines on explicit enable and continues hidden only while enabled and permitted", async () => {
+    vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(false);
+    renderHook(() => useNotificationPolling());
+    await flush();
+    expect(feeds).toHaveLength(0);
+    vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(true);
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent(desktop.DESKTOP_DEVICE_CHANGED, {
+          detail: JSON.stringify([environment.url.replace(/\/+$/, ""), "owner"])
+        })
+      )
+    );
+    await flush();
+    expect(feeds).toEqual([{ limit: 50 }]);
+    next = page([notification], 43);
+    visibility("hidden");
+    await flush();
+    expect(desktop.showDesktopNotification).toHaveBeenCalledTimes(1);
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("denied");
+    await advance(30_000);
+    const count = feeds.length;
+    await advance(120_000);
+    expect(feeds).toHaveLength(count);
+  });
+  it("updates the inbox while desktop storage is still pending", async () => {
+    vi.mocked(desktop.readDesktopEnabled).mockReturnValue(new Promise(() => {}));
+    renderHook(() => useNotificationPolling());
+    await flush();
+    expect(useNotificationStore.getState().summary?.unreadCount).toBe(1);
+  });
+  it("releases a pending native storage read and continues inbox polling", async () => {
+    const native = await vi.importActual<typeof import("@/utils/desktop-notifications")>(
+      "@/utils/desktop-notifications"
+    );
+    vi.stubGlobal("indexedDB", { open: () => ({}) });
+    vi.mocked(desktop.readDesktopDevice).mockImplementation(native.readDesktopDevice);
+    let reads = 0;
+    axiosRequest.defaults.adapter = async config =>
+      response(config, { ...summary, unreadCount: ++reads });
+    renderHook(() => useNotificationPolling());
+    await flush();
+    expect(useNotificationStore.getState().summary?.unreadCount).toBe(1);
+    await advance(5_000);
+    expect(useNotificationStore.getState().isSyncing).toBe(false);
+    await advance(30_000);
+    expect(useNotificationStore.getState().summary?.unreadCount).toBe(2);
+  });
+  it("rebaselines after an off/on transition missed while the tab was suspended", async () => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    environment.activationId = "enabled-again-in-another-tab";
+    next = page([notification], 43);
+    await advance(30_000);
+    expect(feeds[1]).toEqual({ limit: 50 });
+    expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+  });
+  it("resumes a paused hidden tab with a silent baseline after another tab enables desktop", async () => {
+    let receive!: (event: MessageEvent) => void;
+    vi.stubGlobal(
+      "BroadcastChannel",
+      class {
+        set onmessage(callback: (event: MessageEvent) => void) {
+          receive = callback;
+        }
+        close() {}
+      }
+    );
+    vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(false);
+    visibility("hidden");
+    renderHook(() => useNotificationPolling());
+    await flush();
+    vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(true);
+    await act(async () =>
+      receive?.(
+        new MessageEvent("message", {
+          data: JSON.stringify([environment.url.replace(/\/+$/, ""), "owner"])
+        })
+      )
+    );
+    expect(feeds).toEqual([{ limit: 50 }]);
+    expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+  });
+  it("two tab runtimes keep independent cursors and display a delivery once", async () => {
+    const claimed = new Set<string>();
+    vi.mocked(desktop.claimDesktopDelivery).mockImplementation(async (scope, id) => {
+      const key = scope + id;
+      if (claimed.has(key)) return false;
+      claimed.add(key);
+      return true;
+    });
+    renderHook(() => useNotificationPolling());
+    await flush();
+    renderHook(() => useNotificationPolling());
+    await flush();
+    next = page([notification], 43);
+    await advance(30_000);
+    expect(feeds.slice(2)).toEqual([
+      { after: 42, limit: 50 },
+      { after: 42, limit: 50 }
+    ]);
+    expect(desktop.showDesktopNotification).toHaveBeenCalledTimes(1);
+  });
+  it("opening tab B at a newer head cannot reset tab A's pending cursor", async () => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    next = page([], 99);
+    renderHook(() => useNotificationPolling());
+    await flush();
+    next = page([notification], 100);
+    await advance(30_000);
+    expect(feeds.slice(2)).toEqual([
+      { after: 42, limit: 50 },
+      { after: 99, limit: 50 }
+    ]);
+  });
+  it("does not display a feed response that became stale in transit", async () => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    const pending = deferred<DesktopFeedPage>();
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/notifications/desktop-feed" ? await pending.promise : summary
+      );
+    await advance(30_000);
+    await advance(1_001);
+    await act(async () =>
+      pending.resolve(page([{ ...notification, occurredAt: "2026-10-26T23:58:01.000Z" }]))
+    );
+    expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+  });
+  it("honors CMS membership denial from the desktop feed after a successful summary", async () => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url === "/notifications/desktop-feed")
+        throw new AxiosError("Hết quyền CMS", "403", config, null, {
+          ...response(config, {}),
+          status: 403,
+          data: { message: "Hết quyền CMS", errors: { code: "CMS_MEMBERSHIP_REQUIRED" } }
+        });
+      return response(config, summary);
+    };
+    await advance(30_000);
+    expect(useNotificationStore.getState().summary).toBeNull();
+  });
+  it("catches up more than 50 entries, including empty eligible pages, and yields after five pages", async () => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    let count = 0;
+    axiosRequest.defaults.adapter = async config => {
+      if (config.url !== "/notifications/desktop-feed") return response(config, summary);
+      feeds.push(config.params);
+      count++;
+      return response(
+        config,
+        page(
+          count === 2
+            ? []
+            : Array.from({ length: 50 }, (_, i) => ({
+                ...notification,
+                id: `${count}-${i}`
+              })),
+          42 + count * 50,
+          count < 6,
+          342
+        )
+      );
+    };
+    await advance(30_000);
+    expect(count).toBe(5);
+    expect(desktop.showDesktopNotification).toHaveBeenCalledTimes(200);
+    expect(feeds[5]).toEqual({ after: 242, through: 342, limit: 50 });
+    await advance(30_000);
+    expect(count).toBe(6);
+    expect(feeds[6]).toEqual({ after: 292, through: 342, limit: 50 });
+  });
+  it.each([
+    ["2026-10-26T23:58:00.000Z", true],
+    ["2026-10-26T23:57:59.999Z", false],
+    ["2026-10-27T00:00:00.001Z", false],
+    ["invalid", false]
+  ])("uses server freshness for %s despite workstation clock skew", async (occurredAt, shown) => {
+    vi.setSystemTime(new Date("2040-01-01"));
+    renderHook(() => useNotificationPolling());
+    await flush();
+    next = page([{ ...notification, occurredAt }], 43);
+    await advance(30_000);
+    expect(desktop.showDesktopNotification).toHaveBeenCalledTimes(shown ? 1 : 0);
+  });
+  it.each(["session", "permission", "device", "stale"])(
+    "rechecks %s after a delayed claim",
+    async reason => {
+      renderHook(() => useNotificationPolling());
+      await flush();
+      const claim = deferred<boolean>();
+      vi.mocked(desktop.claimDesktopDelivery).mockReturnValue(claim.promise);
+      next = page([{ ...notification, occurredAt: "2026-10-26T23:58:01.000Z" }], 43);
+      await advance(30_000);
+      if (reason === "session") setCookies("cmsSessionId", "other-session");
+      if (reason === "permission") vi.mocked(desktop.desktopAvailability).mockReturnValue("denied");
+      if (reason === "device") vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(false);
+      if (reason === "stale") await advance(1_001);
+      await act(async () => claim.resolve(true));
+      expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+    }
+  );
+  it("ignores an in-flight feed after session replacement", async () => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    const pending = deferred<DesktopFeedPage>();
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/notifications/desktop-feed" ? await pending.promise : summary
+      );
+    await advance(30_000);
+    setCookies("cmsSessionId", "replacement");
+    await act(async () => pending.resolve(page([notification])));
+    expect(desktop.claimDesktopDelivery).not.toHaveBeenCalled();
+    expect(desktop.showDesktopNotification).not.toHaveBeenCalled();
+  });
+  it.each(["storage", "display"])("preserves inbox and polling after %s failure", async failure => {
+    renderHook(() => useNotificationPolling());
+    await flush();
+    next = page([notification], 43);
+    if (failure === "storage")
+      vi.mocked(desktop.claimDesktopDelivery).mockRejectedValue(new Error("storage"));
+    else
+      vi.mocked(desktop.showDesktopNotification).mockImplementation(() => {
+        throw new Error("native");
+      });
+    await advance(30_000);
+    expect(useNotificationStore.getState().summary?.unreadCount).toBe(1);
+    await advance(30_000);
+    expect(feeds.length).toBeGreaterThanOrEqual(2);
+  });
+  it("focuses and navigates using typed targets; an ended session goes to login", async () => {
+    const navigate = vi.fn();
+    const focus = vi.spyOn(window, "focus").mockImplementation(() => {});
+    renderHook(() => useNotificationPolling(navigate));
+    await flush();
+    next = page([notification], 43);
+    await advance(30_000);
+    const open = vi.mocked(desktop.showDesktopNotification).mock.calls[0][1];
+    open();
+    expect(focus).toHaveBeenCalled();
+    expect(navigate).toHaveBeenLastCalledWith(
+      "/orders/bbbbbbbbbbbbbbbbbbbbbbbb?returnTo=%2Fnotifications"
+    );
+    clearSession();
+    open();
+    expect(navigate).toHaveBeenLastCalledWith("/auth/login");
+    expect(useNotificationStore.getState().summary).toBeNull();
+  });
 });
 afterEach(() => {
   cleanup();

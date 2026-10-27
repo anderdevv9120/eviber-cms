@@ -149,8 +149,12 @@ describe("notification scope", () => {
       getSessionId(),
       useAppStore.getState().sessionRevision
     ]);
+    expect(JSON.parse(scope!.deviceKey)).toEqual([ADMIN_API_URL.replace(/\/+$/, ""), "owner"]);
+    useAppStore.setState(state => ({ sessionRevision: state.sessionRevision + 1 }));
+    expect(api.getNotificationScope()?.deviceKey).toBe(scope!.deviceKey);
     useAppStore.getState().setProfile(staffProfile([]));
     expect(api.getNotificationScope()?.key).not.toBe(scope?.key);
+    expect(api.getNotificationScope()?.deviceKey).not.toBe(scope!.deviceKey);
   });
 
   it("returns no scope without an authenticated CMS member", () => {

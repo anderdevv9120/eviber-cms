@@ -36,10 +36,10 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
 };
 
 const MainLayout = () => {
-  useNotificationPolling();
   const profile = useAppStore(state => state.profile);
   const { token } = theme.useToken();
   const navigate = useNavigate();
+  useNotificationPolling(navigate);
   const { pathname, search, key: locationKey } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);

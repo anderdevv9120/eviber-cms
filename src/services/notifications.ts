@@ -104,6 +104,7 @@ export type ReadResult = { changed: number };
 
 export const getNotificationScope = (): {
   key: string;
+  deviceKey: string;
   sessionId: string;
   sessionRevision: number;
   userId: string;
@@ -115,6 +116,7 @@ export const getNotificationScope = (): {
   const api = ADMIN_API_URL.replace(/\/+$/, "");
   return {
     key: JSON.stringify([api, userId, sessionId, sessionRevision]),
+    deviceKey: JSON.stringify([api, userId]),
     sessionId,
     sessionRevision,
     userId

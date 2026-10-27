@@ -15,6 +15,17 @@ import type {
   StoreNotificationSettings
 } from "@/services/notifications";
 import NotificationSettings from "./index";
+import * as desktop from "@/utils/desktop-notifications";
+
+vi.mock("@/utils/desktop-notifications", () => ({
+  desktopAvailability: vi.fn(() => "unsupported"),
+  requestDesktopPermission: vi.fn(),
+  readDesktopEnabled: vi.fn(),
+  setDesktopEnabled: vi.fn(),
+  showDesktopTestNotification: vi.fn(),
+  DESKTOP_DEVICE_CHANGED: "cms-desktop-device-changed",
+  subscribeDesktopDeviceChanges: vi.fn(() => () => {})
+}));
 
 vi.mock("@/utils/notification", () => ({
   successNotification: vi.fn(),
@@ -32,6 +43,10 @@ let settings: StoreNotificationSettings;
 const calls: Array<{ url?: string; method?: string; body: unknown }> = [];
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(desktop.desktopAvailability).mockReturnValue("unsupported");
+  vi.mocked(desktop.readDesktopEnabled).mockReset().mockResolvedValue(false);
+  vi.mocked(desktop.setDesktopEnabled).mockReset().mockResolvedValue(undefined);
+  vi.mocked(desktop.requestDesktopPermission).mockReset().mockResolvedValue("granted");
   calls.length = 0;
   useAppStore.getState().setProfile(staffProfile([]));
   preferences = {
@@ -110,6 +125,85 @@ const choose = async (name: string, option: string) => {
 const personalControl = "Đơn hàng mới — Trong ứng dụng";
 const storeControl = "Đơn hàng mới — Trong ứng dụng — Chính sách";
 const writes = () => calls.filter(call => call.method !== "get");
+
+describe("desktop device actions", () => {
+  it.each(["unsupported", "insecure", "denied"] as const)(
+    "explains %s without prompting",
+    async status => {
+      vi.mocked(desktop.desktopAvailability).mockReturnValue(status);
+      mount();
+      await screen.findByRole("combobox", { name: personalControl });
+      expect(
+        (screen.getByRole("button", { name: "Bật thông báo trên máy tính" }) as HTMLButtonElement)
+          .disabled
+      ).toBe(true);
+      expect(desktop.requestDesktopPermission).not.toHaveBeenCalled();
+      expect(
+        screen.getByText(
+          status === "unsupported"
+            ? /Trình duyệt không hỗ trợ/
+            : status === "insecure"
+              ? /Cần HTTPS/
+              : /Trình duyệt đã chặn/
+        )
+      ).toBeTruthy();
+    }
+  );
+  it("requests permission during the enable click, then persists this API/user device flag", async () => {
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("default");
+    const permission = deferred<NotificationPermission>();
+    vi.mocked(desktop.requestDesktopPermission).mockReturnValue(permission.promise);
+    mount();
+    const enable = await screen.findByRole("button", { name: "Bật thông báo trên máy tính" });
+    await waitFor(() => expect((enable as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(enable);
+    expect(desktop.requestDesktopPermission).toHaveBeenCalledTimes(1);
+    expect(desktop.setDesktopEnabled).not.toHaveBeenCalled();
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("granted");
+    vi.mocked(desktop.readDesktopEnabled).mockResolvedValue(true);
+    await act(async () => permission.resolve("granted"));
+    const disable = await screen.findByRole("button", { name: "Tắt thông báo trên máy tính" });
+    expect(desktop.setDesktopEnabled).toHaveBeenCalledWith(expect.any(String), true);
+    const deviceKey = vi.mocked(desktop.setDesktopEnabled).mock.calls[0][0];
+    expect(JSON.parse(deviceKey)).toHaveLength(2);
+    expect(JSON.parse(deviceKey)[1]).toBe("staff");
+    fireEvent.click(screen.getByRole("button", { name: "Gửi thông báo thử" }));
+    await waitFor(() => expect(desktop.showDesktopTestNotification).toHaveBeenCalledTimes(1));
+    expect(writes()).toEqual([]);
+    fireEvent.click(disable);
+    await waitFor(() =>
+      expect(desktop.setDesktopEnabled).toHaveBeenLastCalledWith(deviceKey, false)
+    );
+  });
+  it("permission alone leaves another account disabled and sends no test automatically", async () => {
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("granted");
+    mount();
+    const enable = await screen.findByRole("button", { name: "Bật thông báo trên máy tính" });
+    await waitFor(() => expect((enable as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByRole("button", { name: "Gửi thông báo thử" })).toBeNull();
+    expect(desktop.showDesktopTestNotification).not.toHaveBeenCalled();
+  });
+  it("does not enable after a permission response for an ended session", async () => {
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("default");
+    const permission = deferred<NotificationPermission>();
+    vi.mocked(desktop.requestDesktopPermission).mockReturnValue(permission.promise);
+    mount();
+    const enable = await screen.findByRole("button", { name: "Bật thông báo trên máy tính" });
+    await waitFor(() => expect((enable as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(enable);
+    setCookies("cmsSessionId", "other-account");
+    await act(async () => permission.resolve("granted"));
+    expect(desktop.setDesktopEnabled).not.toHaveBeenCalled();
+  });
+  it("shows storage failure while personal settings remain usable", async () => {
+    vi.mocked(desktop.desktopAvailability).mockReturnValue("granted");
+    vi.mocked(desktop.readDesktopEnabled).mockRejectedValue(new Error("blocked"));
+    mount();
+    await screen.findByText(/Không thể truy cập bộ nhớ thông báo/);
+    expect(await screen.findByRole("combobox", { name: personalControl })).toBeTruthy();
+    expect(desktop.showDesktopTestNotification).not.toHaveBeenCalled();
+  });
+});
 describe("notification settings", () => {
   it("loads only eligible personal preferences for ordinary staff and keeps email inert", async () => {
     mount();
