@@ -126,74 +126,107 @@ export default function RefundReviewForm({
           return (
             <fieldset key={item.allocationId} className='mb-4'>
               <legend className='font-semibold'>{label}</legend>
-              {ctx.readable !== false && (
-                <>
-                  <p>
-                    Khách yêu cầu {item.quantity} · {refundReasonLabels[item.reason]}
-                  </p>
-                  <p>Giải thích của khách: {item.explanation}</p>
-                  <RefundEvidence
-                    orderId={view.orderId}
-                    evidenceIds={item.evidenceIds}
-                    label={label}
+              <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
+                {ctx.readable !== false && (
+                  <div>
+                    <div className='mb-2 font-semibold'>Từ khách hàng</div>
+                    <p>Khách yêu cầu: {item.quantity}</p>
+                    <p>Lý do: {refundReasonLabels[item.reason]}</p>
+                    <p>Giải thích của khách: {item.explanation}</p>
+                    <p>
+                      Khách chọn:{" "}
+                      {item.requestedReturn === "return" ? "Trả hàng" : "Không trả hàng"}
+                    </p>
+                    <RefundEvidence
+                      orderId={view.orderId}
+                      evidenceIds={item.evidenceIds}
+                      label={label}
+                    />
+                  </div>
+                )}
+                <div>
+                  <div className='mb-2 font-semibold'>Quyết định</div>
+                  <div className='mt-2'>
+                    <label htmlFor={`refund-approved-${item.allocationId}`} className='mb-1 block'>
+                      Số lượng duyệt
+                    </label>
+                    <InputNumber
+                      id={`refund-approved-${item.allocationId}`}
+                      aria-label={`Số lượng duyệt ${label}`}
+                      precision={0}
+                      value={row.approvedQuantity}
+                      status={
+                        attempted && errors[`quantity:${item.allocationId}`] ? "error" : undefined
+                      }
+                      onChange={value => editRow(item.allocationId, { approvedQuantity: value })}
+                    />
+                    {error(`quantity:${item.allocationId}`)}
+                  </div>
+                  {item.reason === "missing_item" ? (
+                    <Checkbox
+                      className='mt-2'
+                      checked={row.waived}
+                      onChange={event =>
+                        editRow(item.allocationId, { waived: event.target.checked })
+                      }
+                    >
+                      {`Xác nhận miễn trả hàng cho hàng bị thiếu ${label}`}
+                    </Checkbox>
+                  ) : (
+                    <Checkbox
+                      className='mt-2'
+                      checked={row.returnRequired}
+                      onChange={event =>
+                        editRow(item.allocationId, { returnRequired: event.target.checked })
+                      }
+                    >
+                      {`Yêu cầu trả hàng ${label}`}
+                    </Checkbox>
+                  )}
+                  {error(`waiver:${item.allocationId}`)}
+                  <label
+                    htmlFor={`refund-decision-${item.allocationId}`}
+                    className='mt-2 mb-1 block'
+                  >
+                    Lý do quyết định (nội bộ)
+                  </label>
+                  <Input
+                    id={`refund-decision-${item.allocationId}`}
+                    aria-label={`Lý do quyết định ${label}`}
+                    placeholder='Lý do quyết định (nội bộ)'
+                    value={row.reason}
+                    status={
+                      attempted && errors[`reason:${item.allocationId}`] ? "error" : undefined
+                    }
+                    onChange={event => editRow(item.allocationId, { reason: event.target.value })}
                   />
-                </>
-              )}
-              <div className='mt-2'>
-                <InputNumber
-                  aria-label={`Số lượng duyệt ${label}`}
-                  precision={0}
-                  value={row.approvedQuantity}
-                  status={
-                    attempted && errors[`quantity:${item.allocationId}`] ? "error" : undefined
-                  }
-                  onChange={value => editRow(item.allocationId, { approvedQuantity: value })}
-                />
-                {error(`quantity:${item.allocationId}`)}
+                  {error(`reason:${item.allocationId}`)}
+                </div>
               </div>
-              {item.reason === "missing_item" ? (
-                <Checkbox
-                  className='mt-2'
-                  checked={row.waived}
-                  onChange={event => editRow(item.allocationId, { waived: event.target.checked })}
-                >
-                  {`Xác nhận miễn trả hàng cho hàng bị thiếu ${label}`}
-                </Checkbox>
-              ) : (
-                <Checkbox
-                  className='mt-2'
-                  checked={row.returnRequired}
-                  onChange={event =>
-                    editRow(item.allocationId, { returnRequired: event.target.checked })
-                  }
-                >
-                  {`Yêu cầu trả hàng ${label}`}
-                </Checkbox>
-              )}
-              {error(`waiver:${item.allocationId}`)}
-              <Input
-                className='mt-2'
-                aria-label={`Lý do quyết định ${label}`}
-                placeholder='Lý do quyết định (nội bộ)'
-                value={row.reason}
-                status={attempted && errors[`reason:${item.allocationId}`] ? "error" : undefined}
-                onChange={event => editRow(item.allocationId, { reason: event.target.value })}
-              />
-              {error(`reason:${item.allocationId}`)}
             </fieldset>
           );
         })}
         <div className='mb-3'>
-          <div className='mb-1'>Phí vận chuyển hoàn</div>
+          <label htmlFor='refund-review-shipping' className='mb-1 block'>
+            Phí vận chuyển hoàn
+          </label>
           <InputNumber
+            id='refund-review-shipping'
             aria-label='Phí vận chuyển hoàn'
             precision={0}
             value={shipping}
             onChange={value => edit(() => setShipping(value))}
           />
+          {ctx.readable !== false && (
+            <div className='mt-1 text-sm'>Tối đa {formatOrderAmount(maxShipping, "VND")}</div>
+          )}
           {error("shipping")}
         </div>
+        <label htmlFor='refund-customer-message' className='mb-1 block'>
+          Tin nhắn gửi khách hàng
+        </label>
         <Input.TextArea
+          id='refund-customer-message'
           aria-label='Tin nhắn gửi khách hàng'
           placeholder='Tin nhắn gửi khách hàng'
           rows={2}
@@ -201,8 +234,11 @@ export default function RefundReviewForm({
           onChange={event => edit(() => setCustomerMessage(event.target.value))}
         />
         {error("message")}
+        <label htmlFor='refund-internal-note' className='mt-3 mb-1 block'>
+          Ghi chú nội bộ (khách không thấy)
+        </label>
         <Input.TextArea
-          className='mt-3'
+          id='refund-internal-note'
           aria-label='Ghi chú nội bộ'
           placeholder='Ghi chú nội bộ (khách không thấy)'
           rows={2}

@@ -57,12 +57,16 @@ export default function RefundInspectionForm({
   for (const item of pending) {
     const row = rows[item.allocationId];
     const outstanding = item.approvedQuantity - item.receivedQuantity;
-    if (!isWholeNumber(row.received) || row.received > outstanding)
-      errors[`received:${item.allocationId}`] = `Số lượng đã nhận từ 0 đến ${outstanding}`;
-    else if (!isWholeNumber(row.sellable))
+    if (!isWholeNumber(row.received))
+      errors[`received:${item.allocationId}`] =
+        "Số lượng nhận trong lần này phải là số nguyên không âm";
+    else if (row.received > outstanding)
+      errors[`received:${item.allocationId}`] =
+        `Số lượng nhận trong lần này không được vượt số còn cần nhận (${outstanding} sản phẩm)`;
+    if (!isWholeNumber(row.sellable))
       errors[`sellable:${item.allocationId}`] =
         "Số lượng có thể bán lại phải là số nguyên không âm";
-    else if (row.sellable > row.received)
+    else if (isWholeNumber(row.received) && row.sellable > row.received)
       errors[`sellable:${item.allocationId}`] =
         "Số lượng có thể bán lại không được vượt số đã nhận";
     if (isWholeNumber(row.sellable) && row.sellable > 0 && !row.confirmed)
@@ -101,7 +105,11 @@ export default function RefundInspectionForm({
     );
   };
   const error = (name: string) =>
-    attempted && errors[name] ? <div className='mt-1 text-red-600'>{errors[name]}</div> : null;
+    attempted && errors[name] ? (
+      <div id={`refund-inspection-error-${name}`} role='alert' className='mt-1 text-red-600'>
+        {errors[name]}
+      </div>
+    ) : null;
 
   return (
     <ConfigProvider componentDisabled={!command.canEdit}>
@@ -115,6 +123,10 @@ export default function RefundInspectionForm({
         {pending.map(item => {
           const label = labels[item.allocationId];
           const row = rows[item.allocationId];
+          const outstanding = item.approvedQuantity - item.receivedQuantity;
+          const maxSellable = isWholeNumber(row.received) ? Math.min(row.received, outstanding) : 0;
+          const receivedInvalid = attempted && !!errors[`received:${item.allocationId}`];
+          const sellableInvalid = attempted && !!errors[`sellable:${item.allocationId}`];
           return (
             <fieldset key={item.allocationId} className='mb-4'>
               <legend className='font-semibold'>{label}</legend>
@@ -124,20 +136,55 @@ export default function RefundInspectionForm({
                 </p>
               )}
               <div className='mt-2'>
+                <label htmlFor={`refund-received-${item.allocationId}`} className='mb-1 block'>
+                  Số lượng nhận trong lần này
+                </label>
                 <InputNumber
-                  aria-label={`Số lượng đã nhận ${label}`}
+                  id={`refund-received-${item.allocationId}`}
+                  aria-label={`Số lượng nhận trong lần này ${label}`}
                   precision={0}
+                  min={0}
+                  max={outstanding}
+                  changeOnBlur={false}
+                  status={receivedInvalid ? "error" : undefined}
+                  aria-invalid={receivedInvalid}
+                  aria-describedby={
+                    receivedInvalid
+                      ? `refund-inspection-error-received:${item.allocationId}`
+                      : undefined
+                  }
                   value={row.received}
                   onChange={value => editRow(item.allocationId, { received: value })}
+                  // InputNumber skips onChange for out-of-range typing; retain it for validation.
+                  onInput={text =>
+                    editRow(item.allocationId, { received: text.trim() ? Number(text) : null })
+                  }
                 />
                 {error(`received:${item.allocationId}`)}
               </div>
               <div className='mt-2'>
+                <label htmlFor={`refund-sellable-${item.allocationId}`} className='mb-1 block'>
+                  Số lượng có thể bán lại trong lần nhận này
+                </label>
                 <InputNumber
+                  id={`refund-sellable-${item.allocationId}`}
                   aria-label={`Số lượng có thể bán lại ${label}`}
                   precision={0}
+                  min={0}
+                  max={maxSellable}
+                  changeOnBlur={false}
+                  status={sellableInvalid ? "error" : undefined}
+                  aria-invalid={sellableInvalid}
+                  aria-describedby={
+                    sellableInvalid
+                      ? `refund-inspection-error-sellable:${item.allocationId}`
+                      : undefined
+                  }
                   value={row.sellable}
                   onChange={value => editRow(item.allocationId, { sellable: value })}
+                  onInput={text =>
+                    editRow(item.allocationId, { sellable: text.trim() ? Number(text) : null })
+                  }
                 />
                 {error(`sellable:${item.allocationId}`)}
               </div>
@@ -153,7 +200,11 @@ export default function RefundInspectionForm({
           );
         })}
         {error("items")}
+        <label htmlFor='refund-inspection-note' className='mb-1 block'>
+          Ghi chú kiểm tra (nội bộ)
+        </label>
         <Input.TextArea
+          id='refund-inspection-note'
           aria-label='Ghi chú kiểm tra'
           placeholder='Ghi chú kiểm tra (nội bộ)'
           rows={2}

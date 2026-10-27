@@ -680,7 +680,8 @@ describe("order detail actions", () => {
     await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });
     fireEvent.click(await screen.findByRole("button", { name: "Nhận xử lý hoàn tiền" }));
 
-    await screen.findByText("Số tiền đã cố định để hoàn: 20.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
+    expect(screen.getByText("Cần hoàn: 20.000 ₫")).toBeTruthy();
     await waitFor(() =>
       expect(calls.filter(call => call === "get /orders/order-id")).toHaveLength(2)
     );

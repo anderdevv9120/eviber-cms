@@ -178,10 +178,109 @@ const type = (role: "spinbutton" | "textbox", name: string | RegExp, value: stri
   fireEvent.change(field(role, name), { target: { value } });
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole("button", { name }));
 const open = async (name: string) => fireEvent.click(await screen.findByRole("button", { name }));
-const reviewButtons = () => screen.queryAllByRole("button").map(button => button.textContent);
+const reviewButtons = () =>
+  screen
+    .queryAllByRole("button")
+    .filter(button => button.tagName === "BUTTON")
+    .map(button => button.textContent);
 
 describe("admin refund section", () => {
   beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
+  it("shows customer context once while reviewing and restores it when closed", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await open("Duyệt yêu cầu");
+    expect(screen.getAllByText("Giải thích của khách: Không vừa size")).toHaveLength(1);
+    expect(screen.getAllByText("Khách yêu cầu: 3")).toHaveLength(1);
+    expect(screen.getByText("Khách chọn: Trả hàng")).toBeTruthy();
+    const form = screen.getByRole("form", { name: "Duyệt yêu cầu hoàn tiền" });
+    expect(within(form).getByText("Giải thích của khách: Không vừa size")).toBeTruthy();
+    type("textbox", `Lý do quyết định ${itemLabel}`, "Giữ bản nháp");
+    click(/Yêu cầu 1/);
+    expect(screen.queryByRole("form", { name: "Duyệt yêu cầu hoàn tiền" })).toBeNull();
+    click(/Yêu cầu 1/);
+    expect(field("textbox", `Lý do quyết định ${itemLabel}`).value).toBe("Giữ bản nháp");
+    click("Đóng");
+    expect(screen.getAllByText("Giải thích của khách: Không vừa size")).toHaveLength(1);
+    expect(screen.getByRole("list", { name: "Sản phẩm của yêu cầu 1" })).toBeTruthy();
+  });
+  it("keeps balances and history collapsed until staff open them", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    const balances = await screen.findByRole("button", { name: "Chi tiết số lượng có thể hoàn" });
+    expect(balances.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("table")).toBeNull();
+    fireEvent.click(balances);
+    expect(screen.getByRole("table").textContent).toContain(itemLabel);
+    expect(screen.queryByRole("group", { name: "Lịch sử yêu cầu 1" })).toBeNull();
+    click("Lịch sử xử lý");
+    expect(screen.getByRole("group", { name: "Lịch sử yêu cầu 1" })).toBeTruthy();
+  });
+  it("summarizes completed requests and keeps their earlier amounts in history", async () => {
+    const completed = withRequest(
+      {
+        stage: "refunded",
+        approval: {
+          amount: 90000,
+          merchandiseAmount: 90000,
+          shippingAmount: 0,
+          frozenAt: request.submittedAt
+        },
+        payout: {
+          amount: 90000,
+          merchandiseAmount: 90000,
+          shippingAmount: 0,
+          paidAt: request.submittedAt,
+          recordedAt: request.submittedAt,
+          reference: "BANK-1"
+        }
+      },
+      { approvedQuantity: 1, approvedAmount: 90000 }
+    );
+    serve({ [`get ${REFUNDS}`]: config => response(config, completed) });
+    renderSection();
+    expect(await screen.findByText("Đã hoàn tiền: 90.000 ₫")).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Sản phẩm của yêu cầu 1" })).toBeNull();
+    click(/Yêu cầu 1/);
+    expect(screen.getByRole("list", { name: "Sản phẩm của yêu cầu 1" })).toBeTruthy();
+    expect(screen.queryByText("Đã duyệt hoàn: 90.000 ₫")).toBeNull();
+    click("Lịch sử xử lý");
+    expect(screen.getByText(/^Đã duyệt hoàn: 90\.000 ₫/)).toBeTruthy();
+  });
+  it("labels every refund history event in Vietnamese", async () => {
+    const events = [
+      ["submitted", "Đã gửi yêu cầu"],
+      ["decided", "Đã duyệt yêu cầu"],
+      ["rejected", "Đã từ chối yêu cầu"],
+      ["inspection", "Đã kiểm tra hàng trả"],
+      ["return_received", "Đã nhận đủ hàng trả"],
+      ["payout_claimed", "Đã nhận xử lý hoàn tiền"],
+      ["payout_released", "Đã hủy nhận xử lý hoàn tiền"],
+      ["payout_recorded", "Đã ghi nhận hoàn tiền"],
+      ["future_refund_event", "Đã cập nhật yêu cầu"]
+    ];
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(
+          config,
+          withRequest({
+            history: events.map(([event]) => ({
+              event,
+              at: request.submittedAt,
+              customerMessage: event === "decided" ? "Đồng ý hoàn tiền" : null
+            }))
+          })
+        )
+    });
+    renderSection();
+    await open("Lịch sử xử lý");
+    const history = await screen.findByRole("group", { name: "Lịch sử yêu cầu 1" });
+    for (const [event, label] of events) {
+      expect(history.textContent).toContain(label);
+      expect(history.textContent).not.toContain(event);
+    }
+    expect(history.textContent).toContain("Tin nhắn gửi khách: Đồng ý hoàn tiền");
+  });
   it("hides loaded refund reads on revocation while retaining a closable review draft", async () => {
     serve({ [`get ${REFUNDS}`]: config => response(config, view) });
     renderSection();
@@ -269,7 +368,8 @@ describe("admin refund section", () => {
           })
         )
       );
-      expect(await screen.findByText(/12\.000/)).toBeTruthy();
+      await open("Chi tiết số lượng có thể hoàn");
+      expect(await screen.findByText(/^Phí vận chuyển còn có thể hoàn: 12\.000/)).toBeTruthy();
       expect(screen.queryByText(/30\.000/)).toBeNull();
       expect(draft.isConnected).toBe(true);
       expect(draft.value).toBe("Keep partial draft");
@@ -455,7 +555,8 @@ describe("admin refund section", () => {
     await act(async () =>
       useAppStore.getState().setProfile(staffProfile(["ORDER_READ", "ORDER_REFUND_REVIEW"]))
     );
-    await screen.findByText(/12\.000/);
+    await open("Chi tiết số lượng có thể hoàn");
+    await screen.findByText(/^Phí vận chuyển còn có thể hoàn: 12\.000/);
     await act(async () =>
       pending.resolve(response(pendingConfig!, { ...claimedView, remainingPaidShipping: 99000 }))
     );
@@ -514,7 +615,7 @@ describe("admin refund section", () => {
         type("textbox", `Lý do quyết định ${itemLabel}`, "Keep escape draft");
         draft = field("textbox", `Lý do quyết định ${itemLabel}`);
       } else if (mode === "inspect") {
-        type("spinbutton", `Số lượng đã nhận ${itemLabel}`, "1");
+        type("spinbutton", `Số lượng nhận trong lần này ${itemLabel}`, "1");
         type("textbox", "Ghi chú kiểm tra", "Keep escape draft");
         draft = field("textbox", "Ghi chú kiểm tra");
       } else if (mode === "exception") {
@@ -832,6 +933,88 @@ describe("admin refund section", () => {
     expect(writes()).toHaveLength(0);
   });
 
+  it("rejects every requested item with a predefined customer reason and no shipping refund", async () => {
+    const pending = withRequest({ shipping: { reservedAmount: 30000, approvedAmount: 0 } });
+    pending.requests[0].items.push({
+      ...item,
+      allocationId: "a2",
+      reason: "missing_item",
+      requestedReturn: "no_return"
+    });
+    const rejected = {
+      ...pending,
+      revision: 5,
+      requests: [{ ...pending.requests[0], stage: "rejected" as const }]
+    };
+    serve({
+      [`get ${REFUNDS}`]: config => response(config, pending),
+      [`post ${REFUNDS}/r1/decision`]: config => response(config, rejected)
+    });
+    renderSection();
+    await open("Từ chối yêu cầu");
+    click("Xác nhận từ chối");
+    expect(await screen.findByText("Chọn lý do từ chối gửi khách")).toBeTruthy();
+    expect(writes()).toHaveLength(0);
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lý do từ chối gửi khách" }));
+    fireEvent.click(await screen.findByTitle("Minh chứng chưa đủ để xác nhận vấn đề"));
+    click("Xác nhận từ chối");
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body).toEqual({
+      expectedRevision: 4,
+      idempotencyKey: expect.stringMatching(UUID),
+      items: ["a1", "a2"].map(allocationId => ({
+        allocationId,
+        approvedQuantity: 0,
+        returnRequired: false,
+        reason: "Minh chứng chưa đủ để xác nhận vấn đề"
+      })),
+      shippingAmount: 0,
+      customerMessage: "Minh chứng chưa đủ để xác nhận vấn đề"
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("form", { name: "Từ chối yêu cầu hoàn tiền" })).toBeNull()
+    );
+  });
+
+  it("requires a custom rejection reason and enforces the per-item 500 character limit", async () => {
+    serve({
+      [`get ${REFUNDS}`]: config => response(config, view),
+      [`post ${REFUNDS}/r1/decision`]: config =>
+        response(config, withRequest({ stage: "rejected" }))
+    });
+    renderSection();
+    await open("Từ chối yêu cầu");
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lý do từ chối gửi khách" }));
+    fireEvent.click(await screen.findByText("Lý do khác"));
+    type("textbox", "Lý do từ chối khác", "   ");
+    click("Xác nhận từ chối");
+    expect(await screen.findByText("Nhập lý do từ chối gửi khách")).toBeTruthy();
+    type("textbox", "Lý do từ chối khác", "x".repeat(501));
+    click("Xác nhận từ chối");
+    expect(await screen.findByText("Lý do tối đa 500 ký tự")).toBeTruthy();
+    expect(writes()).toHaveLength(0);
+    type("textbox", "Lý do từ chối khác", "  Đã đối chiếu minh chứng và trao đổi với khách  ");
+    click("Xác nhận từ chối");
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body?.customerMessage).toBe("Đã đối chiếu minh chứng và trao đổi với khách");
+  });
+
+  it("keeps rejection closable and blocks forced submission after review permission is revoked", async () => {
+    serve({ [`get ${REFUNDS}`]: config => response(config, view) });
+    renderSection();
+    await open("Từ chối yêu cầu");
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Lý do từ chối gửi khách" }));
+    fireEvent.click(await screen.findByTitle("Minh chứng chưa đủ để xác nhận vấn đề"));
+    await act(async () => useAppStore.getState().setProfile(staffProfile(["ORDER_READ"])));
+    expect(
+      (screen.getByRole("button", { name: "Xác nhận từ chối" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    fireEvent.submit(screen.getByRole("form", { name: "Từ chối yêu cầu hoàn tiền" }));
+    expect(writes()).toHaveLength(0);
+    click("Đóng");
+    expect(screen.queryByRole("form", { name: "Từ chối yêu cầu hoàn tiền" })).toBeNull();
+  });
+
   it("inspection_has_separate_received_and_sellable_inputs", async () => {
     const awaitingReturn = withRequest(
       { stage: "awaiting_return" },
@@ -843,10 +1026,10 @@ describe("admin refund section", () => {
     });
     renderSection();
     await open("Kiểm tra hàng trả");
-    const received = () => field("spinbutton", `Số lượng đã nhận ${itemLabel}`);
+    const received = () => field("spinbutton", `Số lượng nhận trong lần này ${itemLabel}`);
     const sellable = () => field("spinbutton", `Số lượng có thể bán lại ${itemLabel}`);
     expect([received().value, sellable().value]).toEqual(["0", "0"]);
-    type("spinbutton", `Số lượng đã nhận ${itemLabel}`, "2");
+    type("spinbutton", `Số lượng nhận trong lần này ${itemLabel}`, "2");
     expect([received().value, sellable().value]).toEqual(["2", "0"]);
     type("textbox", "Ghi chú kiểm tra", "Hộp rách");
 
@@ -882,6 +1065,86 @@ describe("admin refund section", () => {
     expect(calls.filter(call => call.url.endsWith("/status"))).toEqual([]);
   });
 
+  it("bounds inspection quantities by outstanding returns and keeps invalid drafts on blur", async () => {
+    const awaitingReturn = withRequest(
+      { stage: "awaiting_return" },
+      { approvedQuantity: 3, receivedQuantity: 1, returnRequired: true }
+    );
+    serve({
+      [`get ${REFUNDS}`]: config => response(config, awaitingReturn),
+      [`post ${REFUNDS}/r1/inspections`]: config => response(config, view)
+    });
+    renderSection();
+    await open("Kiểm tra hàng trả");
+    const received = field("spinbutton", `Số lượng nhận trong lần này ${itemLabel}`);
+    const sellable = field("spinbutton", `Số lượng có thể bán lại ${itemLabel}`);
+    expect(screen.getByLabelText("Số lượng nhận trong lần này")).toBe(received);
+    expect(received.getAttribute("aria-valuemin")).toBe("0");
+    expect(received.getAttribute("aria-valuemax")).toBe("2");
+    expect(sellable.getAttribute("aria-valuemin")).toBe("0");
+    expect(sellable.getAttribute("aria-valuemax")).toBe("0");
+    fireEvent.change(received, { target: { value: "2" } });
+    expect(sellable.getAttribute("aria-valuemax")).toBe("2");
+    fireEvent.change(sellable, { target: { value: "2" } });
+    fireEvent.change(received, { target: { value: "1" } });
+    fireEvent.blur(sellable);
+    expect(sellable.value).toBe("2");
+    expect(sellable.getAttribute("aria-valuemax")).toBe("1");
+    type("textbox", "Ghi chú kiểm tra", "Nhận thêm một sản phẩm");
+    fireEvent.click(field("checkbox", `Xác nhận hàng nhận về đúng biến thể đã mua ${itemLabel}`));
+    click("Ghi nhận kiểm tra");
+    expect(writes()).toHaveLength(0);
+    expect(sellable.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(sellable.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Số lượng có thể bán lại không được vượt số đã nhận"
+    );
+    fireEvent.change(received, { target: { value: "3" } });
+    fireEvent.blur(received);
+    expect(received.value).toBe("3");
+    click("Ghi nhận kiểm tra");
+    expect(received.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(received.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Số lượng nhận trong lần này không được vượt số còn cần nhận (2 sản phẩm)"
+    );
+    expect(writes()).toHaveLength(0);
+    fireEvent.change(received, { target: { value: "1" } });
+    fireEvent.change(sellable, { target: { value: "1" } });
+    click("Ghi nhận kiểm tra");
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body?.items).toEqual([
+      {
+        allocationId: "a1",
+        receivedQuantity: 1,
+        sellableQuantity: 1,
+        confirmedPurchasedVariant: true
+      }
+    ]);
+  });
+  it("validates both inspection inputs independently and rejects negative, fractional and empty quantities", async () => {
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(
+          config,
+          withRequest({ stage: "awaiting_return" }, { approvedQuantity: 3, returnRequired: true })
+        )
+    });
+    renderSection();
+    await open("Kiểm tra hàng trả");
+    const received = field("spinbutton", `Số lượng nhận trong lần này ${itemLabel}`);
+    const sellable = field("spinbutton", `Số lượng có thể bán lại ${itemLabel}`);
+    type("textbox", "Ghi chú kiểm tra", "Kiểm tra số lượng");
+    for (const value of ["-1", "0.5", ""]) {
+      fireEvent.change(received, { target: { value } });
+      fireEvent.change(sellable, { target: { value } });
+      click("Ghi nhận kiểm tra");
+      expect(received.getAttribute("aria-invalid")).toBe("true");
+      expect(sellable.getAttribute("aria-invalid")).toBe("true");
+      expect(document.getElementById(received.getAttribute("aria-describedby")!)?.textContent).toBe(
+        "Số lượng nhận trong lần này phải là số nguyên không âm"
+      );
+      expect(writes()).toHaveLength(0);
+    }
+  });
   it("legacy_unknowns_require_reason_and_attestation", async () => {
     serve({
       [`get ${REFUNDS}`]: config => response(config, legacyView(0)),
@@ -973,13 +1236,15 @@ describe("admin refund section", () => {
     renderSection();
     await open("Tạo yêu cầu ngoại lệ");
     const quantity = `Số lượng hoàn ${itemLabel}`;
-    expect(field("spinbutton", quantity).value).toBe("0");
+    expect(screen.queryByRole("spinbutton", { name: quantity })).toBeNull();
     click("Gửi yêu cầu ngoại lệ");
     expect(await screen.findByText("Cần nêu lý do ngoại lệ")).toBeTruthy();
     expect(
       await screen.findByText("Chọn ít nhất một sản phẩm hoặc chỉ hoàn phí vận chuyển")
     ).toBeTruthy();
 
+    fireEvent.click(field("checkbox", `Chọn ${itemLabel}`));
+    expect(field("spinbutton", quantity).value).toBe("1");
     type("spinbutton", quantity, "3");
     type("textbox", "Lý do ngoại lệ", "Quá hạn do lỗi giao hàng");
     type("textbox", `Giải thích ${itemLabel}`, "Giao trễ 10 ngày");
@@ -1008,6 +1273,48 @@ describe("admin refund section", () => {
     });
   });
 
+  it("omits deselected exception products even when they retain a draft", async () => {
+    const secondLabel = "Sản phẩm thứ hai (SKU-S)";
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(config, {
+          ...view,
+          requests: [],
+          allocations: [
+            { ...allocation, availableQuantity: 2 },
+            {
+              ...allocation,
+              allocationId: "a2",
+              productInfoIndex: 1,
+              productName: "Sản phẩm thứ hai",
+              availableQuantity: 1
+            }
+          ]
+        }),
+      [`post ${REFUNDS}`]: config => response(config, view)
+    });
+    renderSection();
+    await open("Tạo yêu cầu ngoại lệ");
+    fireEvent.click(field("checkbox", `Chọn ${itemLabel}`));
+    type("textbox", `Giải thích ${itemLabel}`, "Bản nháp không gửi");
+    fireEvent.click(field("checkbox", `Chọn ${itemLabel}`));
+    expect(screen.queryByRole("textbox", { name: `Giải thích ${itemLabel}` })).toBeNull();
+    fireEvent.click(field("checkbox", `Chọn ${secondLabel}`));
+    type("textbox", `Giải thích ${secondLabel}`, "Chỉ hoàn sản phẩm thứ hai");
+    type("textbox", "Lý do ngoại lệ", "Chấp nhận ngoài thời hạn");
+    click("Gửi yêu cầu ngoại lệ");
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body?.items).toEqual([
+      {
+        allocationId: "a2",
+        quantity: 1,
+        reason: "ordinary",
+        explanation: "Chỉ hoàn sản phẩm thứ hai",
+        requestedReturn: "return",
+        evidenceIds: []
+      }
+    ]);
+  });
   it("shipping_only_exception_sends_no_items", async () => {
     const withAvailable = {
       ...view,
@@ -1171,6 +1478,18 @@ describe("admin refund section", () => {
       new Set(["/orders/order-id/refund-evidence/e1", "/orders/order-id/refund-evidence/e2"])
     );
     expect(evidenceCalls.every(call => call.responseType === "blob")).toBe(true);
+    fireEvent.click(first);
+    const preview = await screen.findByRole("dialog");
+    expect(
+      within(preview)
+        .getByRole("img", { name: `Ảnh bằng chứng 1/2 — ${itemLabel}` })
+        .getAttribute("src")
+    ).toBe("blob:evidence-1");
+    expect(calls.filter(call => call.url.includes("refund-evidence"))).toHaveLength(
+      evidenceCalls.length
+    );
+    fireEvent.keyDown(preview, { key: "Escape", code: "Escape", keyCode: 27 });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(await screen.findByText("Không tải được ảnh bằng chứng 2/2")).toBeTruthy();
     expect(screen.queryByRole("img", { name: /2\/2/ })).toBeNull();
     rerender({ orderId: "order-id", revision: 4 });
@@ -1187,6 +1506,7 @@ describe("admin refund section", () => {
     });
     const { rerender } = renderSection({ orderId: "order-1" });
     rerender({ orderId: "order-2" });
+    await open("Chi tiết số lượng có thể hoàn");
     expect(await screen.findByText(/22\.000/)).toBeTruthy();
     first.resolve(
       response({ headers: {} } as InternalAxiosRequestConfig, {

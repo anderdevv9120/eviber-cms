@@ -181,55 +181,102 @@ function ExceptionRequest({ ctx, labels, onClose }: Props) {
               const line = lines[allocation.allocationId];
               return (
                 <fieldset key={allocation.allocationId} className='my-4'>
-                  <legend className='font-semibold'>{label}</legend>
+                  <legend className='font-semibold'>
+                    <Checkbox
+                      checked={line.quantity !== 0}
+                      onChange={event =>
+                        editLine(allocation.allocationId, {
+                          quantity: event.target.checked ? 1 : 0
+                        })
+                      }
+                      aria-label={`Chọn ${label}`}
+                    >
+                      {label}
+                    </Checkbox>
+                  </legend>
                   {ctx.readable !== false && (
                     <Typography.Text type='secondary'>
                       Còn có thể hoàn: {allocation.availableQuantity}
                     </Typography.Text>
                   )}
-                  <Flex gap={12} wrap align='center' className='mt-2'>
-                    <InputNumber
-                      aria-label={`Số lượng hoàn ${label}`}
-                      precision={0}
-                      min={0}
-                      value={line.quantity}
-                      onChange={value => editLine(allocation.allocationId, { quantity: value })}
-                      {...invalid(`quantity:${allocation.allocationId}`)}
-                    />
-                    <Select<RefundReason>
-                      className='w-60'
-                      aria-label={`Lý do hoàn ${label}`}
-                      value={line.reason}
-                      options={Object.entries(refundReasonLabels).map(([value, text]) => ({
-                        value: value as RefundReason,
-                        label: text
-                      }))}
-                      onChange={value => editLine(allocation.allocationId, { reason: value })}
-                    />
-                    <Radio.Group
-                      aria-label={`Hình thức hoàn ${label}`}
-                      value={line.requestedReturn}
-                      onChange={event =>
-                        editLine(allocation.allocationId, { requestedReturn: event.target.value })
-                      }
-                    >
-                      <Radio value='return'>Trả hàng</Radio>
-                      <Radio value='no_return'>Không trả hàng</Radio>
-                    </Radio.Group>
-                  </Flex>
-                  {error(`quantity:${allocation.allocationId}`)}
-                  <Input.TextArea
-                    className='mt-2'
-                    aria-label={`Giải thích ${label}`}
-                    placeholder='Giải thích'
-                    rows={2}
-                    value={line.explanation}
-                    onChange={event =>
-                      editLine(allocation.allocationId, { explanation: event.target.value })
-                    }
-                    {...invalid(`explanation:${allocation.allocationId}`)}
-                  />
-                  {error(`explanation:${allocation.allocationId}`)}
+                  {line.quantity !== 0 && (
+                    <>
+                      <Flex gap={12} wrap align='flex-start' className='mt-2'>
+                        <div>
+                          <label
+                            htmlFor={`refund-exception-quantity-${allocation.allocationId}`}
+                            className='mb-1 block'
+                          >
+                            Số lượng hoàn
+                          </label>
+                          <InputNumber
+                            id={`refund-exception-quantity-${allocation.allocationId}`}
+                            aria-label={`Số lượng hoàn ${label}`}
+                            precision={0}
+                            min={0}
+                            value={line.quantity}
+                            onChange={value =>
+                              editLine(allocation.allocationId, { quantity: value })
+                            }
+                            {...invalid(`quantity:${allocation.allocationId}`)}
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`refund-exception-reason-${allocation.allocationId}`}
+                            className='mb-1 block'
+                          >
+                            Lý do hoàn
+                          </label>
+                          <Select<RefundReason>
+                            id={`refund-exception-reason-${allocation.allocationId}`}
+                            className='w-60'
+                            aria-label={`Lý do hoàn ${label}`}
+                            value={line.reason}
+                            options={Object.entries(refundReasonLabels).map(([value, text]) => ({
+                              value: value as RefundReason,
+                              label: text
+                            }))}
+                            onChange={value => editLine(allocation.allocationId, { reason: value })}
+                          />
+                        </div>
+                        <div>
+                          <div className='mb-1'>Hình thức hoàn</div>
+                          <Radio.Group
+                            aria-label={`Hình thức hoàn ${label}`}
+                            value={line.requestedReturn}
+                            onChange={event =>
+                              editLine(allocation.allocationId, {
+                                requestedReturn: event.target.value
+                              })
+                            }
+                          >
+                            <Radio value='return'>Trả hàng</Radio>
+                            <Radio value='no_return'>Không trả hàng</Radio>
+                          </Radio.Group>
+                        </div>
+                      </Flex>
+                      {error(`quantity:${allocation.allocationId}`)}
+                      <label
+                        htmlFor={`refund-explanation-${allocation.allocationId}`}
+                        className='mt-2 mb-1 block'
+                      >
+                        Giải thích cho sản phẩm
+                      </label>
+                      <Input.TextArea
+                        id={`refund-explanation-${allocation.allocationId}`}
+                        aria-label={`Giải thích ${label}`}
+                        placeholder='Giải thích'
+                        rows={2}
+                        value={line.explanation}
+                        onChange={event =>
+                          editLine(allocation.allocationId, { explanation: event.target.value })
+                        }
+                        {...invalid(`explanation:${allocation.allocationId}`)}
+                      />
+                      {error(`explanation:${allocation.allocationId}`)}
+                    </>
+                  )}
                 </fieldset>
               );
             })}

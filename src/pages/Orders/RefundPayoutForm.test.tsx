@@ -268,15 +268,13 @@ describe("refund payout claim and completion", () => {
     // Stage 1: nothing can be recorded before the amount is frozen by a claim.
     await screen.findByRole("button", { name: "Nhận xử lý hoàn tiền" });
     expect(screen.queryByRole("spinbutton", { name: "Số tiền đã hoàn" })).toBeNull();
-    expect(
-      screen.getByText(/Số tiền cần hoàn: 270\.000 ₫ \(hàng 270\.000 ₫, vận chuyển 0 ₫\)/)
-    ).toBeTruthy();
+    expect(screen.getByText("Cần hoàn: 270.000 ₫")).toBeTruthy();
     expect(screen.getByText(notTransferred)).toBeTruthy();
     expect(writes()).toHaveLength(0);
     click("Nhận xử lý hoàn tiền");
 
     // Stage 2: the claim returns the frozen amount; only now can staff record the manual payout.
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     expect(writes()).toHaveLength(1);
     expect(writes()[0].body).toEqual({
       expectedRevision: 4,
@@ -332,7 +330,7 @@ describe("refund payout claim and completion", () => {
       [`post ${REFUNDS}/r1/payout`]: config => fail(config, 409, "đang được xử lý", "refund00015")
     });
     renderSection();
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     expect(screen.queryByText("Yêu cầu đang được quản trị viên khác xử lý chi trả.")).toBeNull();
     fillPayout();
     click("Ghi nhận đã hoàn tiền");
@@ -350,7 +348,7 @@ describe("refund payout claim and completion", () => {
       [`post ${REFUNDS}/r1/payout`]: config => lostResponse(config)
     });
     renderSection();
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     fillPayout();
     click("Ghi nhận đã hoàn tiền");
 
@@ -358,7 +356,9 @@ describe("refund payout claim and completion", () => {
     const done = await screen.findByRole("region", {
       name: "Khoản hoàn tiền đã hoàn tất của yêu cầu 1"
     });
-    expect(within(done).getByText(/FT-REAL-1/)).toBeTruthy();
+    expect(within(done).getByText("Đã hoàn tiền: 270.000 ₫")).toBeTruthy();
+    click(/Yêu cầu 1/);
+    expect(screen.getByText(/FT-REAL-1/)).toBeTruthy();
     expect(button("Ghi nhận đã hoàn tiền")).toBeNull();
     expect(writes()).toHaveLength(1);
   });
@@ -371,7 +371,7 @@ describe("refund payout claim and completion", () => {
         attempts++ ? response(config, completed) : lostResponse(config)
     });
     renderSection();
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     fillPayout();
     click("Ghi nhận đã hoàn tiền");
     await screen.findByText(/Chưa xác định được kết quả thao tác trước/);
@@ -448,7 +448,7 @@ describe("refund payout claim and completion", () => {
         response(config, makeView({ approval }, { canPay: false, canReview: true }))
     });
     renderSection();
-    await screen.findByText(/Đã duyệt hoàn: 270\.000 ₫/);
+    await screen.findByText("Cần hoàn: 270.000 ₫");
     expect(screen.queryByRole("region", completedRegion)).toBeNull();
   });
 
@@ -459,17 +459,59 @@ describe("refund payout claim and completion", () => {
     });
     renderSection();
     await screen.findByRole("region", { name: "Yêu cầu hoàn tiền 1" });
-    expect(screen.queryAllByRole("button").map(entry => entry.textContent)).toEqual([]);
+    expect(
+      screen
+        .queryAllByRole("button")
+        .filter(entry => entry.tagName === "BUTTON")
+        .map(entry => entry.textContent)
+    ).toEqual([]);
   });
 
+  it("prefills the frozen total including shipping while leaving transfer details empty", async () => {
+    const shippingAmount = 30000;
+    const amount = claim.merchandiseAmount + shippingAmount;
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(
+          config,
+          makeView({
+            stage: "payout_in_progress",
+            approval: { ...approval, shippingAmount, amount },
+            claim: { ...claim, shippingAmount, amount }
+          })
+        ),
+      [`post ${REFUNDS}/r1/payout`]: config => response(config, completed)
+    });
+    renderSection();
+    const input = await screen.findByRole("spinbutton", { name: "Số tiền đã hoàn" });
+    expect((input as HTMLInputElement).value).toBe(String(amount));
+    expect((input as HTMLInputElement).readOnly).toBe(false);
+    expect(
+      (screen.getByRole("textbox", { name: "Thời điểm đã chuyển tiền" }) as HTMLInputElement).value
+    ).toBe("");
+    expect(
+      (screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }) as HTMLInputElement).value
+    ).toBe("");
+    expect(writes()).toHaveLength(0);
+    selectTime("Thời điểm đã chuyển tiền", PAID_AT);
+    fireEvent.change(screen.getByRole("textbox", { name: "Mã tham chiếu giao dịch" }), {
+      target: { value: "FT-PREFILLED" }
+    });
+    click("Ghi nhận đã hoàn tiền");
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body?.amount).toBe(amount);
+  });
   it("record_validates_amount_time_and_reference", async () => {
     serve({
       [`get ${REFUNDS}`]: config => response(config, claimed()),
       [`post ${REFUNDS}/r1/payout`]: config => response(config, completed)
     });
     renderSection();
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
 
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Số tiền đã hoàn" }), {
+      target: { value: "" }
+    });
     click("Ghi nhận đã hoàn tiền");
     for (const message of [
       "Nhập số tiền đã hoàn",
@@ -477,15 +519,16 @@ describe("refund payout claim and completion", () => {
       "Nhập mã tham chiếu giao dịch"
     ])
       expect(screen.getByText(message)).toBeTruthy();
+    // Out-of-window values are refused by the picker itself: before the claim and after now.
+    // The time stays empty, so submitting keeps the required error instead of recording one.
+    selectTime("Thời điểm đã chuyển tiền", "2026-10-22T12:00");
+    selectTime("Thời điểm đã chuyển tiền", "2026-10-26T12:00");
+    click("Ghi nhận đã hoàn tiền");
+    expect(screen.getByText("Nhập thời điểm đã chuyển tiền")).toBeTruthy();
+    expect(writes()).toHaveLength(0);
     fillPayout({ amount: "269999" });
     click("Ghi nhận đã hoàn tiền");
     expect(screen.getByText("Số tiền phải đúng bằng 270.000 ₫")).toBeTruthy();
-    fillPayout({ paidAt: "2026-10-22T12:00" });
-    click("Ghi nhận đã hoàn tiền");
-    expect(screen.getByText("Thời điểm chuyển tiền không được trước lúc nhận xử lý")).toBeTruthy();
-    fillPayout({ paidAt: "2026-10-26T12:00" });
-    click("Ghi nhận đã hoàn tiền");
-    expect(screen.getByText("Thời điểm chuyển tiền không được ở tương lai")).toBeTruthy();
     fillPayout({ reference: "r".repeat(101) });
     click("Ghi nhận đã hoàn tiền");
     expect(screen.getByText("Mã tham chiếu tối đa 100 ký tự")).toBeTruthy();
@@ -499,6 +542,31 @@ describe("refund payout claim and completion", () => {
     expect(writes()[0].body?.reference).toBe("r".repeat(100));
   }, 15000);
 
+  it("picker allows the claim minute but submit validation catches the sub-minute overlap", async () => {
+    // A claim time with seconds: the picker (minute precision) accepts the claim minute itself,
+    // while validate() still rejects the resulting value for falling before claimedAt.
+    const claimAt = "2026-10-23T02:30:45.000Z";
+    serve({
+      [`get ${REFUNDS}`]: config =>
+        response(
+          config,
+          makeView({
+            stage: "payout_in_progress",
+            approval,
+            claim: { ...claim, claimedAt: claimAt }
+          })
+        ),
+      [`post ${REFUNDS}/r1/payout`]: config => response(config, completed)
+    });
+    renderSection();
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
+    fillPayout();
+    selectTime("Thời điểm đã chuyển tiền", claimAt);
+    click("Ghi nhận đã hoàn tiền");
+    expect(screen.getByText("Thời điểm chuyển tiền không được trước lúc nhận xử lý")).toBeTruthy();
+    expect(writes()).toHaveLength(0);
+  });
+
   it("double_click_sends_one_command", async () => {
     const pending = deferred<AxiosResponse>();
     serve({
@@ -506,7 +574,7 @@ describe("refund payout claim and completion", () => {
       [`post ${REFUNDS}/r1/payout`]: () => pending.promise
     });
     renderSection();
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     fillPayout();
     const record = screen.getByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     fireEvent.click(record);
@@ -525,7 +593,7 @@ describe("refund payout claim and completion", () => {
         fail(config, 409, "Đơn hàng đã thay đổi", "order00006")
     });
     renderSection();
-    await screen.findByText("Số tiền đã cố định để hoàn: 270.000 ₫");
+    await screen.findByRole("button", { name: "Ghi nhận đã hoàn tiền" });
     fillPayout();
     click("Ghi nhận đã hoàn tiền");
     await screen.findByText(/Dữ liệu mới nhất đã được tải/);
@@ -545,8 +613,9 @@ describe("refund payout claim and completion", () => {
       await screen.findByRole("region", { name: "Khoản hoàn tiền đã hoàn tất của yêu cầu 1" })
     );
     expect(done.getByText(/Đã hoàn tiền: 270\.000 ₫/)).toBeTruthy();
-    expect(done.getByText(/FT-REAL-1/)).toBeTruthy();
-    expect(done.getByText(/24\/10\/2026|10\/24\/2026/)).toBeTruthy();
+    click(/Yêu cầu 1/);
+    expect(screen.getByText(/FT-REAL-1/)).toBeTruthy();
+    expect(screen.getByText(/Chuyển lúc.*24\/10\/2026/)).toBeTruthy();
     for (const name of [
       "Nhận xử lý hoàn tiền",
       "Ghi nhận đã hoàn tiền",

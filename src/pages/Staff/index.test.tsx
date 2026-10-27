@@ -70,13 +70,28 @@ beforeEach(() => {
 });
 
 describe("staff management entry", () => {
-  it("shows invitations and staff sections for the owner with the guidance copy", async () => {
+  it("shows guidance from the header info button with a hover title", async () => {
     setup();
     await screen.findByText("kho@example.test");
     expect(await screen.findByText("inv-1@example.test")).toBeTruthy();
-    expect(screen.getByText(/giữ nguyên tài khoản khách hàng/i)).toBeTruthy();
-    expect(screen.getByText(/chưa phải là nhân viên/i)).toBeTruthy();
-    expect(screen.getByText(/Thu hồi quyền CMS không xóa tài khoản khách hàng/i)).toBeTruthy();
+    expect(screen.queryByText(/giữ nguyên tài khoản khách hàng/i)).toBeNull();
+    const info = screen.getByRole("button", { name: "Về thư mời và quyền CMS" });
+    fireEvent.mouseOver(info);
+    expect(await screen.findByRole("tooltip")).toHaveProperty(
+      "textContent",
+      "Về thư mời và quyền CMS"
+    );
+    fireEvent.mouseOut(info);
+    fireEvent.click(info);
+    const dialog = await screen.findByRole("dialog", { name: "Về thư mời và quyền CMS" });
+    expect(within(dialog).getByText(/giữ nguyên tài khoản khách hàng/i)).toBeTruthy();
+    expect(within(dialog).getByText(/chưa phải là nhân viên/i)).toBeTruthy();
+    expect(
+      within(dialog).getByText(/Thu hồi quyền CMS không xóa tài khoản khách hàng/i)
+    ).toBeTruthy();
+    expect(within(dialog).getByText(/Gửi mail thành công chỉ nghĩa/i)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đóng" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("shows a delegate only their invitations and never requests owner-only data", async () => {

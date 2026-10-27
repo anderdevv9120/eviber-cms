@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Flex, Modal, Select, Space, Table, Typography } from "antd";
+import { Alert, App, Button, Flex, Modal, Select, Space, Table, Tooltip, Typography } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import { Link } from "react-router";
 import { PATH } from "@/constants/paths";
 import {
@@ -57,12 +58,24 @@ export default function StaffManagement() {
 function ManagementSections() {
   const profile = useAppStore(state => state.profile);
   const isOwner = profile?.access.isOwner === true;
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
   return (
     <Flex vertical gap={24}>
       <Flex align='center' justify='space-between' gap={16} wrap='wrap'>
-        <Typography.Title level={2} className='mb-0!'>
-          Nhân viên & phân quyền
-        </Typography.Title>
+        <Flex align='center' gap={8}>
+          <Typography.Title level={2} className='mb-0!'>
+            Nhân viên & phân quyền
+          </Typography.Title>
+          <Tooltip title='Về thư mời và quyền CMS'>
+            <Button
+              type='text'
+              shape='circle'
+              icon={<InfoCircleOutlined />}
+              aria-label='Về thư mời và quyền CMS'
+              onClick={() => setGuidanceOpen(true)}
+            />
+          </Tooltip>
+        </Flex>
         <Space>
           <Link to={PATH.SETTINGS_ACCESS_NEW}>
             <Button type='primary'>Mời nhân viên</Button>
@@ -74,28 +87,27 @@ function ManagementSections() {
           )}
         </Space>
       </Flex>
-      <Alert
-        type='info'
-        showIcon
+      <Modal
         title='Về thư mời và quyền CMS'
-        description={
-          <ul className='m-0 list-disc pl-5'>
-            <li>
-              Mời một khách hàng hiện hữu vẫn giữ nguyên tài khoản khách hàng, mật khẩu và lịch sử
-              đơn hàng của họ.
-            </li>
-            <li>
-              Thư mời đang chờ chưa phải là nhân viên: người được mời phải nhận thư và kích hoạt tài
-              khoản.
-            </li>
-            <li>Thu hồi quyền CMS không xóa tài khoản khách hàng hay lịch sử mua hàng của họ.</li>
-            <li>
-              Gửi mail thành công chỉ nghĩa là máy chủ thư đã nhận thư, chưa chắc thư đã đến hộp
-              thư.
-            </li>
-          </ul>
-        }
-      />
+        open={guidanceOpen}
+        onCancel={() => setGuidanceOpen(false)}
+        footer={<Button onClick={() => setGuidanceOpen(false)}>Đóng</Button>}
+      >
+        <ul className='m-0 list-disc pl-5'>
+          <li>
+            Mời một khách hàng hiện hữu vẫn giữ nguyên tài khoản khách hàng, mật khẩu và lịch sử đơn
+            hàng của họ.
+          </li>
+          <li>
+            Thư mời đang chờ chưa phải là nhân viên: người được mời phải nhận thư và kích hoạt tài
+            khoản.
+          </li>
+          <li>Thu hồi quyền CMS không xóa tài khoản khách hàng hay lịch sử mua hàng của họ.</li>
+          <li>
+            Gửi mail thành công chỉ nghĩa là máy chủ thư đã nhận thư, chưa chắc thư đã đến hộp thư.
+          </li>
+        </ul>
+      </Modal>
       <InvitationsSection />
       {isOwner && <StaffSection />}
     </Flex>

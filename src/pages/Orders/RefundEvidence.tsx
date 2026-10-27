@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Image } from "antd";
 import { getRefundEvidenceAPI } from "@/services/refunds";
 
 type Loaded = { url: string } | { failed: true };
@@ -52,7 +53,7 @@ export default function RefundEvidence({
         if ("failed" in image)
           return <span key={id}>Không tải được ảnh bằng chứng {position}</span>;
         return (
-          <img
+          <Image
             key={id}
             src={image.url}
             alt={`Ảnh bằng chứng ${position} — ${label}`}

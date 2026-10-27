@@ -100,3 +100,14 @@ export const refundReasonLabels: Record<RefundReason, string> = {
   incorrect_item: "Giao sai hàng",
   other: "Lý do khác"
 };
+
+export const refundEventLabels: Record<string, string> = {
+  submitted: "Đã gửi yêu cầu",
+  decided: "Đã duyệt yêu cầu",
+  rejected: "Đã từ chối yêu cầu",
+  inspection: "Đã kiểm tra hàng trả",
+  return_received: "Đã nhận đủ hàng trả",
+  payout_claimed: "Đã nhận xử lý hoàn tiền",
+  payout_released: "Đã hủy nhận xử lý hoàn tiền",
+  payout_recorded: "Đã ghi nhận hoàn tiền"
+};

@@ -9,7 +9,7 @@ import {
   Input,
   InputNumber
 } from "antd";
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import {
   claimRefundPayoutAPI,
   recordRefundPayoutAPI,
@@ -76,9 +76,6 @@ function ClaimStep({
   onClaimConflict
 }: { ctx: RefundContext; request: AdminRefundRequest } & ClaimConflict) {
   const command = useRefundCommand(ctx, "ORDER_REFUND_PAY", { onClaimConflict });
-  // The approval is frozen by the claim itself; until then the amount is what was approved.
-  const merchandise = request.items.reduce((sum, item) => sum + item.approvedAmount, 0);
-  const shipping = request.shipping.approvedAmount;
 
   if (ctx.readable === false || !ctx.view.canPay) return null;
   return (
@@ -89,10 +86,6 @@ function ClaimStep({
         className='mb-3'
         title='Nhận xử lý trước khi chuyển tiền. Sau khi nhận xử lý, số tiền được cố định và quản trị viên khác không thể ghi nhận hay giải phóng yêu cầu này.'
       />
-      <p>
-        Số tiền cần hoàn: {money(merchandise + shipping)} (hàng {money(merchandise)}, vận chuyển{" "}
-        {money(shipping)})
-      </p>
       <p>{notTransferredText}</p>
       {command.notices}
       <Button
@@ -145,11 +138,7 @@ function ClaimedStep({
     <div className='mt-4'>
       {readable && (
         <>
-          <p>Số tiền đã cố định để hoàn: {money(claim.amount)}</p>
-          <p>
-            Hàng {money(claim.merchandiseAmount)}, vận chuyển {money(claim.shippingAmount)} · Nhận
-            xử lý lúc {formatOrderDate(claim.claimedAt)}
-          </p>
+          <p>Nhận xử lý lúc {formatOrderDate(claim.claimedAt)}</p>
           <p>{notTransferredText}</p>
           <p>
             Chuyển khoản thủ công ngoài hệ thống, sau đó ghi nhận số tiền, thời điểm và mã tham
@@ -241,7 +230,7 @@ function RecordStep({
   onEdited: () => void;
 } & ClaimConflict) {
   const command = useRefundCommand(ctx, "ORDER_REFUND_PAY", { onClaimConflict });
-  const [amount, setAmount] = useState<number | null>(null);
+  const [amount, setAmount] = useState<number | null>(claim.amount);
   const [paidAt, setPaidAt] = useState("");
   const [reference, setReference] = useState("");
   // Clock at the last submit attempt: errors show only after one, and render stays pure.
@@ -272,6 +261,33 @@ function RecordStep({
   const error = (name: string) =>
     errors[name] ? <div className='mt-1 text-red-600'>{errors[name]}</div> : null;
 
+  // The picker only offers the window [claim time, now]. Typed values bypass the panel, so
+  // validate() still guards the same bounds at submit (e.g. a claim time with seconds).
+  const claimedDate = dayjs(claim.claimedAt);
+  const disableOutsideWindow = (current: Dayjs) =>
+    current.isBefore(claimedDate, "day") || current.isAfter(dayjs(), "day");
+  const disableTimeOutsideWindow = (current: Dayjs | null) => {
+    if (!current) return {};
+    const now = dayjs();
+    const atClaimDay = current.isSame(claimedDate, "day");
+    const atToday = current.isSame(now, "day");
+    const minHour = atClaimDay ? claimedDate.hour() : 0;
+    const maxHour = atToday ? now.hour() : 23;
+    const hours = Array.from({ length: 24 }, (_, hour) => hour);
+    const minutes = Array.from({ length: 60 }, (_, minute) => minute);
+    return {
+      disabledHours: () => hours.filter(hour => hour < minHour || hour > maxHour),
+      disabledMinutes: (hour: number) =>
+        hour < minHour || hour > maxHour
+          ? minutes
+          : minutes.filter(
+              minute =>
+                (atClaimDay && hour === minHour && minute < claimedDate.minute()) ||
+                (atToday && hour === maxHour && minute > now.minute())
+            )
+    };
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const now = Date.now();
@@ -298,36 +314,54 @@ function RecordStep({
         className='mt-3'
         hidden={(ctx.readable === false || !ctx.view.canPay) && !draftStarted}
       >
-        <div className='mt-2'>
-          <InputNumber
-            aria-label='Số tiền đã hoàn'
-            placeholder='Số tiền đã hoàn'
-            precision={0}
-            value={amount}
-            onChange={value => edit(() => setAmount(value))}
-          />
-          {error("amount")}
-        </div>
-        <div className='mt-2'>
-          <DatePicker
-            aria-label='Thời điểm đã chuyển tiền'
-            format='DD/MM/YYYY HH:mm'
-            showTime
-            needConfirm={false}
-            placeholder='Chọn thời điểm đã chuyển tiền'
-            value={paidAt ? dayjs(paidAt) : null}
-            onChange={value => edit(() => setPaidAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))}
-          />
-          {error("paidAt")}
-        </div>
-        <div className='mt-2'>
-          <Input
-            aria-label='Mã tham chiếu giao dịch'
-            placeholder='Mã tham chiếu giao dịch ngân hàng'
-            value={reference}
-            onChange={event => edit(() => setReference(event.target.value))}
-          />
-          {error("reference")}
+        <div className='mt-2 grid grid-cols-1 gap-4 lg:grid-cols-3'>
+          <div className='min-w-0'>
+            <label htmlFor={`refund-paid-amount-${request.requestId}`} className='mb-1 block'>
+              Số tiền đã hoàn
+            </label>
+            <InputNumber
+              className='w-full'
+              id={`refund-paid-amount-${request.requestId}`}
+              aria-label='Số tiền đã hoàn'
+              placeholder='Số tiền đã hoàn'
+              precision={0}
+              value={amount}
+              onChange={value => edit(() => setAmount(value))}
+            />
+            {error("amount")}
+          </div>
+          <div className='min-w-0'>
+            <label htmlFor={`refund-paid-at-${request.requestId}`} className='mb-1 block'>
+              Thời điểm đã chuyển tiền
+            </label>
+            <DatePicker
+              className='w-full'
+              id={`refund-paid-at-${request.requestId}`}
+              aria-label='Thời điểm đã chuyển tiền'
+              format='DD/MM/YYYY HH:mm'
+              showTime
+              needConfirm={false}
+              placeholder='Chọn thời điểm đã chuyển tiền'
+              disabledDate={disableOutsideWindow}
+              disabledTime={disableTimeOutsideWindow}
+              value={paidAt ? dayjs(paidAt) : null}
+              onChange={value => edit(() => setPaidAt(value?.format("YYYY-MM-DDTHH:mm") ?? ""))}
+            />
+            {error("paidAt")}
+          </div>
+          <div className='min-w-0'>
+            <label htmlFor={`refund-paid-reference-${request.requestId}`} className='mb-1 block'>
+              Mã tham chiếu giao dịch
+            </label>
+            <Input
+              id={`refund-paid-reference-${request.requestId}`}
+              aria-label='Mã tham chiếu giao dịch'
+              placeholder='Mã tham chiếu giao dịch ngân hàng'
+              value={reference}
+              onChange={event => edit(() => setReference(event.target.value))}
+            />
+            {error("reference")}
+          </div>
         </div>
         {command.notices}
         <Button
