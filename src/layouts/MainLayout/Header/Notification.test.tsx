@@ -36,10 +36,15 @@ describe("notification header", () => {
     const bell = screen.getByRole("button", { name: "Thông báo" });
     bell.focus();
     open();
-    const item = await screen.findByRole("button", { name: /Đơn hàng mới/ });
+    const markAll = await screen.findByRole("button", { name: "Đánh dấu tất cả đã đọc" });
+    expect(markAll.textContent).toBe("");
     // Ant Design's motion deadline is 1000ms when jsdom emits no animation-end event.
-    await waitFor(() => expect(document.activeElement).toBe(item), { timeout: 3000 });
-    fireEvent.keyDown(item, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(markAll), { timeout: 3000 });
+    fireEvent.mouseEnter(markAll);
+    expect(
+      (await screen.findByText("Đánh dấu tất cả đã đọc")).closest('[role="tooltip"]')
+    ).toBeTruthy();
+    fireEvent.keyDown(markAll, { key: "Escape" });
     await waitFor(() => expect(bell.getAttribute("aria-expanded")).toBe("false"));
     expect(document.activeElement).toBe(bell);
   });
@@ -121,10 +126,10 @@ describe("notification header", () => {
     useNotificationStore.setState({ summary: null, isSyncing: true });
     mount();
     open();
-    expect(await screen.findByRole("status")).toHaveProperty(
-      "textContent",
-      expect.stringContaining("Đang tải")
+    expect((await screen.findByLabelText("Danh sách thông báo")).getAttribute("aria-busy")).toBe(
+      "true"
     );
+    expect(screen.queryByText("Đang tải thông báo...")).toBeNull();
     act(() =>
       useNotificationStore.setState({
         summary: { ...notificationSummary, items: [], unreadCount: 0 },
@@ -132,6 +137,17 @@ describe("notification header", () => {
       })
     );
     expect(await screen.findByText("Không có thông báo")).toBeTruthy();
+  });
+  it("overlays loading while keeping existing notifications visible", async () => {
+    useNotificationStore.setState({ isSyncing: true });
+    mount();
+    open();
+    const loading = await screen.findByLabelText("Danh sách thông báo");
+    expect(loading.getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByRole("button", { name: /Đơn hàng mới/ })).toBeTruthy();
+    act(() => useNotificationStore.setState({ isSyncing: false }));
+    await waitFor(() => expect(loading.getAttribute("aria-busy")).toBe("false"));
+    expect(screen.getByRole("button", { name: /Đơn hàng mới/ })).toBeTruthy();
   });
   it("discards click navigation after the session changes", async () => {
     const pending = deferred();

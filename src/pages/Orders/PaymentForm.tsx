@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import { ConfigProvider, Alert, Button, Input, Radio } from "antd";
+import { ConfigProvider, Alert, Button, Flex, Input, Radio } from "antd";
 import type {
   AdminOrderDetail,
   PaymentAction,
@@ -17,6 +17,7 @@ export interface PaymentFormProps {
   draft: ActionDraft;
   onDraftChange: (patch: Partial<ActionDraft>) => void;
   onSubmit: (input: UpdatePaymentInput) => void;
+  onClose?: () => void;
   disabled?: boolean;
   submitting?: boolean;
 }
@@ -27,6 +28,7 @@ export default function PaymentForm({
   draft,
   onDraftChange,
   onSubmit,
+  onClose,
   disabled,
   submitting
 }: PaymentFormProps) {
@@ -149,15 +151,21 @@ export default function PaymentForm({
           onChange={event => onDraftChange({ reference: event.target.value })}
         />
         {attempted && referenceError && <div className='mt-1 text-red-600'>{referenceError}</div>}
-        <Button
-          type='primary'
-          htmlType='submit'
-          className='mt-4'
-          loading={submitting}
-          disabled={!allowed || blocked || disabled || submitting}
-        >
-          Xác nhận
-        </Button>
+        <Flex justify='end' gap={8} className='mt-4'>
+          {onClose && (
+            <Button onClick={onClose} disabled={submitting}>
+              Đóng
+            </Button>
+          )}
+          <Button
+            type='primary'
+            htmlType='submit'
+            loading={submitting}
+            disabled={!allowed || blocked || disabled || submitting}
+          >
+            Xác nhận
+          </Button>
+        </Flex>
       </form>
     </ConfigProvider>
   );

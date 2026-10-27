@@ -69,8 +69,8 @@ export default function StoreSettings(props: {
     }
   });
   return (
-    <Flex vertical gap={16}>
-      <Typography.Paragraph>
+    <Flex vertical gap={8}>
+      <Typography.Paragraph className='mb-0'>
         Chính sách áp dụng khi thông báo được phân phối, không thay đổi lịch sử. Ngưỡng tồn kho chỉ
         áp dụng cho lần giảm tồn tiếp theo.
       </Typography.Paragraph>
@@ -88,33 +88,36 @@ export default function StoreSettings(props: {
           initialValues={draft}
           onFinish={state.submit}
         >
-          <Form.Item label='Cho phép tùy chọn cá nhân'>
-            <Switch
-              aria-label='Cho phép tùy chọn cá nhân'
-              checked={draft.allowPersonalPreferences}
-              onChange={allowPersonalPreferences =>
-                state.setDraft({ ...draft, allowPersonalPreferences })
-              }
-            />
-          </Form.Item>
-          <Form.Item
-            name='lowStockThreshold'
-            label='Ngưỡng sắp hết hàng'
-            rules={[
-              {
-                required: true,
-                type: "integer",
-                min: 1,
-                max: 1000,
-                message: "Nhập số nguyên từ 1 đến 1000"
-              }
-            ]}
-          >
-            <InputNumber
-              aria-label='Ngưỡng sắp hết hàng'
-              onChange={value => state.setDraft({ ...draft, lowStockThreshold: value as number })}
-            />
-          </Form.Item>
+          <Flex gap={32}>
+            <Form.Item layout='horizontal' label='Cho phép tùy chọn cá nhân'>
+              <Switch
+                aria-label='Cho phép tùy chọn cá nhân'
+                checked={draft.allowPersonalPreferences}
+                onChange={allowPersonalPreferences =>
+                  state.setDraft({ ...draft, allowPersonalPreferences })
+                }
+              />
+            </Form.Item>
+            <Form.Item
+              layout='horizontal'
+              name='lowStockThreshold'
+              label='Ngưỡng sắp hết hàng'
+              rules={[
+                {
+                  required: true,
+                  type: "integer",
+                  min: 1,
+                  max: 1000,
+                  message: "Nhập số nguyên từ 1 đến 1000"
+                }
+              ]}
+            >
+              <InputNumber
+                aria-label='Ngưỡng sắp hết hàng'
+                onChange={value => state.setDraft({ ...draft, lowStockThreshold: value as number })}
+              />
+            </Form.Item>
+          </Flex>
           <Table
             rowKey={type => type}
             pagination={false}

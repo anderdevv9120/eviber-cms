@@ -251,6 +251,7 @@ export default function PersonalSettings(props: { scope: string; access: string 
             ]}
           />
           <Button
+            className='self-start'
             type='primary'
             loading={state.saving}
             disabled={!state.dirty || state.saving || state.blocked}

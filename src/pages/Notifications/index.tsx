@@ -221,7 +221,9 @@ function History({
                   style={{ padding: 0, whiteSpace: "normal", height: "auto", textAlign: "left" }}
                   onClick={() => run([item.id], item)}
                 >
-                  <Typography.Text strong={!item.readAt}>{item.title}</Typography.Text>
+                  <Typography.Text strong={!item.readAt} underline style={{ color: "inherit" }}>
+                    {item.title}
+                  </Typography.Text>
                 </Button>
                 <Typography.Text>{item.body}</Typography.Text>
               </Flex>

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Alert, Badge, Button, Empty, Flex, Popover, Typography } from "antd";
-import { BellOutlined } from "@ant-design/icons";
+import { Alert, Badge, Button, Empty, Flex, Popover, Spin, Tooltip, Typography } from "antd";
+import { BellOutlined, CheckOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router";
 import { PATH } from "@/constants/paths";
 import {
@@ -89,76 +89,88 @@ const NotificationPanel = ({
       }}
       trigger='click'
       placement='bottomRight'
-      title='Thông báo'
       content={
-        <Flex
-          ref={panel}
-          vertical
-          gap={12}
-          style={{ width: 360, maxHeight: "70vh", overflowY: "auto" }}
-          onKeyDown={event => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              setOpen(false);
-              bell.current?.focus();
-            }
-          }}
-        >
-          {(error || syncError) && (
-            <Alert
-              type='error'
-              showIcon
-              title={error || syncError}
-              action={
-                <Button
-                  onClick={() => {
-                    setError(null);
-                    refreshNotifications();
-                  }}
-                >
-                  Thử lại
-                </Button>
+        <Spin spinning={isSyncing} aria-label='Danh sách thông báo'>
+          <Flex
+            ref={panel}
+            vertical
+            gap={12}
+            style={{ width: 360, minHeight: 120, maxHeight: "70vh", overflowY: "auto" }}
+            onKeyDown={event => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                setOpen(false);
+                bell.current?.focus();
               }
-            />
-          )}
-          {isSyncing && <span role='status'>Đang tải thông báo...</span>}
-          {summary && !summary.items.length && (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='Không có thông báo' />
-          )}
-          {summary?.items.slice(0, 10).map(item => (
-            <Button
-              key={item.id}
-              type='text'
-              disabled={busy}
-              onClick={() => run(item)}
-              style={{
-                height: "auto",
-                whiteSpace: "normal",
-                textAlign: "left",
-                justifyContent: "start"
-              }}
-            >
-              <Flex vertical align='start'>
-                <Typography.Text strong={!item.readAt}>{item.title}</Typography.Text>
-                <Typography.Text>{item.body}</Typography.Text>
-                <Typography.Text type='secondary'>
-                  {Number.isFinite(Date.parse(item.occurredAt))
-                    ? new Date(item.occurredAt).toLocaleString("vi-VN")
-                    : "—"}
-                </Typography.Text>
-              </Flex>
-            </Button>
-          ))}
-          <Button disabled={!summary || busy || !summary.unreadCount} onClick={() => run()}>
-            Đánh dấu tất cả đã đọc
-          </Button>
-          <Link to={PATH.NOTIFICATIONS} onClick={() => setOpen(false)}>
-            Xem tất cả thông báo
-          </Link>
-          <Link to={PATH.SETTINGS_NOTIFICATIONS} onClick={() => setOpen(false)}>
-            Cài đặt thông báo
-          </Link>
-        </Flex>
+            }}
+          >
+            <Flex justify='space-between' align='center'>
+              <Typography.Text strong>Thông báo</Typography.Text>
+              <Tooltip title='Đánh dấu tất cả đã đọc'>
+                <Button
+                  type='text'
+                  size='small'
+                  aria-label='Đánh dấu tất cả đã đọc'
+                  icon={<CheckOutlined />}
+                  disabled={!summary || busy || !summary.unreadCount}
+                  onClick={() => run()}
+                />
+              </Tooltip>
+            </Flex>
+            {(error || syncError) && (
+              <Alert
+                type='error'
+                showIcon
+                title={error || syncError}
+                action={
+                  <Button
+                    onClick={() => {
+                      setError(null);
+                      refreshNotifications();
+                    }}
+                  >
+                    Thử lại
+                  </Button>
+                }
+              />
+            )}
+            {summary && !summary.items.length && (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='Không có thông báo' />
+            )}
+            {summary?.items.slice(0, 10).map(item => (
+              <Button
+                key={item.id}
+                type='text'
+                disabled={busy}
+                onClick={() => run(item)}
+                style={{
+                  height: "auto",
+                  whiteSpace: "normal",
+                  textAlign: "left",
+                  justifyContent: "start"
+                }}
+              >
+                <Flex vertical align='start'>
+                  <Typography.Text strong={!item.readAt}>{item.title}</Typography.Text>
+                  <Typography.Text>{item.body}</Typography.Text>
+                  <Typography.Text type='secondary'>
+                    {Number.isFinite(Date.parse(item.occurredAt))
+                      ? new Date(item.occurredAt).toLocaleString("vi-VN")
+                      : "—"}
+                  </Typography.Text>
+                </Flex>
+              </Button>
+            ))}
+            <Flex justify='space-between' gap={12}>
+              <Link to={PATH.NOTIFICATIONS} onClick={() => setOpen(false)}>
+                Xem tất cả thông báo
+              </Link>
+              <Link to={PATH.SETTINGS_NOTIFICATIONS} onClick={() => setOpen(false)}>
+                Cài đặt thông báo
+              </Link>
+            </Flex>
+          </Flex>
+        </Spin>
       }
     >
       <Badge count={summary?.unreadCount ?? 0} size='small' offset={[-6, 6]} overflowCount={99}>
