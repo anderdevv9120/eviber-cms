@@ -34,6 +34,7 @@ export const NAVIGATION_POLICIES: Record<string, CmsAccessPolicy> = {
 
 export const ROUTE_POLICIES: Record<string, CmsAccessPolicy> = {
   ...NAVIGATION_POLICIES,
+  [PATH.NOTIFICATIONS]: { authenticated: true },
   [PATH.COMBO_NEW]: { anyOf: ["COMBO_CREATE"] },
   [PATH.COMBO_DETAIL]: { anyOf: ["COMBO_READ"] },
   [PATH.PRODUCT_NEW]: { anyOf: ["PRODUCT_CREATE"] },

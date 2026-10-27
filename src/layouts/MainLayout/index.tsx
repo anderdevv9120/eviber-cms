@@ -16,6 +16,7 @@ const { Content } = Layout;
 
 // Tra theo mục menu đang sáng nên route con dùng crumb của mục cha; màn chưa khai thì không hiện crumb
 const STATIC_BREADCRUMBS: Record<string, string[]> = {
+  [PATH.NOTIFICATIONS]: ["Thông báo"],
   [PATH.PRODUCTS]: ["Catalog", "Sản phẩm"],
   [PATH.COMBOS]: ["Catalog", "Combo"],
   [PATH.CATEGORIES]: ["Catalog", "Danh mục sản phẩm"],
@@ -91,7 +92,11 @@ const MainLayout = () => {
               },
               ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
             ]
-          : (STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ?? []).map(title => ({ title }));
+          : (
+              STATIC_BREADCRUMBS[pathname] ??
+              STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ??
+              []
+            ).map(title => ({ title }));
   const productEditor = !!matchPath(PATH.PRODUCT_DETAIL, pathname);
   const comboEditor = !!matchPath(PATH.COMBO_DETAIL, pathname);
   if (productEditor || comboEditor) {

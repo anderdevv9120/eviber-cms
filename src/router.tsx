@@ -27,6 +27,7 @@ const RegisteredCustomerDetail = lazy(() => import("./pages/Customers/Registered
 const GuestBuyerDetail = lazy(() => import("./pages/Customers/GuestBuyerDetail"));
 const Categories = lazy(() => import("./pages/Categories"));
 const Reviews = lazy(() => import("./pages/Reviews"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Vouchers = lazy(() => import("./pages/Vouchers"));
 const ContentHome = lazy(() => import("./pages/ContentHome"));
@@ -71,6 +72,14 @@ export const routes: RouteObject[] = [
     ),
     children: [
       { path: PATH.HOME, element: <PermissionGuard /> },
+      {
+        path: PATH.NOTIFICATIONS,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.NOTIFICATIONS]}>
+            <Notifications />
+          </PermissionGuard>
+        )
+      },
       {
         path: PATH.SETTINGS_ROLES,
         element: (

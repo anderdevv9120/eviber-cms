@@ -5,7 +5,13 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { AxiosError } from "axios";
 import { routes } from "./router";
 import axiosRequest from "@/utils/request";
-import { attribute, value, list, response, deferred } from "@/test/attribute-fixtures";
+import {
+  attribute,
+  value,
+  list,
+  response as apiResponse,
+  deferred
+} from "@/test/attribute-fixtures";
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
 import { order, orderList } from "@/test/order-fixtures";
@@ -24,6 +30,8 @@ const emptyNotifications = {
   eligibleEvents: [],
   serverTime: "2026-10-26T00:00:00.000Z"
 };
+const response: typeof apiResponse = (config, data) =>
+  apiResponse(config, config.url === "/notifications/summary" ? emptyNotifications : data);
 // Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
 configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
@@ -51,6 +59,29 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens personal notifications for active staff without feature permissions or a menu entry", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile([])
+          : config.url === "/notifications/summary"
+            ? emptyNotifications
+            : {
+                data: [],
+                total: 0,
+                totalPage: 0,
+                page: 1,
+                pageSize: 20,
+                head: 0,
+                eligibleEvents: []
+              }
+      );
+    renderRoute("/notifications");
+    await screen.findByRole("heading", { name: "Thông báo" });
+    expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Thông báo");
+    expect(screen.queryByRole("menuitem", { name: "Thông báo" })).toBeNull();
+  });
   it("opens independent refund settings for refund-policy-only staff without unrelated reads", async () => {
     const urls: string[] = [];
     axiosRequest.defaults.adapter = async config => {
