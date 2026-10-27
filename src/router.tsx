@@ -36,6 +36,7 @@ const RoleSettings = lazy(() => import("./pages/Staff/RoleSettings"));
 const StaffManagement = lazy(() => import("./pages/Staff"));
 const StaffRegistration = lazy(() => import("./pages/Staff/StaffRegistration"));
 const PaymentSettings = lazy(() => import("./pages/PaymentSettings"));
+const EmailSettings = lazy(() => import("./pages/EmailSettings"));
 const Policies = lazy(() => import("./pages/Policies"));
 
 export const routes: RouteObject[] = [
@@ -284,6 +285,14 @@ export const routes: RouteObject[] = [
         element: (
           <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_PAYMENT]}>
             <PaymentSettings />
+          </PermissionGuard>
+        )
+      },
+      {
+        path: PATH.SETTINGS_EMAIL,
+        element: (
+          <PermissionGuard policy={ROUTE_POLICIES[PATH.SETTINGS_EMAIL]}>
+            <EmailSettings />
           </PermissionGuard>
         )
       }
