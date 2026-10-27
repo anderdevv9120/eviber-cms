@@ -4,7 +4,7 @@ import { useState } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import axiosRequest from "@/utils/request";
-import { deferred, response } from "@/test/attribute-fixtures";
+import { deferred, response as apiResponse } from "@/test/attribute-fixtures";
 import { useAppStore } from "@/store/useAppStore";
 import MainLayout from ".";
 import { ownerProfile, staffProfile } from "@/test/access-fixtures";
@@ -17,6 +17,8 @@ const emptyNotifications: NotificationSummary = {
   eligibleEvents: [],
   serverTime: "2026-10-26T00:00:00.000Z"
 };
+const response: typeof apiResponse = (config, data) =>
+  apiResponse(config, config.url === "/notifications/summary" ? emptyNotifications : data);
 
 beforeEach(() => {
   localStorage.clear();
@@ -123,7 +125,7 @@ describe("CMS breadcrumb hierarchy", () => {
     fireEvent.focus(window);
     const { waitFor } = await import("@testing-library/react");
     await waitFor(() => expect(screen.queryByRole("menuitem", { name: /Sản phẩm/ })).toBeNull());
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
   });
   it.each([
     ["/dashboard", ["Tổng quan"]],

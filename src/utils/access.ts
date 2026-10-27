@@ -29,7 +29,8 @@ export const NAVIGATION_POLICIES: Record<string, CmsAccessPolicy> = {
   [PATH.SETTINGS_PAYMENT]: { ownerOnly: true },
   [PATH.SETTINGS_ROLES]: { ownerOnly: true },
   [PATH.SETTINGS_ACCESS]: { anyOf: ["USER_CREATE"] },
-  [PATH.SETTINGS_ACCESS_NEW]: { anyOf: ["USER_CREATE"] }
+  [PATH.SETTINGS_ACCESS_NEW]: { anyOf: ["USER_CREATE"] },
+  [PATH.SETTINGS_NOTIFICATIONS]: { authenticated: true }
 };
 
 export const ROUTE_POLICIES: Record<string, CmsAccessPolicy> = {

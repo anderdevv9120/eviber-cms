@@ -80,7 +80,7 @@ describe("CMS data router", () => {
     renderRoute("/notifications");
     await screen.findByRole("heading", { name: "Thông báo" });
     expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Thông báo");
-    expect(screen.queryByRole("menuitem", { name: "Thông báo" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: /Thông báo/ })).toBeTruthy();
   });
   it("opens independent refund settings for refund-policy-only staff without unrelated reads", async () => {
     const urls: string[] = [];
@@ -102,7 +102,7 @@ describe("CMS data router", () => {
       (screen.getByRole("button", { name: "Lưu chính sách hoàn tiền" }) as HTMLButtonElement)
         .disabled
     ).toBe(true);
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
   });
   it("opens owner role settings from its menu with the access-area breadcrumb", async () => {
     axiosRequest.defaults.adapter = async config =>
@@ -141,7 +141,7 @@ describe("CMS data router", () => {
     expect((await screen.findByRole("menuitem", { name: /Nhân viên/ })).className).toContain(
       "ant-menu-item-selected"
     );
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
     const breadcrumb = document.querySelector(".ant-breadcrumb")!;
     expect(breadcrumb.textContent).toContain("Cài đặt");
     expect(breadcrumb.textContent).toContain("Tài khoản & phân quyền");
@@ -196,7 +196,7 @@ describe("CMS data router", () => {
     const router = renderRoute("/");
     await screen.findByRole("heading", { name: "Tồn kho" });
     expect(router.state.location.pathname).toBe("/inventory");
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
     expect(screen.queryByText("Bán hàng")).toBeNull();
     expect(screen.queryByRole("menuitem", { name: /Tổng quan|Sản phẩm/ })).toBeNull();
   });
@@ -214,13 +214,34 @@ describe("CMS data router", () => {
     expect(forbiddenPageLoad).not.toHaveBeenCalled();
   });
 
-  it("shows no-access and sign-out for staff without permissions", async () => {
-    axiosRequest.defaults.adapter = async config => response(config, staffProfile([]));
-    renderRoute("/");
-    await screen.findByText("Bạn chưa được cấp quyền sử dụng CMS");
-    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
-    await screen.findByText("Đăng nhập vào CMS");
+  it("opens personal settings from home for staff without business permissions", async () => {
+    const urls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      urls.push(config.url!);
+      return response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile([])
+          : {
+              revision: 0,
+              storeRevision: 0,
+              allowPersonalPreferences: true,
+              events: []
+            }
+      );
+    };
+    const router = renderRoute("/");
+    await screen.findByRole("heading", { name: "Cài đặt thông báo" });
+    expect(router.state.location.pathname).toBe("/settings/notifications");
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getByRole("menuitem", { name: /Thông báo/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Cài đặt");
+    expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Thông báo");
+    expect(screen.queryByRole("tab", { name: "Cửa hàng" })).toBeNull();
+    expect(urls).not.toContain("/notification-settings");
+    expect(urls).toContain("/notifications/preferences");
   });
 
   it("refreshes expired permissions before mounting the destination after navigation", async () => {
