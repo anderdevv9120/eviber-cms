@@ -17,6 +17,13 @@ vi.mock("@/utils/notification", () => ({
   errorNotification: vi.fn()
 }));
 const profile = ownerProfile;
+const emptyNotifications = {
+  items: [],
+  unreadCount: 0,
+  head: 0,
+  eligibleEvents: [],
+  serverTime: "2026-10-26T00:00:00.000Z"
+};
 // Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
 configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
@@ -84,6 +91,7 @@ describe("CMS data router", () => {
     const roleEditorLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, staffProfile(["USER_CREATE"]));
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       roleEditorLoad();
       return response(config, roleList());
     };
@@ -129,6 +137,7 @@ describe("CMS data router", () => {
     const staffLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       staffLoad(config.url);
       return response(config, []);
     };
@@ -165,6 +174,7 @@ describe("CMS data router", () => {
     const forbiddenPageLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       forbiddenPageLoad(config.url);
       return response(config, []);
     };
@@ -187,6 +197,7 @@ describe("CMS data router", () => {
     const featureLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, current);
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       featureLoad(config.url);
       return response(config, []);
     };

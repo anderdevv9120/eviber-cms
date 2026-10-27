@@ -10,6 +10,7 @@ import HeaderMain from "./Header";
 import { menuKeyOf } from "./menu";
 import { readOrderReturnTo } from "@/pages/Orders/order-list-query";
 import { safeCustomerReturnTo } from "@/pages/Customers/customer-list-query";
+import { useNotificationPolling } from "@/hooks/useNotificationPolling";
 
 const { Content } = Layout;
 
@@ -33,6 +34,7 @@ const STATIC_BREADCRUMBS: Record<string, string[]> = {
 };
 
 const MainLayout = () => {
+  useNotificationPolling();
   const profile = useAppStore(state => state.profile);
   const { token } = theme.useToken();
   const navigate = useNavigate();
