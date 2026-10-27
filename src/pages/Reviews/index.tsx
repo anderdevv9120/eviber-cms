@@ -136,7 +136,7 @@ export default function Reviews() {
 
   return (
     <Flex vertical gap={16}>
-      <Typography.Title level={4} style={{ margin: 0 }}>
+      <Typography.Title level={2} style={{ margin: 0 }}>
         Đánh giá sản phẩm
       </Typography.Title>
       {targets.length > 0 && !selectedId && (

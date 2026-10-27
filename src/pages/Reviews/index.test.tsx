@@ -116,6 +116,7 @@ describe("reviews page", () => {
 
   it("loads pending reviews by default", async () => {
     setup();
+    expect(screen.getByRole("heading", { name: "Đánh giá sản phẩm", level: 2 })).toBeTruthy();
     expect(await screen.findByText("Áo Thun")).toBeTruthy();
     expect(api.listReviewsAPI).toHaveBeenCalledWith(
       { status: "pending", page: 1, pageSize: 20 },

@@ -232,6 +232,7 @@ function InvitationsSection() {
 }
 
 function StaffSection() {
+  const currentUserId = useAppStore(state => state.profile?._id);
   const [staff, setStaff] = useState<StaffView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -361,7 +362,7 @@ function StaffSection() {
           {
             title: "Thao tác",
             render: (_, member) =>
-              member.role ? (
+              member.role && member.id !== currentUserId ? (
                 <Flex gap={8}>
                   <Button onClick={() => openAssigning(member)}>Đổi vai trò</Button>
                   <Button

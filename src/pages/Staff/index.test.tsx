@@ -70,6 +70,23 @@ beforeEach(() => {
 });
 
 describe("staff management entry", () => {
+  it("hides self-access actions while keeping other staff manageable", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/staff"
+          ? [staff({ id: ownerProfile._id, email: ownerProfile.email }), staff()]
+          : []
+      );
+    setup();
+    const selfRow = (await screen.findByText(ownerProfile.email)).closest("tr")!;
+    expect(within(selfRow).queryByRole("button", { name: "Đổi vai trò" })).toBeNull();
+    expect(within(selfRow).queryByRole("button", { name: "Thu hồi quyền CMS" })).toBeNull();
+    const otherRow = (await screen.findByText("kho@example.test")).closest("tr")!;
+    expect(within(otherRow).getByRole("button", { name: "Đổi vai trò" })).toBeTruthy();
+    expect(within(otherRow).getByRole("button", { name: "Thu hồi quyền CMS" })).toBeTruthy();
+  });
+
   it("shows guidance from the header info button with a hover title", async () => {
     setup();
     await screen.findByText("kho@example.test");

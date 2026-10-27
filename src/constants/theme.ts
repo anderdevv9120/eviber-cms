@@ -79,6 +79,9 @@ export function getAppTheme(mode: ThemeMode): ThemeConfig {
       colorBorderSecondary: c.border,
       colorTextTertiary: c.textTertiary,
       fontSizeHeading2: 22,
+      fontSizeHeading3: 18,
+      fontSizeHeading4: 16,
+      fontSizeHeading5: 14,
       lineHeightHeading2: 1.36
     },
     components: {
