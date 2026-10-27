@@ -4,10 +4,21 @@ import { useState } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import axiosRequest from "@/utils/request";
-import { deferred, response } from "@/test/attribute-fixtures";
+import { deferred, response as apiResponse } from "@/test/attribute-fixtures";
 import { useAppStore } from "@/store/useAppStore";
 import MainLayout from ".";
 import { ownerProfile, staffProfile } from "@/test/access-fixtures";
+import type { NotificationSummary } from "@/services/notifications";
+
+const emptyNotifications: NotificationSummary = {
+  items: [],
+  unreadCount: 0,
+  head: 0,
+  eligibleEvents: [],
+  serverTime: "2026-10-26T00:00:00.000Z"
+};
+const response: typeof apiResponse = (config, data) =>
+  apiResponse(config, config.url === "/notifications/summary" ? emptyNotifications : data);
 
 beforeEach(() => {
   localStorage.clear();
@@ -17,7 +28,9 @@ beforeEach(() => {
 
 describe("CMS breadcrumb hierarchy", () => {
   it("keeps the shell and cached permissions through sidebar navigation", async () => {
-    const adapter = vi.fn(async config => response(config, ownerProfile));
+    const adapter = vi.fn(async config =>
+      response(config, config.url === "/notifications/summary" ? emptyNotifications : ownerProfile)
+    );
     axiosRequest.defaults.adapter = adapter;
     const router = createMemoryRouter(
       [
@@ -39,7 +52,10 @@ describe("CMS breadcrumb hierarchy", () => {
     await screen.findByText("Inventory page");
     expect(screen.getByRole("menu")).toBe(menu);
     expect(screen.getByRole("navigation")).toBe(header);
-    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(adapter.mock.calls.filter(([config]) => config.url === "/auth/profile")).toHaveLength(1);
+    expect(
+      adapter.mock.calls.filter(([config]) => config.url === "/notifications/summary")
+    ).toHaveLength(1);
   });
 
   it("keeps the shell mounted while expired permissions are checked before the destination", async () => {
@@ -109,7 +125,7 @@ describe("CMS breadcrumb hierarchy", () => {
     fireEvent.focus(window);
     const { waitFor } = await import("@testing-library/react");
     await waitFor(() => expect(screen.queryByRole("menuitem", { name: /Sản phẩm/ })).toBeNull());
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
   });
   it.each([
     ["/dashboard", ["Tổng quan"]],

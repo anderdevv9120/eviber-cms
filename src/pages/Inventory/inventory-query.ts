@@ -3,6 +3,7 @@ import type { InventoryQuery, InventoryStockFilter } from "@/services/inventory"
 export interface InventoryUrlQuery {
   search: string;
   productId?: string;
+  variantId?: string;
   productStatus?: InventoryQuery["productStatus"];
   variantStatus?: InventoryQuery["variantStatus"];
   stock: InventoryStockFilter;
@@ -51,6 +52,9 @@ export function parseInventoryQuery(params: URLSearchParams): InventoryUrlState 
     productId: read("productId", "Mã sản phẩm không hợp lệ", value =>
       /^[a-f\d]{24}$/i.test(value) ? value : undefined
     ),
+    variantId: read("variantId", "Mã biến thể không hợp lệ", value =>
+      /^[a-f\d]{24}$/i.test(value) ? value : undefined
+    ),
     productStatus: read(
       "productStatus",
       "Trạng thái sản phẩm không hợp lệ",
@@ -87,6 +91,7 @@ export function toInventorySearch(query: InventoryUrlQuery): URLSearchParams {
   const params = new URLSearchParams();
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.productId) params.set("productId", query.productId);
+  if (query.variantId) params.set("variantId", query.variantId);
   if (query.productStatus) params.set("productStatus", query.productStatus);
   if (query.variantStatus) params.set("variantStatus", query.variantStatus);
   if (query.stock !== "all") params.set("stock", query.stock);
@@ -101,6 +106,7 @@ export function toInventoryApiQuery(query: InventoryUrlQuery): InventoryQuery {
   return {
     ...(query.search && { search: query.search }),
     ...(query.productId && { productId: query.productId }),
+    ...(query.variantId && { variantId: query.variantId }),
     ...(query.productStatus && { productStatus: query.productStatus }),
     ...(query.variantStatus && { variantStatus: query.variantStatus }),
     ...(query.stock !== "all" && { stock: query.stock }),

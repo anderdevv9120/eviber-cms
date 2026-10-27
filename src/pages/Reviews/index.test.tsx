@@ -20,7 +20,7 @@ vi.mock("@/services/reviews", async importOriginal => ({
 }));
 
 const review = (overrides: Partial<api.AdminReview> = {}): api.AdminReview => ({
-  _id: "r1",
+  _id: "000000000000000000000001",
   displayName: "Khách A",
   email: "guest@example.test",
   reviewerType: "guest",
@@ -65,6 +65,43 @@ const openDrawer = async (name = "Khách A") => {
 };
 
 describe("reviews page", () => {
+  it("uses one history entry per view click and browser Back closes the drawer", async () => {
+    const router = setup("/reviews?status=approved&rating=5&page=3");
+    await openDrawer();
+    await act(() => router.navigate(-1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(router.state.location.search).toBe("?status=approved&rating=5&page=3");
+  });
+  it("opens the URL target outside the current list and closes without losing filters", async () => {
+    const id = "000000000000000000000012";
+    vi.mocked(api.getReviewAPI).mockResolvedValue(ok(review({ _id: id, content: "Exact review" })));
+    const router = setup(`/reviews?status=approved&rating=5&page=3&reviewId=${id}`);
+    const drawer = await screen.findByRole("dialog");
+    expect(await within(drawer).findByText("Exact review")).toBeTruthy();
+    expect(api.getReviewAPI).toHaveBeenCalledWith(id, expect.any(AbortSignal));
+    fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?status=approved&rating=5&page=3")
+    );
+  });
+
+  it.each(["reviewId=bad", "reviewId=000000000000000000000012&reviewId=000000000000000000000013"])(
+    "rejects malformed review targets %s",
+    async search => {
+      setup(`/reviews?${search}`);
+      expect(await screen.findByText("Đánh giá không còn khả dụng")).toBeTruthy();
+      expect(api.getReviewAPI).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([403, 404])("keeps unavailable review history for HTTP %s", async status => {
+    vi.mocked(api.getReviewAPI).mockRejectedValue(
+      new ApiError("Đánh giá không còn khả dụng", status)
+    );
+    const router = setup("/reviews?reviewId=000000000000000000000012");
+    expect(await screen.findByText("Đánh giá không còn khả dụng")).toBeTruthy();
+    expect(router.state.location.search).toContain("reviewId=");
+  });
   beforeEach(() => {
     vi.mocked(api.listReviewsAPI)
       .mockReset()
@@ -106,7 +143,11 @@ describe("reviews page", () => {
     expect(within(drawer).getByRole("button", { name: "Từ chối" })).toBeTruthy();
     fireEvent.click(within(drawer).getByRole("button", { name: "Duyệt" }));
     await waitFor(() =>
-      expect(api.updateReviewStatusAPI).toHaveBeenCalledWith("r1", "approved", 0)
+      expect(api.updateReviewStatusAPI).toHaveBeenCalledWith(
+        "000000000000000000000001",
+        "approved",
+        0
+      )
     );
     await waitFor(() => expect(api.listReviewsAPI).toHaveBeenCalledTimes(2));
   });
@@ -169,7 +210,9 @@ describe("reviews page", () => {
       target: { value: "  Cảm ơn  " }
     });
     fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
-    await waitFor(() => expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("r1", "Cảm ơn", 0));
+    await waitFor(() =>
+      expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("000000000000000000000001", "Cảm ơn", 0)
+    );
     expect(await within(drawer).findByRole("button", { name: "Xóa phản hồi" })).toBeTruthy();
   });
 
@@ -190,7 +233,11 @@ describe("reviews page", () => {
     const drawer = await openDrawer();
     fireEvent.click(await within(drawer).findByRole("button", { name: "Duyệt" }));
     await waitFor(() =>
-      expect(api.updateReviewStatusAPI).toHaveBeenCalledWith("r1", "approved", 3)
+      expect(api.updateReviewStatusAPI).toHaveBeenCalledWith(
+        "000000000000000000000001",
+        "approved",
+        3
+      )
     );
   });
 
@@ -219,7 +266,9 @@ describe("reviews page", () => {
       const label = "Đánh giá đã được cập nhật sau phản hồi này.";
       expect(Boolean(within(drawer).queryByText(label))).toBe(isStale);
       fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
-      await waitFor(() => expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("r1", "Cảm ơn", 2));
+      await waitFor(() =>
+        expect(api.saveReviewReplyAPI).toHaveBeenCalledWith("000000000000000000000001", "Cảm ơn", 2)
+      );
       await waitFor(() => expect(within(drawer).queryByText(label)).toBeNull());
     }
   );
@@ -257,7 +306,11 @@ describe("reviews page", () => {
       );
       fireEvent.click(within(drawer).getByRole("button", { name: "Lưu phản hồi" }));
       await waitFor(() =>
-        expect(api.saveReviewReplyAPI).toHaveBeenLastCalledWith("r1", "Bản nháp của admin", 3)
+        expect(api.saveReviewReplyAPI).toHaveBeenLastCalledWith(
+          "000000000000000000000001",
+          "Bản nháp của admin",
+          3
+        )
       );
     }
   );
@@ -284,7 +337,9 @@ describe("reviews page", () => {
       await within(drawer).findByText("Đánh giá đã được cập nhật sau phản hồi này.")
     ).toBeTruthy();
     fireEvent.click(within(drawer).getByRole("button", { name: "Xóa phản hồi" }));
-    await waitFor(() => expect(api.deleteReviewReplyAPI).toHaveBeenCalledWith("r1"));
+    await waitFor(() =>
+      expect(api.deleteReviewReplyAPI).toHaveBeenCalledWith("000000000000000000000001")
+    );
     await waitFor(() =>
       expect(within(drawer).queryByText("Đánh giá đã được cập nhật sau phản hồi này.")).toBeNull()
     );

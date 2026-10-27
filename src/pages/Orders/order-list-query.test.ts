@@ -1,4 +1,25 @@
 import { describe, expect, it } from "vitest";
+
+it("preserves notification history context and identifies its origin", () => {
+  const path = "/notifications?status=unread&event=refund.submitted&page=3&pageSize=50";
+  expect(safeOrderReturnTo(path)).toBe(path);
+  expect(readOrderReturnTo(`?${new URLSearchParams({ returnTo: path })}`)).toEqual({
+    returnTo: path,
+    fromCustomer: false,
+    fromNotifications: true
+  });
+});
+
+it.each([
+  "/notifications?returnTo=%2Forders",
+  "/notifications?status=unread&status=all",
+  "/notifications?page=3&page=4",
+  "/notifications?event=unknown",
+  "/notifications?page=-1",
+  "/notifications#evil"
+])("rejects malformed or nested notification return paths %s", value => {
+  expect(safeOrderReturnTo(value)).toBe("/orders");
+});
 import {
   parseOrderListQuery,
   readOrderReturnTo,

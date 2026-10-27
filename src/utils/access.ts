@@ -30,11 +30,13 @@ export const NAVIGATION_POLICIES: Record<string, CmsAccessPolicy> = {
   [PATH.SETTINGS_EMAIL]: { ownerOnly: true },
   [PATH.SETTINGS_ROLES]: { ownerOnly: true },
   [PATH.SETTINGS_ACCESS]: { anyOf: ["USER_CREATE"] },
-  [PATH.SETTINGS_ACCESS_NEW]: { anyOf: ["USER_CREATE"] }
+  [PATH.SETTINGS_ACCESS_NEW]: { anyOf: ["USER_CREATE"] },
+  [PATH.SETTINGS_NOTIFICATIONS]: { authenticated: true }
 };
 
 export const ROUTE_POLICIES: Record<string, CmsAccessPolicy> = {
   ...NAVIGATION_POLICIES,
+  [PATH.NOTIFICATIONS]: { authenticated: true },
   [PATH.COMBO_NEW]: { anyOf: ["COMBO_CREATE"] },
   [PATH.COMBO_DETAIL]: { anyOf: ["COMBO_READ"] },
   [PATH.PRODUCT_NEW]: { anyOf: ["PRODUCT_CREATE"] },

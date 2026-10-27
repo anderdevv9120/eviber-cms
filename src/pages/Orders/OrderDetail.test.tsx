@@ -37,6 +37,17 @@ const refundView: AdminRefundOrderView = {
 // The refund section reads its own endpoints; these tests count order reads and writes only.
 let serveRefunds: Adapter | undefined;
 beforeEach(() => useAppStore.getState().setProfile(ownerProfile));
+
+it.each([
+  ["requestId=bad", ownerProfile],
+  ["requestId=000000000000000000000012&requestId=000000000000000000000013", ownerProfile],
+  ["requestId=000000000000000000000012", staffProfile(["ORDER_READ"])]
+])("explains unavailable refund targets %s", async (query, profile) => {
+  useAppStore.getState().setProfile(profile);
+  axiosRequest.defaults.adapter = async config => response(config, order);
+  renderDetail(`/orders/order-id?${query}#refunds`);
+  expect(await screen.findByText("Yêu cầu hoàn tiền không còn khả dụng")).toBeTruthy();
+});
 afterEach(() => {
   serveRefunds = undefined;
 });

@@ -17,6 +17,8 @@ export const PATH = {
   ATTRIBUTES: "/catalog/attributes",
   ATTRIBUTE_DETAIL: "/catalog/attributes/:attributeId",
   REVIEWS: "/reviews",
+  NOTIFICATIONS: "/notifications",
+  SETTINGS_NOTIFICATIONS: "/settings/notifications",
   VOUCHERS: "/vouchers",
   CONTENT_HOME: "/content/home",
   CONTENT_INFO: "/content/store-info",

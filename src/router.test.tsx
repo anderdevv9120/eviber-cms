@@ -5,7 +5,13 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { AxiosError } from "axios";
 import { routes } from "./router";
 import axiosRequest from "@/utils/request";
-import { attribute, value, list, response, deferred } from "@/test/attribute-fixtures";
+import {
+  attribute,
+  value,
+  list,
+  response as apiResponse,
+  deferred
+} from "@/test/attribute-fixtures";
 import { clearSession } from "@/utils/session";
 import { useAppStore } from "@/store/useAppStore";
 import { order, orderList } from "@/test/order-fixtures";
@@ -17,6 +23,15 @@ vi.mock("@/utils/notification", () => ({
   errorNotification: vi.fn()
 }));
 const profile = ownerProfile;
+const emptyNotifications = {
+  items: [],
+  unreadCount: 0,
+  head: 0,
+  eligibleEvents: [],
+  serverTime: "2026-10-26T00:00:00.000Z"
+};
+const response: typeof apiResponse = (config, data) =>
+  apiResponse(config, config.url === "/notifications/summary" ? emptyNotifications : data);
 // Lazy route chunks transform on first import; allow for a loaded worker in the full suite.
 configure({ asyncUtilTimeout: 5000 });
 beforeEach(() => {
@@ -44,6 +59,29 @@ const renderRoute = (path: string) => {
 };
 
 describe("CMS data router", () => {
+  it("opens personal notifications for active staff without feature permissions or a menu entry", async () => {
+    axiosRequest.defaults.adapter = async config =>
+      response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile([])
+          : config.url === "/notifications/summary"
+            ? emptyNotifications
+            : {
+                data: [],
+                total: 0,
+                totalPage: 0,
+                page: 1,
+                pageSize: 20,
+                head: 0,
+                eligibleEvents: []
+              }
+      );
+    renderRoute("/notifications");
+    await screen.findByRole("heading", { name: "Thông báo" });
+    expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Thông báo");
+    expect(screen.getByRole("menuitem", { name: /Thông báo/ })).toBeTruthy();
+  });
   it("opens independent refund settings for refund-policy-only staff without unrelated reads", async () => {
     const urls: string[] = [];
     axiosRequest.defaults.adapter = async config => {
@@ -64,7 +102,7 @@ describe("CMS data router", () => {
       (screen.getByRole("button", { name: "Lưu chính sách hoàn tiền" }) as HTMLButtonElement)
         .disabled
     ).toBe(true);
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
   });
   it("opens owner role settings from its menu with the access-area breadcrumb", async () => {
     axiosRequest.defaults.adapter = async config =>
@@ -84,6 +122,7 @@ describe("CMS data router", () => {
     const roleEditorLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, staffProfile(["USER_CREATE"]));
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       roleEditorLoad();
       return response(config, roleList());
     };
@@ -102,7 +141,7 @@ describe("CMS data router", () => {
     expect((await screen.findByRole("menuitem", { name: /Nhân viên/ })).className).toContain(
       "ant-menu-item-selected"
     );
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
     const breadcrumb = document.querySelector(".ant-breadcrumb")!;
     expect(breadcrumb.textContent).toContain("Cài đặt");
     expect(breadcrumb.textContent).toContain("Tài khoản & phân quyền");
@@ -129,6 +168,7 @@ describe("CMS data router", () => {
     const staffLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       staffLoad(config.url);
       return response(config, []);
     };
@@ -156,7 +196,7 @@ describe("CMS data router", () => {
     const router = renderRoute("/");
     await screen.findByRole("heading", { name: "Tồn kho" });
     expect(router.state.location.pathname).toBe("/inventory");
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
     expect(screen.queryByText("Bán hàng")).toBeNull();
     expect(screen.queryByRole("menuitem", { name: /Tổng quan|Sản phẩm/ })).toBeNull();
   });
@@ -165,6 +205,7 @@ describe("CMS data router", () => {
     const forbiddenPageLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, staffProfile(["INVENTORY_READ"]));
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       forbiddenPageLoad(config.url);
       return response(config, []);
     };
@@ -173,13 +214,34 @@ describe("CMS data router", () => {
     expect(forbiddenPageLoad).not.toHaveBeenCalled();
   });
 
-  it("shows no-access and sign-out for staff without permissions", async () => {
-    axiosRequest.defaults.adapter = async config => response(config, staffProfile([]));
-    renderRoute("/");
-    await screen.findByText("Bạn chưa được cấp quyền sử dụng CMS");
-    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
-    await screen.findByText("Đăng nhập vào CMS");
+  it("opens personal settings from home for staff without business permissions", async () => {
+    const urls: string[] = [];
+    axiosRequest.defaults.adapter = async config => {
+      urls.push(config.url!);
+      return response(
+        config,
+        config.url === "/auth/profile"
+          ? staffProfile([])
+          : {
+              revision: 0,
+              storeRevision: 0,
+              allowPersonalPreferences: true,
+              events: []
+            }
+      );
+    };
+    const router = renderRoute("/");
+    await screen.findByRole("heading", { name: "Cài đặt thông báo" });
+    expect(router.state.location.pathname).toBe("/settings/notifications");
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getByRole("menuitem", { name: /Thông báo/ }).className).toContain(
+      "ant-menu-item-selected"
+    );
+    expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Cài đặt");
+    expect(document.querySelector(".ant-breadcrumb")?.textContent).toContain("Thông báo");
+    expect(screen.queryByRole("tab", { name: "Cửa hàng" })).toBeNull();
+    expect(urls).not.toContain("/notification-settings");
+    expect(urls).toContain("/notifications/preferences");
   });
 
   it("refreshes expired permissions before mounting the destination after navigation", async () => {
@@ -187,6 +249,7 @@ describe("CMS data router", () => {
     const featureLoad = vi.fn();
     axiosRequest.defaults.adapter = async config => {
       if (config.url === "/auth/profile") return response(config, current);
+      if (config.url === "/notifications/summary") return response(config, emptyNotifications);
       featureLoad(config.url);
       return response(config, []);
     };
@@ -546,6 +609,11 @@ describe("CMS data router", () => {
 
   it.each([
     ["", "/orders", "Đơn hàng"],
+    [
+      "?returnTo=%2Fnotifications%3Fstatus%3Dunread%26event%3Drefund.submitted%26page%3D3",
+      "/notifications?status=unread&event=refund.submitted&page=3",
+      "Đơn hàng"
+    ],
     ["?returnTo=https%3A%2F%2Fevil.test", "/orders", "Đơn hàng"],
     [
       "?returnTo=%2Forders%3Fpage%3D3%26search%3DAn%26paymentStatus%3Dpaid",
@@ -569,6 +637,10 @@ describe("CMS data router", () => {
       const crumbs = within(screen.getByRole("navigation"));
       expect(crumbs.getByText("Chi tiết đơn hàng")).toBeTruthy();
       expect(crumbs.getByRole("link").getAttribute("href")).toBe(destination);
+      if (destination.startsWith("/notifications")) {
+        expect(crumbs.getByRole("link", { name: "Thông báo" })).toBeTruthy();
+        expect(crumbs.queryByText("Bán hàng")).toBeNull();
+      }
       expect(crumbs.queryByText("Sản phẩm")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
       await screen.findByRole("heading", { name: "Đơn hàng ORD-SNAPSHOT" });

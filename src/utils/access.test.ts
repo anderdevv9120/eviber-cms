@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ownerProfile, staffProfile } from "@/test/access-fixtures";
-import { canAccess, firstAllowedPath } from "./access";
+import { canAccess, firstAllowedPath, NAVIGATION_POLICIES } from "./access";
 
 describe("CMS access", () => {
   it("uses effective permissions rather than legacy role names", () => {
@@ -11,9 +11,11 @@ describe("CMS access", () => {
     expect(canAccess(inventoryProfile, { ownerOnly: true })).toBe(false);
   });
 
-  it("keeps empty staff authenticated without an accessible feature", () => {
+  it("allows active staff to reach personal settings without granting store policy access", () => {
     const emptyProfile = staffProfile([]);
-    expect(firstAllowedPath(emptyProfile)).toBeNull();
+    expect(firstAllowedPath(emptyProfile)).toBe("/settings/notifications");
+    expect(canAccess(emptyProfile, NAVIGATION_POLICIES["/settings/notifications"])).toBe(true);
+    expect(canAccess(emptyProfile, { anyOf: ["NOTIFICATION_SETTINGS_READ"] })).toBe(false);
     expect(canAccess(emptyProfile, { authenticated: true })).toBe(true);
   });
 

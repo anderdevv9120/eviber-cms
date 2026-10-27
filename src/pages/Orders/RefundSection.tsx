@@ -33,6 +33,7 @@ import { canAccess } from "@/utils/access";
 
 export interface RefundSectionProps {
   orderId: string;
+  requestId?: string | null;
   revision: number;
   onCommitted: () => Promise<unknown>;
   /** Purchase snapshot, only used to label combo pieces. */
@@ -90,7 +91,8 @@ export default function RefundSection({
   orderId,
   revision,
   onCommitted,
-  order
+  order,
+  requestId
 }: RefundSectionProps) {
   const profile = useAppStore(state => state.profile);
   const canReview = !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_REVIEW"] });
@@ -180,9 +182,12 @@ export default function RefundSection({
     </Flex>
   );
   if (!view) {
-    if (!canRead) return null;
+    if (!canRead)
+      return requestId !== undefined ? (
+        <Alert type='warning' showIcon title='Yêu cầu hoàn tiền không còn khả dụng' />
+      ) : null;
     return (
-      <section aria-label='Hoàn tiền' className='mt-6'>
+      <section id='refunds' aria-label='Hoàn tiền' className='mt-6'>
         <Typography.Title level={3}>Hoàn tiền</Typography.Title>
         {readStatus}
       </section>
@@ -227,7 +232,11 @@ export default function RefundSection({
   const refundedTotal = view.summary.paidAmount + view.summary.paidShippingAmount;
 
   return (
-    <section aria-label='Hoàn tiền' className='mt-6'>
+    <section id='refunds' aria-label='Hoàn tiền' className='mt-6'>
+      {requestId !== undefined &&
+        (!readable || !view.requests.some(item => item.requestId === requestId)) && (
+          <Alert type='warning' showIcon title='Yêu cầu hoàn tiền không còn khả dụng' />
+        )}
       {!canRead && <Alert type='info' showIcon title='Bạn không có quyền xem hoàn tiền' />}
       {canRead && (!readable || state.error) && readStatus}
       {readable && (
@@ -395,6 +404,7 @@ export default function RefundSection({
           key={request.requestId}
           index={index}
           request={request}
+          focused={readable && request.requestId === requestId}
           view={view}
           labels={labels}
           form={form}
@@ -423,6 +433,7 @@ function allocationLabel(
 function RequestCard({
   index,
   request,
+  focused,
   view,
   labels,
   form,
@@ -432,6 +443,7 @@ function RequestCard({
 }: {
   index: number;
   request: AdminRefundRequest;
+  focused: boolean;
   view: AdminRefundOrderView;
   labels: Record<string, string>;
   form: ActiveForm | null;
@@ -443,6 +455,12 @@ function RequestCard({
   const canReview = !!profile && canAccess(profile, { anyOf: ["ORDER_REFUND_REVIEW"] });
   const canRead = ctx.readable !== false;
   const [payoutDraft, setPayoutDraft] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!focused) return;
+    sectionRef.current?.focus({ preventScroll: true });
+    sectionRef.current?.scrollIntoView?.({ block: "center" });
+  }, [focused]);
   const number = index + 1;
   const decided = request.stage !== "awaiting_review";
   const activeForm =
@@ -490,10 +508,16 @@ function RequestCard({
   const completed = request.stage === "refunded" || request.stage === "rejected";
 
   return (
-    <section aria-label={`Yêu cầu hoàn tiền ${number}`} className='mt-6'>
+    <section
+      ref={sectionRef}
+      id={`refund-request-${request.requestId}`}
+      tabIndex={-1}
+      aria-label={`Yêu cầu hoàn tiền ${number}`}
+      className='mt-6'
+    >
       <Collapse
-        key={completed ? "completed" : "active"}
-        defaultActiveKey={completed ? [] : ["request"]}
+        key={completed && !focused ? "completed" : "active"}
+        defaultActiveKey={completed && !focused ? [] : ["request"]}
         // The right amount block stacks three rows; centering the header row keeps the
         // expand icon aligned with the visual middle instead of the first text line.
         styles={{ header: { alignItems: "center" } }}

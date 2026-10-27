@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Descriptions, Flex, Result, Spin, Tag, Typography } from "antd";
 import DataTable from "@/components/DataTable";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { getOrderAPI, type AdminOrderDetail } from "@/services/orders";
 import { ApiError } from "@/utils/request";
 import { getErrorMessage } from "@/utils/getErrorMessage";
@@ -44,6 +44,14 @@ export default function OrderDetail() {
 }
 
 function OrderDetailRead({ orderId }: { orderId: string }) {
+  const [params] = useSearchParams();
+  const targets = params.getAll("requestId");
+  const requestId =
+    targets.length === 0
+      ? undefined
+      : targets.length === 1 && /^[a-f\d]{24}$/i.test(targets[0])
+        ? targets[0]
+        : null;
   const profile = useAppStore(state => state.profile);
   const canUpdate = !!profile && canAccess(profile, { anyOf: ["ORDER_UPDATE"] });
   const canPay = !!profile && canAccess(profile, { anyOf: ["ORDER_PAYMENT_UPDATE"] });
@@ -428,11 +436,15 @@ function OrderDetailRead({ orderId }: { orderId: string }) {
           </section>
           {refundMounted && (
             <RefundSection
+              requestId={requestId}
               orderId={orderId}
               revision={order.revision}
               order={order}
               onCommitted={refreshOrder}
             />
+          )}
+          {!refundMounted && requestId !== undefined && (
+            <Alert type='warning' showIcon title='Yêu cầu hoàn tiền không còn khả dụng' />
           )}
           <OrderHistory order={order} />
         </>

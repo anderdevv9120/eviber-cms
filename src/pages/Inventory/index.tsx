@@ -292,6 +292,14 @@ export default function Inventory() {
         </Tag>
       )}
       <Typography.Paragraph type='secondary'>{HINT}</Typography.Paragraph>
+      {query.variantId && (
+        <Tag closable onClose={() => changeQuery({ variantId: undefined })}>
+          Biến thể: {query.variantId}
+        </Tag>
+      )}
+      {query.variantId && data?.total === 0 && (
+        <Alert type='warning' showIcon title='Biến thể không còn khả dụng' />
+      )}
       {errors.length > 0 && (
         <Alert
           className='mb-4'

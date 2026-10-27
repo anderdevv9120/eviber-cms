@@ -104,6 +104,23 @@ beforeEach(() => {
     }));
 });
 
+it("loads an exact notification variant and explains an unavailable target", async () => {
+  vi.mocked(api.getInventoryAPI).mockResolvedValue(page([]));
+  renderPage(`/inventory?variantId=${productId}`);
+  expect(await screen.findByText("Biến thể không còn khả dụng")).toBeTruthy();
+  expect(lastQuery()).toEqual({ variantId: productId, page: 1, pageSize: 10 });
+  expect(screen.queryByText("SKU-0")).toBeNull();
+});
+
+it.each(["variantId=bad", `variantId=${productId}&variantId=${productId}`])(
+  "blocks malformed inventory targets %s",
+  async query => {
+    renderPage(`/inventory?${query}`);
+    expect(await screen.findByText("Mã biến thể không hợp lệ")).toBeTruthy();
+    expect(api.getInventoryAPI).not.toHaveBeenCalled();
+  }
+);
+
 describe("Inventory list", () => {
   it("renders rows with badges, stock colours, the hint and product links", async () => {
     renderPage();

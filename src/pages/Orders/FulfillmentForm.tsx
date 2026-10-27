@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import { ConfigProvider, Alert, Button, Input } from "antd";
+import { ConfigProvider, Alert, Button, Flex, Input } from "antd";
 import type { AdminOrderDetail, OrderStatus, TransitionOrderInput } from "@/services/orders";
 import { validateNote, type ActionDraft } from "./order-action-input";
 import { useAppStore } from "@/store/useAppStore";
@@ -11,6 +11,7 @@ export interface FulfillmentFormProps {
   draft: ActionDraft;
   onDraftChange: (patch: Partial<ActionDraft>) => void;
   onSubmit: (input: TransitionOrderInput) => void;
+  onClose?: () => void;
   disabled?: boolean;
   submitting?: boolean;
 }
@@ -21,6 +22,7 @@ export default function FulfillmentForm({
   draft,
   onDraftChange,
   onSubmit,
+  onClose,
   disabled,
   submitting
 }: FulfillmentFormProps) {
@@ -93,15 +95,21 @@ export default function FulfillmentForm({
           onChange={event => onDraftChange({ note: event.target.value })}
         />
         {attempted && noteError && <div className='mt-1 text-red-600'>{noteError}</div>}
-        <Button
-          type='primary'
-          htmlType='submit'
-          className='mt-4'
-          loading={submitting}
-          disabled={!allowed || blocked || disabled || submitting}
-        >
-          Xác nhận
-        </Button>
+        <Flex justify='end' gap={8} className='mt-4'>
+          {onClose && (
+            <Button onClick={onClose} disabled={submitting}>
+              Đóng
+            </Button>
+          )}
+          <Button
+            type='primary'
+            htmlType='submit'
+            loading={submitting}
+            disabled={!allowed || blocked || disabled || submitting}
+          >
+            Xác nhận
+          </Button>
+        </Flex>
       </form>
     </ConfigProvider>
   );

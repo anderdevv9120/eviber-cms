@@ -18,7 +18,8 @@ import {
   GiftOutlined,
   UserAddOutlined,
   CreditCardOutlined,
-  MailOutlined
+  MailOutlined,
+  BellOutlined
 } from "@ant-design/icons";
 import type { Profile } from "@/store/useAppStore";
 import { canAccess, NAVIGATION_POLICIES } from "@/utils/access";
@@ -66,6 +67,7 @@ export const MENU_SECTIONS: { title: string | null; items: MenuItem[] }[] = [
     items: [
       { key: PATH.SETTINGS_PAYMENT, icon: <CreditCardOutlined />, label: "Thanh toán" },
       { key: PATH.SETTINGS_EMAIL, icon: <MailOutlined />, label: "Email" },
+      { key: PATH.SETTINGS_NOTIFICATIONS, icon: <BellOutlined />, label: "Thông báo" },
       // "Vai trò" đứng trước "Nhân viên": menuKeyOf khớp tiền tố đầu tiên,
       // /settings/access/roles phải khớp đúng mục Vai trò chứ không phải /settings/access
       { key: PATH.SETTINGS_ROLES, icon: <TeamOutlined />, label: "Vai trò" },

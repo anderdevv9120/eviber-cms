@@ -261,9 +261,11 @@ export default function OrderActionDialog({
       keyboard={!submitting}
       closable={!submitting}
       footer={
-        <Button onClick={close} disabled={submitting}>
-          Đóng
-        </Button>
+        order && (stage === "reviewing" || submitting) && paymentAction !== "refund" ? null : (
+          <Button onClick={close} disabled={submitting}>
+            Đóng
+          </Button>
+        )
       }
     >
       {stage === "loading" && (
@@ -366,6 +368,7 @@ export default function OrderActionDialog({
           )}
           {intent.type === "fulfillment" ? (
             <FulfillmentForm
+              onClose={close}
               order={order}
               status={intent.status}
               draft={draft}
@@ -376,6 +379,7 @@ export default function OrderActionDialog({
             />
           ) : (
             <PaymentForm
+              onClose={close}
               order={order}
               action={intent.action}
               draft={draft}

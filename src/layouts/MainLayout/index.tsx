@@ -10,11 +10,14 @@ import HeaderMain from "./Header";
 import { menuKeyOf } from "./menu";
 import { readOrderReturnTo } from "@/pages/Orders/order-list-query";
 import { safeCustomerReturnTo } from "@/pages/Customers/customer-list-query";
+import { useNotificationPolling } from "@/hooks/useNotificationPolling";
 
 const { Content } = Layout;
 
 // Tra theo mục menu đang sáng nên route con dùng crumb của mục cha; màn chưa khai thì không hiện crumb
 const STATIC_BREADCRUMBS: Record<string, string[]> = {
+  [PATH.NOTIFICATIONS]: ["Thông báo"],
+  [PATH.SETTINGS_NOTIFICATIONS]: ["Cài đặt", "Thông báo"],
   [PATH.PRODUCTS]: ["Catalog", "Sản phẩm"],
   [PATH.COMBOS]: ["Catalog", "Combo"],
   [PATH.CATEGORIES]: ["Catalog", "Danh mục sản phẩm"],
@@ -37,13 +40,14 @@ const MainLayout = () => {
   const profile = useAppStore(state => state.profile);
   const { token } = theme.useToken();
   const navigate = useNavigate();
+  useNotificationPolling(navigate);
   const { pathname, search, key: locationKey } = useLocation();
   const attributeDetail = !!matchPath(PATH.ATTRIBUTE_DETAIL, pathname);
   const orderDetail = !!matchPath(PATH.ORDER_DETAIL, pathname);
   const customerDetail = !!matchPath(PATH.CUSTOMER_DETAIL, pathname);
   const guestDetail = pathname === PATH.GUEST_BUYER_DETAIL;
   const params = new URLSearchParams(search);
-  const { returnTo, fromCustomer } = readOrderReturnTo(search);
+  const { returnTo, fromCustomer, fromNotifications } = readOrderReturnTo(search);
   const customerOrigin = orderDetail && fromCustomer;
   const breadcrumbs =
     pathname === PATH.CUSTOMERS || customerDetail || guestDetail
@@ -79,18 +83,24 @@ const MainLayout = () => {
             ...(attributeDetail ? [{ title: "Chi tiết thuộc tính" }] : [])
           ]
         : orderDetail || pathname === PATH.ORDER
-          ? [
-              { title: "Bán hàng" },
-              {
-                title: orderDetail ? (
-                  <Link to={returnTo}>{customerOrigin ? "Khách hàng" : "Quản lý Đơn hàng"}</Link>
-                ) : (
-                  "Quản lý Đơn hàng"
-                )
-              },
-              ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
-            ]
-          : (STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ?? []).map(title => ({ title }));
+          ? orderDetail && fromNotifications
+            ? [{ title: <Link to={returnTo}>Thông báo</Link> }, { title: "Chi tiết đơn hàng" }]
+            : [
+                { title: "Bán hàng" },
+                {
+                  title: orderDetail ? (
+                    <Link to={returnTo}>{customerOrigin ? "Khách hàng" : "Quản lý Đơn hàng"}</Link>
+                  ) : (
+                    "Quản lý Đơn hàng"
+                  )
+                },
+                ...(orderDetail ? [{ title: "Chi tiết đơn hàng" }] : [])
+              ]
+          : (
+              STATIC_BREADCRUMBS[pathname] ??
+              STATIC_BREADCRUMBS[menuKeyOf(pathname) ?? ""] ??
+              []
+            ).map(title => ({ title }));
   const productEditor = !!matchPath(PATH.PRODUCT_DETAIL, pathname);
   const comboEditor = !!matchPath(PATH.COMBO_DETAIL, pathname);
   if (productEditor || comboEditor) {
