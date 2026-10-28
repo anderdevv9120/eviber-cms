@@ -1,6 +1,13 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { getCookies } from "./cookies";
-import { clearSession, getSessionId, hasSession, saveTokens, TokenPair } from "./session";
+import {
+  clearSession,
+  getRefreshRequestId,
+  getSessionId,
+  hasSession,
+  saveTokens,
+  TokenPair
+} from "./session";
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/constants";
 import { ADMIN_API_URL } from "@/constants/env";
 import { errorNotification } from "./notification";
@@ -70,36 +77,66 @@ const onRefreshFailed = (error: unknown) => {
 const REFRESH_EXCLUDED_PATHS = ["/auth/login", "/auth/refresh-token", "/auth/logout"];
 
 // Gọi bằng axios thuần để không đi lại vòng interceptor này
-const performRefresh = async (): Promise<string> => {
-  const revision = useAppStore.getState().sessionRevision;
-  const sessionId = getSessionId();
-  const refreshToken = getCookies(REFRESH_TOKEN_KEY);
-  if (!refreshToken) {
-    throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
-  }
-  const { data } = await axios.post<{ data: TokenPair }>(
-    `${ADMIN_API_URL}/auth/refresh-token`,
-    { refreshToken },
-    { timeout: REQUEST_TIMEOUT_MS }
-  );
-  // Đăng xuất chen vào lúc refresh đang bay: ghi cookie mới là hồi sinh phiên vừa đăng xuất,
-  // nên bỏ cặp token này và thu hồi luôn phiên vừa được cấp trên server
-  if (
-    getCookies(REFRESH_TOKEN_KEY) !== refreshToken ||
-    useAppStore.getState().sessionRevision !== revision ||
-    getSessionId() !== sessionId
-  ) {
-    void axios
-      .post(
-        `${ADMIN_API_URL}/auth/logout`,
-        { refreshToken: data.data.refreshToken },
+const performRefresh = async (request: RetriableRequestConfig): Promise<string> => {
+  const isCurrent = () =>
+    request._sessionRevision === useAppStore.getState().sessionRevision &&
+    request._sessionId === getSessionId();
+  const refresh = async () => {
+    if (!isCurrent()) throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
+    const accessToken = getCookies(ACCESS_TOKEN_KEY);
+    if (accessToken && request.headers.Authorization !== `Bearer ${accessToken}`)
+      return accessToken;
+    const refreshToken = getCookies(REFRESH_TOKEN_KEY);
+    try {
+      if (!refreshToken) throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
+      const { data } = await axios.post<{ data: TokenPair }>(
+        `${ADMIN_API_URL}/auth/refresh-token`,
+        { refreshToken, requestId: getRefreshRequestId() },
         { timeout: REQUEST_TIMEOUT_MS }
+      );
+      // A logout/account change must not be undone by a refresh already in flight.
+      if (!isCurrent()) {
+        axios
+          .post(
+            `${ADMIN_API_URL}/auth/logout`,
+            { refreshToken: data.data.refreshToken },
+            { timeout: REQUEST_TIMEOUT_MS }
+          )
+          .catch(() => undefined);
+        throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
+      }
+      const newerAccess = getCookies(ACCESS_TOKEN_KEY);
+      if (getCookies(REFRESH_TOKEN_KEY) !== refreshToken && newerAccess) return newerAccess;
+      saveTokens(data.data);
+      return data.data.accessToken;
+    } catch (error) {
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : error instanceof ApiError
+          ? error.status
+          : undefined;
+      const newerAccess = getCookies(ACCESS_TOKEN_KEY);
+      if (
+        status === 401 &&
+        isCurrent() &&
+        getCookies(REFRESH_TOKEN_KEY) !== refreshToken &&
+        newerAccess
       )
-      .catch(() => undefined);
-    throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
-  }
-  saveTokens(data.data);
-  return data.data.accessToken;
+        return newerAccess;
+      // Decide under the lock, before another tab can rotate or replace this session.
+      if (
+        (status === 401 || status === 403) &&
+        isCurrent() &&
+        getCookies(REFRESH_TOKEN_KEY) === refreshToken
+      ) {
+        const hadSession = hasSession();
+        clearSession();
+        if (hadSession) errorNotification(SESSION_EXPIRED_MESSAGE);
+      }
+      throw error;
+    }
+  };
+  return navigator.locks ? navigator.locks.request("cms-auth-refresh", refresh) : refresh();
 };
 
 type ToastOption = boolean | string | undefined;
@@ -172,7 +209,7 @@ axiosRequest.interceptors.response.use(
       if (!isRefreshing) {
         isRefreshing = true;
         try {
-          const newToken = await performRefresh();
+          const newToken = await performRefresh(originalRequest);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           onRefreshed(newToken);
           return axiosRequest(originalRequest);
@@ -182,13 +219,7 @@ axiosRequest.interceptors.response.use(
             : refreshError instanceof ApiError
               ? refreshError
               : new ApiError(getErrorMessage(refreshError));
-          // Chỉ 401/403 là phiên thực sự bị từ chối → dọn phiên; lỗi transient giữ cookie để thử lại
-          if ((apiError.status === 401 || apiError.status === 403) && isCurrentSession()) {
-            // 401 về muộn sau khi phiên đã bị dọn (hoặc user vừa đăng xuất) không báo "hết hạn" lần nữa
-            const hadSession = hasSession();
-            clearSession();
-            if (hadSession) errorNotification(SESSION_EXPIRED_MESSAGE);
-          } else if (isCurrentSession()) {
+          if (apiError.status !== 401 && apiError.status !== 403 && isCurrentSession()) {
             notify(originalRequest.toastError, apiError.message);
           }
           onRefreshFailed(apiError);

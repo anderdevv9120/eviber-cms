@@ -60,6 +60,7 @@ describe("request interceptor", () => {
   afterEach(() => {
     clearSession();
     axios.defaults.adapter = originalAdapter;
+    vi.unstubAllGlobals();
   });
 
   it.each([401, 403])(
@@ -231,6 +232,100 @@ describe("request interceptor", () => {
     expect(authHandler).toHaveBeenCalledTimes(1);
     expect(getCookies(ACCESS_TOKEN_KEY)).toBe("access-new");
     expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-new");
+  });
+
+  it("reuses cookies rotated by another tab while waiting for the browser lock", async () => {
+    const locks: string[] = [];
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (name: string, run: () => Promise<string>) => {
+          locks.push(name);
+          saveTokens(tokens("winner"));
+          return run();
+        }
+      }
+    });
+    authHandler = vi.fn(async config => ok(config, { data: tokens("unnecessary") }));
+    apiHandler = async config =>
+      bearer(config) === "Bearer access-winner" ? ok(config, { data: "ok" }) : fail(config, 401);
+    await expect(axiosRequest.get("/orders")).resolves.toEqual({ data: "ok" });
+    expect(locks).toHaveLength(1);
+    expect(authHandler).not.toHaveBeenCalled();
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-winner");
+  });
+
+  it("does not refresh a different account after waiting for the browser lock", async () => {
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (_name: string, run: () => Promise<string>) => {
+          clearSession();
+          saveTokens(tokens("other-account"));
+          return run();
+        }
+      }
+    });
+    authHandler = vi.fn(async config => ok(config, { data: tokens("unnecessary") }));
+    apiHandler = async config => fail(config, 401);
+    await expect(axiosRequest.get("/orders")).rejects.toMatchObject({ status: 401 });
+    expect(authHandler).not.toHaveBeenCalled();
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-other-account");
+  });
+
+  it("keeps another tab's rotated session when an old refresh rejects late", async () => {
+    useAppStore.getState().setProfile(ownerProfile);
+    authHandler = vi.fn(async config => {
+      saveTokens(tokens("winner"));
+      return fail(config, 401);
+    });
+    apiHandler = async config =>
+      bearer(config) === "Bearer access-winner" ? ok(config, { data: "ok" }) : fail(config, 401);
+    await expect(axiosRequest.get("/auth/profile")).resolves.toEqual({ data: "ok" });
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-winner");
+    expect(useAppStore.getState().profile).toEqual(ownerProfile);
+    expect(errorNotification).not.toHaveBeenCalled();
+  });
+
+  it("keeps newer cookies when an older refresh response succeeds late", async () => {
+    authHandler = vi.fn(async config => {
+      saveTokens(tokens("winner"));
+      return ok(config, { data: tokens("older-response") });
+    });
+    apiHandler = async config =>
+      bearer(config) === "Bearer access-winner" ? ok(config, { data: "ok" }) : fail(config, 401);
+    await expect(axiosRequest.get("/orders")).resolves.toEqual({ data: "ok" });
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-winner");
+    expect(authHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses a new access cookie for delayed 401 responses without rotating again", async () => {
+    authHandler = vi.fn(async config => ok(config, { data: tokens("unnecessary") }));
+    apiHandler = async config => {
+      if (bearer(config) === "Bearer access-winner") return ok(config, { data: "ok" });
+      saveTokens(tokens("winner"));
+      return fail(config, 401);
+    };
+    await expect(axiosRequest.get("/orders")).resolves.toEqual({ data: "ok" });
+    expect(authHandler).not.toHaveBeenCalled();
+  });
+
+  it("reuses the refresh request ID after a lost response so the server can recover it", async () => {
+    const requestIds: string[] = [];
+    authHandler = vi.fn(async config => {
+      const body = JSON.parse(String(config.data));
+      requestIds.push(body.requestId);
+      if (requestIds.length === 1)
+        throw new AxiosError("response lost", AxiosError.ECONNABORTED, config);
+      return ok(config, { data: tokens("recovered") });
+    });
+    apiHandler = async config =>
+      bearer(config) === "Bearer access-recovered" ? ok(config, { data: "ok" }) : fail(config, 401);
+    await expect(axiosRequest.get("/orders", { toastError: false })).rejects.toMatchObject({
+      name: "ApiError"
+    });
+    expect(getCookies(REFRESH_TOKEN_KEY)).toBe("refresh-old");
+    await expect(axiosRequest.get("/orders")).resolves.toEqual({ data: "ok" });
+    expect(requestIds[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(requestIds[1]).toBe(requestIds[0]);
   });
 
   it("nhiều request cùng 401 → chỉ 1 lần gọi refresh, tất cả retry thành công", async () => {
